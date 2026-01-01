@@ -306,12 +306,16 @@
 
 (fn Board.mt.solve [self]
 	"compute solutions based on valid 
-	 end-states. return the [dp count] in 
-		the form dp :: state-bits -> moves-left"
+	 end-states. return the [dp count max] 
+		the form dp :: state-bits -> moves-left.
+		count is the number of dp entries.
+		max is the longest number of moves, which
+		is used to locate valid starting states"
 	; map Bits -> MovesLeft 
 	(local dp {})
 	; [state moves-left]
 	(local frontier [])
+	(var max 0)
 
 	(local max-mask 
 		(lshift 1 (- self.n-holes 1)))
@@ -331,6 +335,7 @@
 		; TODO: replace with shorter left?
 		(when (not (. dp pattern))
 			(tset dp pattern left)
+			(set max (math.max max left))
 			(local holes 
 				(unpack-empty-holes 
 					pattern self.n-holes))
@@ -350,7 +355,19 @@
 							))))
 		)
 	)
-	[dp count] 
+	[dp count max] 
+)
+
+(fn get-starting-states [moves-left dp]
+	"scan through the DP array to find
+	 those with the correct number of 
+		moves-left, which are eligible to be
+		starting states."
+	(local result [])
+	(each [state left (pairs dp)]
+		(when (= left moves-left)
+			(push result state)))
+	result
 )
 
 (fn Board.mt.px-to-tile [self px py]
@@ -399,16 +416,18 @@
 
 (fn _G.BOOT []
 	(global board (Board.load 0))
-	(global [dp solcount] (board:solve))
-	
+	(global [dp solcount max-moves] (board:solve))
+	(global starting-states (get-starting-states max-moves dp))
 )
 
 (fn _G.TIC []
 	(map 0 0)
 	
 	(var y 0)
-	(print (.. "" solcount))
-	
+	(print (.. "" solcount) 0 0 12)
+	(print (.. "" max-moves) 0 8 12)
+	(print (.. "starting moves: " (length starting-states)) 0 16 12)
+
 	; make cursor be the hand
 	;(poke 0x3ffb 129)
 	
@@ -419,7 +438,7 @@
 
 
 ;; <TILES>
-;; 001:eccccccccc888888caaaaaaaca888888cacccccccacc0ccccacc0ccccacc0ccc
+;; 001:eccccccccc888888caaaaaaaca8888`88cacccccccacc0ccccacc0ccccacc0ccc
 ;; 002:ccccceee8888cceeaaaa0cee888a0ceeccca0ccc0cca0c0c0cca0c0c0cca0c0c
 ;; 003:eccccccccc888888caaaaaaaca888888cacccccccacccccccacc0ccccacc0ccc
 ;; 004:ccccceee8888cceeaaaa0cee888a0ceeccca0cccccca0c0c0cca0c0c0cca0c0c
