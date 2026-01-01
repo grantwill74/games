@@ -45,11 +45,12 @@
 (local screen-w-t 30)
 (local screen-h-t 17)
 
-(local peg-w-px 8)
-(local peg-h-px 8)
+(local spr-marble 71)
+(local spr-marble-in-hole 87)
+(local spr-marble-ghost 55)
 
 (local board-names [
-	"tiny triangle"
+	"10-peg Triangle"
 ])
 
 ; my own to-string for debugging.
@@ -101,11 +102,13 @@
 	result
 )
 
-(fn point-inside [pt-x pt-y x y w h]
+(lambda point-inside [pt-x pt-y x y w h]
 	"returns whether the given pt-x,pt-y  
 	 coordinates are inside the given 
 		half-open range."
-	(and (>= pt-x x) (>= pt-y y)
+	(and 
+		(>= pt-x x)
+		(>= pt-y y)
 		(< pt-x (+ x w))
 		(< pt-y (+ y h)))
 )
@@ -136,6 +139,7 @@
 	 first one in which the x y coords 
 		are inside its half-open range. or
 		return nil if the mouse isn't over one."
+	(trace (to-str widgets))
 	(var result nil)
 	(each [_ w (ipairs widgets) 
 			&until result
@@ -144,7 +148,7 @@
 			(point-inside x y 
 				w.off-x-px w.off-y-px
 				w.w-px w.h-px)
-			(set result w)))
+			(set result w.name)))
 	result
 )
 
@@ -182,6 +186,12 @@
 	(local coords-to-holes [])
 	(for [x 1 board-w-t]
 		(push coords-to-holes []))
+
+	; make sure row and column 0 are valid
+	(tset coords-to-holes 0 [])
+
+	; even -1 is indexed by the mouse
+	(tset coords-to-holes -1 [])
 
  ; initialize both maps 
 	(for [y tl-y br-y]
@@ -288,6 +298,24 @@
 	result
 )
 
+(fn unpack-filled-holes [state n-holes]
+	"take a state bitmap and return an
+	 array of holes that are filled."
+
+		(assert (> n-holes 0))
+
+		(local result [])
+		(var hole 1)
+		(while (<= hole n-holes)
+			(local mask (lshift 1 (- hole 1)))
+			(local res (band mask state))
+			(when (~= res 0)
+				(push result hole))
+			(inc! hole))
+
+			result
+)
+
 (fn hole-filled-in-state? [hole state]
 	(local mask (lshift 1 (- hole 1)))
 	(~= 0 (band mask state))
@@ -362,11 +390,15 @@
 	"scan through the DP array to find
 	 those with the correct number of 
 		moves-left, which are eligible to be
-		starting states."
+		starting states. results are sorted
+		by state bitmap so that they will
+		be deterministic."
 	(local result [])
 	(each [state left (pairs dp)]
 		(when (= left moves-left)
 			(push result state)))
+
+	(table.sort result)
 	result
 )
 
@@ -387,17 +419,56 @@
 )
 
 
-
-
 (local Game {:mt {}})
+;(fn Widget.new 
+;	[name off-x-px off-y-px w-px h-px]
+(fn Game.make-widget-for-hole 
+	[board hole-no]
+	"return a single widget whose name
+	 will be the integer hole-no, and 
+		with a little extra client area."
+
+	(local hole-px-off -2)
+	(local hole-px-dim-extra 
+		(* 2 (math.abs hole-px-off)))
+
+	(let [
+			hole (. board :holes hole-no)
+			tx (. hole :x)
+			ty (. hole :y)
+			px (+ (* tx tile-w-px) hole-px-off)
+			py (+ (* ty tile-h-px) hole-px-off)
+			w (+ tile-w-px hole-px-dim-extra) 
+			h (+ tile-h-px hole-px-dim-extra)
+		]
+		(Widget.new hole-no px py w h))
+)
+
+
+(fn Game.make-widgets-for-holes [board]
+	(icollect [hole-no _ (ipairs board.holes)]
+		(Game.make-widget-for-hole board hole-no))
+)
 
 
 (fn Game.new [board-no]
 	(local board (Board.load board-no))
+	(local [dp solcount max-moves] 
+		(board:solve))
+	(local starting-states
+		(get-starting-states max-moves dp))
+	(local hole-widgets
+		(Game.make-widgets-for-holes board))
+
 	;; game state 
  (local state {
 		: board-no
-		: board 
+		: board : dp : solcount : max-moves
+		: starting-states 
+		: hole-widgets
+		:marble-in-hand nil 
+		:starting-state-no 1 
+		:state (. starting-states 1)
 		:n-moves 0 :undos 0 :hints 0
 	})
 	(setmetatable 
@@ -405,40 +476,86 @@
 			:__index Game.mt
 			:__tostring t-to-str
 		})
-
-
-
 	state 
 )
-	
 
+; board structure
+; board {
+;		: board-no
+;		: tl-x : tl-y : br-x : br-y
+;		: holes 
+;		:n-holes (length holes)
+;		: coords-to-holes
+;	})
+
+(fn Game.mt.get-hole [self hole-id]
+	(. self :board :holes hole-id)
+)
+
+(fn Game.mt.draw-filled-pegs [self]
+ "draw filled in pegs except for the one
+	 in your hand if any."
+	(let [
+			state (. self :state)
+			board (. self :board)
+			except (. self :marble-in-hand)
+			filled 
+				(unpack-filled-holes 
+					state (. board :n-holes))
+		]
+		(each [_ hole-id (ipairs filled)]
+			(let [
+					hole (self:get-hole hole-id)
+					hole-x (. hole :x)
+					hole-y (. hole :y)
+					sprite (if 
+						(= hole-id except) 
+							spr-marble-ghost
+							spr-marble-in-hole )
+				]
+				(spr sprite 
+					(* hole-x tile-w-px)
+					(* hole-y tile-h-px) 0))))
+)
+
+(fn Game.mt.draw [self]
+	(map 
+		(. self :board :tl-x)
+		(. self :board :tl-y) 
+		board-w-t board-h-t)
+
+	(self:draw-filled-pegs)
+)
+
+(fn Game.mt.peg-under-pix [self px py]
+	(which-over px py self.hole-widgets)
+)
 
 
 (fn _G.BOOT []
-	(global board (Board.load 0))
-	(global [dp solcount max-moves] (board:solve))
-	(global starting-states (get-starting-states max-moves dp))
+	(global game (Game.new 0))
 )
 
 (fn _G.TIC []
-	(map 0 0)
-	
-	(var y 0)
-	(print (.. "" solcount) 0 0 12)
-	(print (.. "" max-moves) 0 8 12)
-	(print (.. "starting moves: " (length starting-states)) 0 16 12)
+	(game:draw)
+
 
 	; make cursor be the hand
 	;(poke 0x3ffb 129)
 	
-	(let [[msx msy] (pack (mouse))]
+	(let [
+			[msx msy] (pack (mouse))
+			under (game:peg-under-pix msx msy)
+		]
 		(print (strf "mouse: %d, %d" msx msy)
-			0 128 12)) 
+			0 120 12)
+		(when under 
+			(print (strf "peg %d" under) 0 128 12)))
 )
 
 
 ;; <TILES>
-;; 001:eccccccccc888888caaaaaaaca8888`88cacccccccacc0ccccacc0ccccacc0ccc
+;; 001:eccccccccc888888caaaaaaaca8888808cacccccccacc0ccccacc0ccccacc0cc
 ;; 002:ccccceee8888cceeaaaa0cee888a0ceeccca0ccc0cca0c0c0cca0c0c0cca0c0c
 ;; 003:eccccccccc888888caaaaaaaca888888cacccccccacccccccacc0ccccacc0ccc
 ;; 004:ccccceee8888cceeaaaa0cee888a0ceeccca0cccccca0c0c0cca0c0c0cca0c0c
@@ -447,6 +564,7 @@
 ;; 019:cacccccccaaaaaaacaaacaaacaaaaccccaaaaaaac8888888cc000cccecccccec
 ;; 020:ccca00ccaaaa0ccecaaa0ceeaaaa0ceeaaaa0cee8888ccee000cceeecccceeee
 ;; 049:0000000000000000000000000000000000033000003333000333333033333333
+;; 055:0000000000989800098989800898989009898980089898900089890000000000
 ;; 064:0000000300000033000003330000333300003333000023330000223300002223
 ;; 065:3333333333333333333333333333333333333333333333333333333333333333
 ;; 066:3000000033000000333000003333000033330000333100003311000031110000
@@ -454,7 +572,7 @@
 ;; 068:3333333333333333333333333333333322222222222222222222222222222222
 ;; 069:3000000033000000333000003333000022220000222200002222000022220000
 ;; 070:0000000000000000000000000000000005666770056667700057770000566700
-;; 071:3333333333999933399999833999998139999981399998813399881133331113
+;; 071:0000000000999900099999900999999009999990099999900099990000000000
 ;; 080:0000222200000222000000220000000200000000000000000000000000000000
 ;; 081:3333333323333331223333112223311122221111022211100022110000021000
 ;; 082:1111000011100000110000001000000000000000000000000000000000000000
@@ -462,6 +580,7 @@
 ;; 084:3000000033000000333000003333000033333000333333003333333033333333
 ;; 085:3333333333333333333003333300003333000033333003333333333333333333
 ;; 086:0056670000566700005667000056670000566700005667000000000000000000
+;; 087:0000000000999900099999800999998109999981009998110001111000000000
 ;; 096:3333333333333333333003333300003333000033333003333133333313333333
 ;; 097:3333333133333313333003333300003333000033333003333133333313333333
 ;; 098:3333333133333313333003333300003333000033333003333333333333333333
@@ -479,6 +598,7 @@
 ;; 118:1333333331333333333003333300003311000033333003333133331313333331
 ;; 119:3333333133333313333003333300003333000033333003333133331313333331
 ;; 128:3333333133333313333003333300003333000011333003333133331313333331
+;; 129:3333333333333333333003333300003333000033333003333333333333333333
 ;; </TILES>
 
 ;; <MAP>
@@ -505,7 +625,7 @@
 ;; </TRACKS>
 
 ;; <FLAGS>
-;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000001000000000000000000000125250d00034ff3300000000000000001131301394f437530000000000000000d300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000100000000000000000125250d00034ff3300000000000000001131301394f437530000000000000000d310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 ;; </FLAGS>
 
 ;; <PALETTE>
