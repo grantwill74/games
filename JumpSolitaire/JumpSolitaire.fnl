@@ -48,10 +48,48 @@
 (local spr-marble 71)
 (local spr-marble-in-hole 87)
 (local spr-marble-ghost 55)
+(local spr-marble-option 88)
 
 (local board-names [
 	"10-peg Triangle"
 ])
+
+; left middle right down 
+(var last-mouse-state [false false false])
+
+; only true if mouse went down this frame
+(var mouse-click-down [false false false])
+
+(fn poll-mouse []
+	(let [ 
+			[last-l last-m last-r] last-mouse-state
+			[_ _ l m r] (pack (mouse))
+			just-l (and l (not last-l))
+			just-m (and m (not last-m))
+			just-r (and r (not last-r))
+		]
+		(set mouse-click-down [just-l just-m just-r])
+		(set last-mouse-state [l m r]))
+)
+
+(local mouse-l 1)
+(local mouse-m 2)
+(local mouse-r 3)
+
+; for flickering graphics, keep track
+; of the last flash
+(var last-flash (time))
+(var flash-duty-ms 200)
+(var flash-state false)
+
+(fn update-flash []
+	(local now (time))
+	(local time-since (- now last-flash))
+	(when (> time-since flash-duty-ms)
+		(set flash-state (not flash-state))
+		(set last-flash now)
+	)
+)
 
 ; my own to-string for debugging.
 ; fennel has one in a library but it
@@ -139,7 +177,6 @@
 	 first one in which the x y coords 
 		are inside its half-open range. or
 		return nil if the mouse isn't over one."
-	(trace (to-str widgets))
 	(var result nil)
 	(each [_ w (ipairs widgets) 
 			&until result
@@ -508,14 +545,15 @@
 					hole (self:get-hole hole-id)
 					hole-x (. hole :x)
 					hole-y (. hole :y)
-					sprite (if 
-						(= hole-id except) 
-							spr-marble-ghost
-							spr-marble-in-hole )
 				]
-				(spr sprite 
-					(* hole-x tile-w-px)
-					(* hole-y tile-h-px) 0))))
+				(when 
+					(or 
+						(~= hole-id except)
+						flash-state)
+					(spr spr-marble-in-hole 
+						(* hole-x tile-w-px)
+						(* hole-y tile-h-px) 0))))
+		) 
 )
 
 (fn Game.mt.draw [self]
@@ -527,8 +565,96 @@
 	(self:draw-filled-pegs)
 )
 
-(fn Game.mt.peg-under-pix [self px py]
+(fn Game.mt.hole-under-pix [self px py]
 	(which-over px py self.hole-widgets)
+)
+
+(fn Game.mt.reset-marble [self]
+	(sfx 17 "C-3" 16 0 3)
+	(tset self :marble-in-hand nil)
+)
+
+(fn Game.mt.grab-marble [self hole-no]
+	(when
+		self.marble-in-hand 
+		(self:reset-marble))
+
+	(sfx 16 "C-4" 16 0 3)
+	(tset self :marble-in-hand hole-no)
+)
+
+(fn potential-jump-destinations 
+	[from-hole holes]
+
+	(local valid-dests [])
+	(each [_ {: jump-overs} (ipairs holes)]
+		(each [_ [a b] (ipairs jump-overs)]
+			(when (= a from-hole)
+				(push valid-dests b))))
+	valid-dests
+)
+
+(fn Game.mt.click-hole [self hole-no]
+
+)
+
+(fn Game.mt.marble-in-hole? [self hole]
+	(local bit (- hole 1))
+	(~= 0 (band self.state (lshift 1 bit)))
+)
+
+(fn Game.mt.valid-moves-from [self hole]
+	(local potential	
+		(potential-jump-destinations
+			hole self.board.holes))
+
+	(local valid
+		(icollect [_ dest (ipairs potential)]
+			(when 
+				(not (self:marble-in-hole? dest))
+				dest)))
+	
+	valid 
+)
+
+(fn do-l-click [game msx msy]
+	(local hole (game:hole-under-pix msx msy))
+
+	(when 
+		(and hole (game:marble-in-hole? hole)) 
+			(game:grab-marble hole))
+)
+
+(fn do-r-click [game _ _]
+	(game:reset-marble)
+)
+
+(fn do-input [game]
+ (poll-mouse)
+	(local [msx msy] (pack (mouse)))
+	(local [l-down _ r-down] mouse-click-down)
+
+	(update-flash)
+
+	(if 
+		l-down (do-l-click game msx msy)
+		r-down (do-r-click game)
+	)
+)
+
+(fn draw-move-options [game]
+		(local holes game.board.holes)
+		(local dests 
+			(game:valid-moves-from  
+				game.marble-in-hand))
+
+		(each [_ dest (ipairs dests)]
+			(local {: x : y} (. holes dest))
+			(local px (* x tile-w-px))
+			(local py (* y tile-h-px))
+
+			(when flash-state
+				(spr spr-marble-option px py 0)))
 )
 
 
@@ -537,20 +663,14 @@
 )
 
 (fn _G.TIC []
+	(do-input game)
 	(game:draw)
 
-
+	(when game.marble-in-hand
+		(draw-move-options game))
 	; make cursor be the hand
 	;(poke 0x3ffb 129)
 	
-	(let [
-			[msx msy] (pack (mouse))
-			under (game:peg-under-pix msx msy)
-		]
-		(print (strf "mouse: %d, %d" msx msy)
-			0 120 12)
-		(when under 
-			(print (strf "peg %d" under) 0 128 12)))
 )
 
 
@@ -581,6 +701,7 @@
 ;; 085:3333333333333333333003333300003333000033333003333333333333333333
 ;; 086:0056670000566700005667000056670000566700005667000000000000000000
 ;; 087:0000000000999900099999800999998109999981009998110001111000000000
+;; 088:0000000000222200022222100222221702222217002221770007777000000000
 ;; 096:3333333333333333333003333300003333000033333003333133333313333333
 ;; 097:3333333133333313333003333300003333000033333003333133333313333333
 ;; 098:3333333133333313333003333300003333000033333003333333333333333333
@@ -618,6 +739,8 @@
 
 ;; <SFX>
 ;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
+;; 016:00000000000000400040004000c000c000c000c000c000c000c000c000c000c000000000000000000000000000000000000000000000000000000000300000000000
+;; 017:00c000c000c0004000400040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000
 ;; </SFX>
 
 ;; <TRACKS>
@@ -625,7 +748,7 @@
 ;; </TRACKS>
 
 ;; <FLAGS>
-;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000100000000000000000125250d00034ff3300000000000000001131301394f437530000000000000000d310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000101000000000000000125250d00034ff3300000000000000001131301394f437530000000000000000d310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 ;; </FLAGS>
 
 ;; <PALETTE>
