@@ -50,6 +50,16 @@
 (local spr-marble-ghost 55)
 (local spr-marble-option 88)
 
+(local anim-time-ms 333)
+(local anim-height-px 8)
+
+(fn sfx-select [] 
+	(sfx 16 "C-4" 16 0 3))
+(fn sfx-deselect [] 
+	(sfx 17 "C-4" 16 0 3))
+(fn sfx-jump []
+	(sfx 18 "C-4" 64 0 2))
+
 (local board-names [
 	"10-peg Triangle"
 ])
@@ -570,7 +580,7 @@
 )
 
 (fn Game.mt.reset-marble [self]
-	(sfx 17 "C-3" 16 0 3)
+	(sfx-deselect)
 	(tset self :marble-in-hand nil)
 )
 
@@ -579,7 +589,7 @@
 		self.marble-in-hand 
 		(self:reset-marble))
 
-	(sfx 16 "C-4" 16 0 3)
+	(sfx-select)
 	(set self.marble-in-hand hole-no)
 )
 
@@ -632,6 +642,75 @@
 	moves 
 )
 
+(fn Game.mt.start-anim [self from to]
+	(let [
+			from-tx (. self.board.holes from :x)
+			from-ty (. self.board.holes from :y)
+			from-px (* from-tx tile-w-px)
+			from-py (* from-ty tile-h-px)
+
+			to-tx (. self.board.holes to :x)
+			to-ty (. self.board.holes to :y)
+			to-px (* to-tx tile-w-px)
+			to-py (* to-ty tile-h-px)
+		]
+		(tset self :anim {
+			: from-px : from-py : to-px : to-py
+			:start-time (time)
+		}))
+)
+
+(fn Game.mt.stop-anim [self]
+	(set self.anim nil)
+)
+
+
+(fn Game.mt.update-and-draw-anim [self]
+	(local dtime 
+		(math.min 
+			anim-time-ms
+			(- (time) self.anim.start-time)))
+
+	(if 
+		(= dtime anim-time-ms)
+		(self:stop-anim)
+
+		; the anim path is a parabola minus
+		; the from-to line 
+		; h(t) = at^2 + bt + c
+		; h(0) = 0 => 0 = c
+		; h(1) = 0 => a + b = 0 => b = -a
+		; h(t) = at^2 - at
+		; h(t) = -at(t - 1) = at(1 - t) 
+		; h(0.5) = max-height
+		; a(0.5)(1 - 0.5) = max-height 
+		; a(0.5 - 0.25) = a*0.25 = max-height
+		; a = 4 * max-height
+		; h(t) = (4 * max-height) * t * (1 - t)
+
+		(let [
+				anim self.anim
+				t (/ dtime anim-time-ms)
+				anim-w (- anim.to-px anim.from-px)
+				lirp-x (+ (* t anim-w) anim.from-px)
+				
+				anim-h (- anim.to-py anim.from-py)
+				lirp-y (+ (* t anim-h) anim.from-py)
+
+				y-off (* 4 anim-height-px t (- 1 t))
+				y (- lirp-y y-off) ; +y goes down 
+				; in pixel coords, our math assumed
+				; that max-heigh was up, so we negate
+			]
+			(spr spr-marble lirp-x y 0))
+	)
+	
+	; todo:
+	; the anim path is a parabola with 
+	; roots of from-px,py to to-px,py.
+
+)
+
 (fn Game.mt.try-make-move [self from to]
 	"make a move if it's legal. do nothing
 		except play a grumpy sound if not."
@@ -654,7 +733,21 @@
 			(self:toggle-marble-in-hole to)
 			(self:toggle-marble-in-hole from)
 			(self:toggle-marble-in-hole over)
-			(set self.marble-in-hand nil)
+			
+			(self:start-anim from to)
+
+			(local more-moves 
+				(self:valid-moves-from to))
+
+			(set self.marble-in-hand 
+				(if 
+					(>= (length more-moves) 1) 
+						to
+
+					; else 
+					nil))
+
+			(sfx-jump)
 		)
 		
 		; TODO else grumpy
@@ -716,13 +809,17 @@
 (fn _G.TIC []
 	(do-input game)
 	(game:draw)
+	(when game.anim
+		(game:update-and-draw-anim))
 
 	(update-flash)
 
 	(when game.marble-in-hand
-		(draw-move-options game))
-	; make cursor be the hand
-	;(poke 0x3ffb 129)
+		(draw-move-options game)
+		; make cursor be the hand
+	 (poke 0x3ffb 129)
+	)
+
 	
 )
 
@@ -794,6 +891,8 @@
 ;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
 ;; 016:00000000000000400040004000c000c000c000c000c000c000c000c000c000c000000000000000000000000000000000000000000000000000000000300000000000
 ;; 017:00c000c000c0004000400040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000
+;; 018:00002000302040206000700080009000a000b000c000d000e000e000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000340000000000
+;; 028:000000000040004000700070004000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000340000000000
 ;; </SFX>
 
 ;; <TRACKS>
