@@ -580,22 +580,33 @@
 		(self:reset-marble))
 
 	(sfx 16 "C-4" 16 0 3)
-	(tset self :marble-in-hand hole-no)
+	(set self.marble-in-hand hole-no)
 )
+
 
 (fn potential-jump-destinations 
 	[from-hole holes]
-
-	(local valid-dests [])
-	(each [_ {: jump-overs} (ipairs holes)]
+	"compute all the pegs we could jump into
+	 if their destinations were free and there
+		were a peg in the way. not all these
+		moves are valid. result is a list of 
+		{:from :to :over}."
+	(local moves [])
+	(each [_ {: id : jump-overs} (ipairs holes)]
 		(each [_ [a b] (ipairs jump-overs)]
 			(when (= a from-hole)
-				(push valid-dests b))))
-	valid-dests
+				(push moves {
+					:from a :to b :over id
+				}))))
+	moves
 )
 
-(fn Game.mt.click-hole [self hole-no]
+(fn Game.mt.toggle-marble-in-hole 
+	[self hole-no]
 
+	(local bit (- hole-no 1))
+	(set self.state
+		(bxor self.state (lshift 1 bit)))
 )
 
 (fn Game.mt.marble-in-hole? [self hole]
@@ -603,25 +614,67 @@
 	(~= 0 (band self.state (lshift 1 bit)))
 )
 
+
 (fn Game.mt.valid-moves-from [self hole]
 	(local potential	
 		(potential-jump-destinations
 			hole self.board.holes))
 
-	(local valid
-		(icollect [_ dest (ipairs potential)]
+	(local moves
+		(icollect [_ move (ipairs potential)]
 			(when 
-				(not (self:marble-in-hole? dest))
-				dest)))
+				(and 
+					(self:marble-in-hole? move.over)
+					(not 
+						(self:marble-in-hole? move.to)))
+				move)))
 	
-	valid 
+	moves 
+)
+
+(fn Game.mt.try-make-move [self from to]
+	"make a move if it's legal. do nothing
+		except play a grumpy sound if not."
+	(local moves 
+		(self:valid-moves-from from))
+	
+	; find the move that goes from-to 
+	(local over (. 
+		(icollect [_ move (ipairs moves)]
+
+			(when (and 
+				(= move.from from)
+				(= move.to to))
+				move.over)
+		) 1)) ; get first (and only if exists)
+
+	(if
+		over 
+		(do
+			(self:toggle-marble-in-hole to)
+			(self:toggle-marble-in-hole from)
+			(self:toggle-marble-in-hole over)
+			(set self.marble-in-hand nil)
+		)
+		
+		; TODO else grumpy
+		; TODO clear jumped marble
+		)
 )
 
 (fn do-l-click [game msx msy]
 	(local hole (game:hole-under-pix msx msy))
+	
+	(if 
+		(and hole game.marble-in-hand)
+		(game:try-make-move 
+			game.marble-in-hand hole)
 
-	(when 
-		(and hole (game:marble-in-hole? hole)) 
+		(and 
+			hole 
+			(game:marble-in-hole? hole)
+			(not game.marble-in-hand))
+
 			(game:grab-marble hole))
 )
 
@@ -634,8 +687,6 @@
 	(local [msx msy] (pack (mouse)))
 	(local [l-down _ r-down] mouse-click-down)
 
-	(update-flash)
-
 	(if 
 		l-down (do-l-click game msx msy)
 		r-down (do-r-click game)
@@ -644,12 +695,12 @@
 
 (fn draw-move-options [game]
 		(local holes game.board.holes)
-		(local dests 
+		(local moves 
 			(game:valid-moves-from  
 				game.marble-in-hand))
 
-		(each [_ dest (ipairs dests)]
-			(local {: x : y} (. holes dest))
+		(each [_ move (ipairs moves)]
+			(local {: x : y} (. holes move.to))
 			(local px (* x tile-w-px))
 			(local py (* y tile-h-px))
 
@@ -665,6 +716,8 @@
 (fn _G.TIC []
 	(do-input game)
 	(game:draw)
+
+	(update-flash)
 
 	(when game.marble-in-hand
 		(draw-move-options game))
