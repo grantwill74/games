@@ -541,11 +541,14 @@
 
 (fn Game.mt.draw-filled-pegs [self]
  "draw filled in pegs except for the one
-	 in your hand if any."
+	 in your hand or that we're animating to
+		if any."
 	(let [
 			state (. self :state)
 			board (. self :board)
-			except (. self :marble-in-hand)
+			except-hand (. self :marble-in-hand)
+			except-anim (-?> 
+				self (. :anim) (. :to-hole))
 			filled 
 				(unpack-filled-holes 
 					state (. board :n-holes))
@@ -557,14 +560,17 @@
 					hole-y (. hole :y)
 				]
 				(when 
-					(or 
-						(~= hole-id except)
-						flash-state)
+					(and 
+						(~= hole-id except-anim)
+						(or (~= hole-id except-hand) 
+							flash-state))
+							
 					(spr spr-marble-in-hole 
 						(* hole-x tile-w-px)
 						(* hole-y tile-h-px) 0))))
 		) 
 )
+
 
 (fn Game.mt.draw [self]
 	(map 
@@ -656,6 +662,7 @@
 		]
 		(tset self :anim {
 			: from-px : from-py : to-px : to-py
+			:to-hole to 
 			:start-time (time)
 		}))
 )
@@ -759,14 +766,20 @@
 	(local hole (game:hole-under-pix msx msy))
 	
 	(if 
-		(and hole game.marble-in-hand)
-		(game:try-make-move 
-			game.marble-in-hand hole)
+		(not hole) (game:reset-marble)
 
 		(and 
 			hole 
-			(game:marble-in-hole? hole)
-			(not game.marble-in-hand))
+			(not (game:marble-in-hole? hole)) 
+			game.marble-in-hand)
+
+		(game:try-make-move 
+			game.marble-in-hand hole)
+
+
+		(and 
+			hole 
+			(game:marble-in-hole? hole))
 
 			(game:grab-marble hole))
 )
