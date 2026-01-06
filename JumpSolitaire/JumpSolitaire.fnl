@@ -53,7 +53,7 @@
 (local anim-time-ms 333)
 (local anim-height-px 8)
 
-(local max-solve-depth 33)
+(local max-solve-depth 6)
 
 (fn sfx-select [] 
 	(sfx 16 "C-4" 16 0 3))
@@ -272,19 +272,29 @@
 	(each [id [x y] (ipairs holes-to-coords)]
 		(local jump-overs [])
 		(local sprite (mget (+ tl-x x) (+ tl-y y)))
-		
+
+		(local nw
+			(. coords-to-holes (- x 1) (- y 1)))
+		(local ne 
+			(. coords-to-holes (+ x 1) (- y 1)))
+		(local e
+			(. coords-to-holes (+ x 2) y))
+		(local se
+			(. coords-to-holes (+ x 1) (+ y 1)))
+		(local sw 
+			(. coords-to-holes (- x 1) (+ y 1)))
+		(local w 
+			(. coords-to-holes (- x 2) y))
+
 		; check for nw <-> se jumpability
 		(when
 			(and
 				(fget sprite bit-dir-nw)
 				(fget sprite bit-dir-se)
 			)
-			(local nw-hole 
-				(. coords-to-holes (- x 1) (- y 1)))
-			(local se-hole
-				(. coords-to-holes (+ x 1) (+ y 1)))
-			(push jump-overs [nw-hole se-hole])
-			(push jump-overs [se-hole nw-hole])
+			
+			(push jump-overs [nw se])
+			(push jump-overs [se nw])
 		)
 
 		; check for ne <-> sw jumpability 
@@ -293,12 +303,9 @@
 				(fget sprite bit-dir-ne)
 				(fget sprite bit-dir-sw)
 			)
-			(local ne-hole
-				(. coords-to-holes (+ x 1) (- y 1)))
-			(local sw-hole
-				(. coords-to-holes (- x 1) (+ y 1)))
-			(push jump-overs [ne-hole sw-hole])
-			(push jump-overs [sw-hole ne-hole])
+			
+			(push jump-overs [ne sw])
+			(push jump-overs [sw ne])
 		)
 
 		; check for w <-> e jumpability  
@@ -307,21 +314,26 @@
 				(fget sprite bit-dir-w)
 				(fget sprite bit-dir-e)
 			)
-			(local e-hole 
-				(. coords-to-holes (+ x 2) y))
-			(local w-hole 
-				(. coords-to-holes (- x 2) y))
-			(push jump-overs [e-hole w-hole])
-			(push jump-overs [w-hole e-hole])
+			
+			(push jump-overs [e w])
+			(push jump-overs [w e])
 		)
 
 		(local hole 
-			{: id : x : y : jump-overs})
+			{: id : x : y : jump-overs
+			 : nw : ne : e : se : sw : w})
 		(push holes hole)
 	)
 
 	(assert (<= (length holes) 64) 
 		"no more than 64 holes permitted")
+
+	; replace the directional hole numbers
+	; with the actual hole structures
+	;(local dirs [:nw :ne :e :se :sw :w])
+	;(each [_ hole (ipairs holes)]
+	;	(each [_ dir (ipairs dirs)]
+	;		(tset hole dir (. holes (. hole dir)))))
 
 	(local board {
 		: board-no
@@ -330,6 +342,7 @@
 		:n-holes (length holes)
 		: coords-to-holes
 	})
+
 
 	(setmetatable board 
 		{:__tostring t-to-str
@@ -344,17 +357,14 @@
 	
 	(assert (> n-holes 0))
 
-	(local state-inv (bnot state))
 	(local result [])
 	(var hole 1)
 	(while (<= hole n-holes)
 		(local mask (lshift 1 (- hole 1)))
-		(local res (band mask state-inv))
-		(when (~= res 0)
-			(push result hole)
-		)
-		(inc! hole)
-	)
+		(local res (band mask state))
+		(when (= res 0)
+			(push result hole))
+		(inc! hole))
 
 	result
 )
@@ -382,7 +392,7 @@
 	(~= 0 (band mask state))
 )
 
-(fn jump-holes [a b c state]
+(fn jump [a b c state]
 	(let [
 			state1 (bxor state (lshift 1 (- a 1)))
 		 state2 (bxor state1 (lshift 1 (- b 1)))
@@ -416,22 +426,17 @@
 	"build a simpler frontier specifically
 	 for the english cross board."
 
-	(local all-pegs (- (lshift 1 33) 1))
-
 	; finishing marble can be in these holes:
 	; 3, 6, 17, 28, and 31
 	; so the lshift is 2, 5, 16, 27, and 30
 	; because lua makes us count from 1
 	(local frontier [
-		[(bxor all-pegs (lshift 1 2)) 0]
-		[(bxor all-pegs (lshift 1 5)) 0]
-		[(bxor all-pegs (lshift 1 16)) 0]
-		[(bxor all-pegs (lshift 1 27)) 0]
-		[(bxor all-pegs (lshift 1 30)) 0]
+		[(lshift 1 2) 0]
+		[(lshift 1 5) 0]
+		[(lshift 1 16) 0]
+		[(lshift 1 27) 0]
+		[(lshift 1 30) 0]
 	])
-
-	; for debugging
-	(trace (to-str frontier))
 
 	frontier 
 )
@@ -465,68 +470,82 @@
 		(local [pattern left] (pop frontier))
 		(inc! count)
 
-		(when (not (. dp pattern))
+		(when (and 
+				(not (. dp pattern))
+				(< left max-depth)
+			)
+
 			(tset dp pattern left)
 			(set max (math.max max left))
-			(local holes 
-				(unpack-empty-holes 
+			(local marbles 
+				(unpack-filled-holes 
 					pattern self.n-holes))
-			(each [_ hole (ipairs holes)]
-				(local jump-overs 
-					(. self :holes hole :jump-overs))
-				(each [_ [a b] (ipairs jump-overs)]
-					(when 
-						(and a b 
-							(hole-filled-in-state? a pattern)
-							(not (hole-filled-in-state? hole pattern))
-							(not (hole-filled-in-state? b pattern))
-						)
-						(local new-pattern 
-							(jump-holes a hole b pattern))
-						(when (and 
-								(< left max-depth) 
-								(not (. dp new-pattern))
-							)
-							(push frontier [new-pattern (+ left 1)])
-							))))
-		)
-	)
-
-	(trace count)
+			(local holes 
+				(make-set
+					(unpack-empty-holes 
+						pattern self.n-holes)))
+						
+			(each [_ marble (ipairs marbles)]
+				(local hole (. self.holes marble))
+				(local dirs [:nw :ne :e :se :sw :w])
+				(each [_ dir (ipairs dirs)]
+					(local neigh 
+						(when (. hole dir) 
+							(. self.holes (. hole dir))))
+					(local over-neigh 
+						(when neigh
+							(. self.holes (. neigh dir))))
+					(when (and 
+							neigh over-neigh
+							(. holes neigh.id)
+							(. holes over-neigh.id)
+						) 
+						(push frontier [
+							(jump hole.id neigh.id
+								over-neigh.id pattern)
+							(+ left 1)
+							]))
+				))))
+				
+	(trace (strf "count is %d" count))
 
 	[dp count max] 
 )
 
-(fn Board.mt.solve-cross [self max-depth]
-	"the english cross is a null-class board,
-	which gives it additional constraints on
-	final positions."
+				;(when (and 
+				;		marble.nw marble.nw.nw
+				;		(. holes marble.nw.id)
+				;		(. holes marble.nw.nw.id)
+				;	)
+				;	(push frontier [
+				;		(jump-holes 
+				;			marble.id 
+				;			marble.nw.id 
+				;			marble.nw.nw.id 
+				;			pattern)
+				;			(+ left 1)
+				;	])
+				;)
 
-	; the final x position is a multiple of
-	; 3 offset of the initial x position, and
-	; the same for y. this is John Conway's
-	; rule of three. Discovered here:
-	; https://gibell.net/pegsolitaire/#sweep
 
-
-
-	; board 3 is english cross:
-	(local state 
-		(. starting-states 
-			english-cross-board-id))
-
-	(local start-empty 
-		(unpack-empty-holes state 
-			english-cross-holes))
-
-	(assert (= 1 (length start-empty)))
-
-	(local start-empty-hole 
-		(. self :holes start-empty))
+				;(local jump-overs 
+				;	(. self :holes hole :jump-overs))
+				;(each [_ [a b] (ipairs jump-overs)]
+				;	(when 
+				;		(and a b 
+				;			(hole-filled-in-state? a pattern)
+				;			(not (hole-filled-in-state? hole pattern))
+				;			(not (hole-filled-in-state? b pattern))
+				;		)
+				;		(local new-pattern 
+				;			(jump-holes a hole b pattern))
+				;		(when (and 
+				;				(< left max-depth) 
+				;				(not (. dp new-pattern))
+				;			)
+				;			(push frontier [new-pattern (+ left 1)])
+				;			))))
 	
-
-)
-
 
 (fn get-starting-states [moves-left dp]
 	"scan through the DP array to find
@@ -825,6 +844,9 @@
 	)
 )
 
+(fn Game.mt.undo-move-if-exists [self]
+	;(when )
+)
 
 (fn Game.mt.try-make-move [self from to]
 	"make a move if it's legal. do nothing
