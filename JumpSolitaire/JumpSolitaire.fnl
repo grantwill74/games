@@ -38,6 +38,8 @@
 
 (local tile-w-px 8)
 (local tile-h-px 8)
+(local button-height tile-h-px)
+(local button-w-side-extra 3)
 
 (local board-w-t 30)
 (local board-h-t 17)
@@ -50,10 +52,15 @@
 (local spr-marble-ghost 55)
 (local spr-marble-option 88)
 
+(local spr-button-l 5)
+(local spr-button-m 6)
+(local spr-button-r 7)
+
 (local anim-time-ms 333)
 (local anim-height-px 8)
 
-(local max-solve-depth 6)
+(local max-solve-depth-normal 16)
+(local max-solve-depth-english 6)
 
 (fn sfx-select [] 
 	(sfx 16 "C-4" 16 0 3))
@@ -620,7 +627,9 @@
 	(local board (Board.load board-no))
 
 	(local [dp solcount max-moves] 
-		(board:solve max-solve-depth))
+		(if (< board-no 3) 
+			(board:solve max-solve-depth-normal)
+			(board:solve max-solve-depth-english)))
 	;(local max-moves
 	;	(- (length board.holes) 2))
 
@@ -943,9 +952,61 @@
 				(spr spr-marble-option px py 0)))
 )
 
+(local Button {:mt {}})
+(fn Button.new [x y w text id]
+	(local the-button {
+		: x : y 
+		: text
+		:widget 
+			(Widget.new id
+				(- x button-w-side-extra) y 
+				(+ w (* 2 button-w-side-extra)) 
+				button-height)
+	})
+
+	(setmetatable the-button {
+		:__index Button.mt
+		:__tostring to-str 
+	})
+)
+
+(fn Button.mt.draw [self]
+	(var x (- self.x tile-w-px))
+	(local y self.y)
+
+	(spr spr-button-l x y)
+	(set x (+ tile-w-px))
+	
+	(local start-x x)
+	(local max-x (+ x self.widget.w-px))
+	(while (< x max-x)
+		(spr spr-button-m x y)
+		(set x (+ x tile-w-px))
+	)
+
+	(spr spr-button-r x y)
+
+	(print self.text
+		(+ start-x self.widget.off-x-px)
+		(+ 1 self.widget.off-y-px) 12)
+)
+
+
 
 (fn _G.BOOT []
 	(global game (Game.new 3))
+	(global btn-peg10
+		(Button.new 8 96 36 
+			"10 peg" :peg10))
+	(global btn-peg15 
+		(Button.new 8 104 36 
+			"15 peg" :peg15))
+	(global btn-diamond
+		(Button.new 8 112 36
+			"Diamond" :diamond))
+	(global btn-cross
+		(Button.new 8 120 36
+			"Cross" :cross))
 )
 
 (fn _G.TIC []
@@ -953,6 +1014,11 @@
 	(game:draw)
 	(when game.anim
 		(game:update-and-draw-anim))
+
+	(btn-peg10:draw)
+	(btn-peg15:draw)
+	(btn-diamond:draw)
+	(btn-cross:draw)
 
 	(update-flash)
 
@@ -976,6 +1042,9 @@
 ;; 002:ccccceee8888cceeaaaa0cee888a0ceeccca0ccc0cca0c0c0cca0c0c0cca0c0c
 ;; 003:eccccccccc888888caaaaaaaca888888cacccccccacccccccacc0ccccacc0ccc
 ;; 004:ccccceee8888cceeaaaa0cee888a0ceeccca0cccccca0c0c0cca0c0c0cca0c0c
+;; 005:0000000500000057000005770000067700000677000006770000008700000008
+;; 006:6666666677777777777777777777777777777777777777777777777788888888
+;; 007:6000000077000000777000007770000077700000778000007800000080000000
 ;; 017:cacccccccaaaaaaacaaacaaacaaaaccccaaaaaaac8888888cc000cccecccccec
 ;; 018:ccca00ccaaaa0ccecaaa0ceeaaaa0ceeaaaa0cee8888ccee000cceeecccceeee
 ;; 019:cacccccccaaaaaaacaaacaaacaaaaccccaaaaaaac8888888cc000cccecccccec
