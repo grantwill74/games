@@ -62,13 +62,16 @@
 (local max-solve-depth-normal 16)
 (local max-solve-depth-english 6)
 
+(global game {})
+
 (fn sfx-select [] 
 	(sfx 16 "C-4" 16 0 3))
 (fn sfx-deselect [] 
 	(sfx 17 "C-4" 16 0 3))
 (fn sfx-jump []
 	(sfx 18 "C-5" 64 0 3))
-
+(local sfx-undo sfx-deselect)
+ 
 (local board-names [
 	"10-peg Triangle"
 	"15-peg Triangle"
@@ -657,6 +660,7 @@
 		:marble-in-hand nil 
 		:state starting-state
 		:n-moves 0 :undos 0 :hints 0
+		:history []
 	})
 	(setmetatable 
 		state {
@@ -853,10 +857,6 @@
 	)
 )
 
-(fn Game.mt.undo-move-if-exists [self]
-	;(when )
-)
-
 (fn Game.mt.try-make-move [self from to]
 	"make a move if it's legal. do nothing
 		except play a grumpy sound if not."
@@ -879,7 +879,7 @@
 			(self:toggle-marble-in-hole to)
 			(self:toggle-marble-in-hole from)
 			(self:toggle-marble-in-hole over)
-			(set self.last-move {
+			(push self.history {
 				: to : from : over
 			})
 			
@@ -897,13 +897,74 @@
 					nil))
 
 			(sfx-jump)
+
 		))
 )
 
-(fn do-l-click [game msx msy]
-	(local hole (game:hole-under-pix msx msy))
+
+(fn Game.mt.undo-move-if-exists [self]
+	(when 
+		(and
+			self.history
+			(> (length self.history) 0))
+
+		(local {: from : to : over} 
+			(pop self.history))
+		(self:toggle-marble-in-hole to)
+		(self:toggle-marble-in-hole from)
+		(self:toggle-marble-in-hole over)
+		(sfx-undo)
+	)
+)
+
+(fn Game.mt.solution-unreachable
+	[self state move-depth]
+	"return whether we know for certain
+	that no solution can be reached in the
+	given move depth."
+
+	(local moves-left (- 1 (length 
+		(unpack-filled-holes state))))
+	
+)
+
+(fn Game.mt.not-winnable 
+	[self max-solution-depth] 
+	; There is proof of unwinnableness if
+	; dp[state] == nil and it's any
+	; board other than the cross.
+	; if it's the cross, then either:
+	; 1. let moves-left = pegs-left - 1
+	;    moves-left <= max-solution-depth
+	;				and dp[state] == nil
+	; 2. solution-reachable
+	;    (moves-left - max-solution-depth) 
+	;    is empty
+)
+
+(fn do-button-click 
+	[current-game button-id]
+	(case button-id
+			:undo
+				(current-game:undo-move-if-exists)
+
+			; these change the global game
+			:peg10 (set game (Game.new 0))
+			:peg15 (set game (Game.new 1))
+			:diamond (set game (Game.new 2))
+			:cross (set game (Game.new 3))
+	)
+)
+
+(fn do-l-click [game msx msy buttons]
+	(local hole 
+		(game:hole-under-pix msx msy))
+
+	(local btn-id (which-over msx msy buttons))
 	
 	(if 
+		btn-id (do-button-click game btn-id)
+
 		(not hole) (game:reset-marble)
 
 		(and 
@@ -926,13 +987,13 @@
 	(game:reset-marble)
 )
 
-(fn do-input [game]
+(fn do-input [game buttons]
  (poll-mouse)
 	(local [msx msy] (pack (mouse)))
 	(local [l-down _ r-down] mouse-click-down)
 
 	(if 
-		l-down (do-l-click game msx msy)
+		l-down (do-l-click game msx msy buttons)
 		r-down (do-r-click game)
 	)
 )
@@ -992,33 +1053,53 @@
 )
 
 
-
-(fn _G.BOOT []
-	(global game (Game.new 3))
-	(global btn-peg10
-		(Button.new 8 96 36 
-			"10 peg" :peg10))
-	(global btn-peg15 
-		(Button.new 8 104 36 
-			"15 peg" :peg15))
-	(global btn-diamond
-		(Button.new 8 112 36
-			"Diamond" :diamond))
-	(global btn-cross
-		(Button.new 8 120 36
-			"Cross" :cross))
+(fn draw-buttons [buttons]
+	(each [_ btn (ipairs buttons)]
+		(btn:draw))
 )
 
+(fn _G.BOOT []
+	(set game (Game.new 0))
+
+	(local btn-undo 
+		(Button.new 8 64 24 "Undo" :undo ))
+
+	(local btn-peg10
+		(Button.new 8 96 36 
+			"10 peg" :peg10))
+	(local btn-peg15 
+		(Button.new 8 104 36 
+			"15 peg" :peg15))
+	(local btn-diamond
+		(Button.new 8 112 36
+			"Diamond" :diamond))
+	(local btn-cross
+		(Button.new 8 120 36
+			"Cross" :cross))
+
+	(global global-buttons [
+		btn-undo
+		btn-peg10
+		btn-peg15 
+		btn-diamond
+		btn-cross
+	])
+
+	(global global-widgets
+		(icollect
+			[_ btn (ipairs global-buttons)]
+			btn.widget))
+
+)
+
+
 (fn _G.TIC []
-	(do-input game)
+	(do-input game global-widgets)
 	(game:draw)
 	(when game.anim
 		(game:update-and-draw-anim))
 
-	(btn-peg10:draw)
-	(btn-peg15:draw)
-	(btn-diamond:draw)
-	(btn-cross:draw)
+	(draw-buttons global-buttons)
 
 	(update-flash)
 
@@ -1033,7 +1114,7 @@
 		[hole (game:hole-under-pix (mouse))]
 		(when hole
 			(print 
-				(strf "hole %d" hole) 0 120 12)))
+				(strf "hole %d" hole) 100 120 12)))
 )
 
 
