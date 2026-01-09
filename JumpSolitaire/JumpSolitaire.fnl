@@ -61,6 +61,7 @@
 
 (local max-solve-depth-normal 16)
 (local max-solve-depth-english 6)
+(local forward-reachable-depth 8)
 
 (global game {})
 
@@ -338,13 +339,6 @@
 	(assert (<= (length holes) 64) 
 		"no more than 64 holes permitted")
 
-	; replace the directional hole numbers
-	; with the actual hole structures
-	;(local dirs [:nw :ne :e :se :sw :w])
-	;(each [_ hole (ipairs holes)]
-	;	(each [_ dir (ipairs dirs)]
-	;		(tset hole dir (. holes (. hole dir)))))
-
 	(local board {
 		: board-no
 		: tl-x : tl-y : br-x : br-y
@@ -522,41 +516,6 @@
 	[dp count max] 
 )
 
-				;(when (and 
-				;		marble.nw marble.nw.nw
-				;		(. holes marble.nw.id)
-				;		(. holes marble.nw.nw.id)
-				;	)
-				;	(push frontier [
-				;		(jump-holes 
-				;			marble.id 
-				;			marble.nw.id 
-				;			marble.nw.nw.id 
-				;			pattern)
-				;			(+ left 1)
-				;	])
-				;)
-
-
-				;(local jump-overs 
-				;	(. self :holes hole :jump-overs))
-				;(each [_ [a b] (ipairs jump-overs)]
-				;	(when 
-				;		(and a b 
-				;			(hole-filled-in-state? a pattern)
-				;			(not (hole-filled-in-state? hole pattern))
-				;			(not (hole-filled-in-state? b pattern))
-				;		)
-				;		(local new-pattern 
-				;			(jump-holes a hole b pattern))
-				;		(when (and 
-				;				(< left max-depth) 
-				;				(not (. dp new-pattern))
-				;			)
-				;			(push frontier [new-pattern (+ left 1)])
-				;			))))
-	
-
 (fn get-starting-states [moves-left dp]
 	"scan through the DP array to find
 	 those with the correct number of 
@@ -629,10 +588,13 @@
 (fn Game.new [board-no]
 	(local board (Board.load board-no))
 
+	(local solution-depth
+		(if (< board-no 3)
+			max-solve-depth-normal
+			max-solve-depth-english))
+
 	(local [dp solcount max-moves] 
-		(if (< board-no 3) 
-			(board:solve max-solve-depth-normal)
-			(board:solve max-solve-depth-english)))
+		(board:solve solution-depth))
 	;(local max-moves
 	;	(- (length board.holes) 2))
 
@@ -657,6 +619,8 @@
 		: board : dp : max-moves
 		: starting-state
 		: hole-widgets
+		: solution-depth
+		: forward-reachable-depth 
 		:marble-in-hand nil 
 		:state starting-state
 		:n-moves 0 :undos 0 :hints 0
@@ -914,33 +878,106 @@
 		(self:toggle-marble-in-hole from)
 		(self:toggle-marble-in-hole over)
 		(sfx-undo)
+
+		(tset self :solution-unreachable
+				(game.board:solution-unreachable 
+			 	game.dp game.state
+					game.forward-reachable-depth
+					game.solution-depth))
 	)
 )
 
-(fn Game.mt.solution-unreachable
-	[self state move-depth]
+	; replace the directional hole numbers
+	; with the actual hole structures
+	;(local dirs [:nw :ne :e :se :sw :w])
+	;(each [_ hole (ipairs holes)]
+	;	(each [_ dir (ipairs dirs)]
+	;		(tset hole dir (. holes (. hole dir)))))
+
+; there's a refactoring opportunity. 
+; maybe enumerating all possible moves
+; so that in try-make-move we use that
+; to determine if a move is valid. 
+; replace valid-moves-from-marble, etc.
+; this code is duplicated in solve.
+; the difference is that this code moves
+; forwards instead of backwards, but 
+; since i xor the marble states it shouldn't
+; matter.
+(fn Board.mt.all-moves-from-state 
+	[self state]
+
+	(local marbles
+		(unpack-filled-holes
+			state self.n-holes))
+	(local marbles-set (make-set marbles))
+	(local moves [])
+	(local holes (make-set self.holes))
+	
+	(each [_ marble (ipairs marbles)]
+		(local hole (. self.holes marble))
+		(local dirs [:nw :ne :e :se :sw :w])
+		(each [_ dir (ipairs dirs)]
+			(local neigh 
+				(when (. hole dir) 
+					(. self.holes (. hole dir))))
+			(local over-neigh 
+				(when neigh
+					(. self.holes (. neigh dir))))
+			(when (and 
+					neigh over-neigh
+					(. marbles-set neigh.id)
+					(not (. marbles-set over-neigh.id)))
+					(push moves {
+						:over neigh.id
+						:to over-neigh.id
+						:from marble
+					}))))
+					
+	moves
+)
+
+(fn Board.mt.solution-unreachable
+	[self dp state move-depth solve-depth]
 	"return whether we know for certain
 	that no solution can be reached in the
-	given move depth."
+	given move depth. nil if we don't know."
 
-	(local moves-left (- 1 (length 
-		(unpack-filled-holes state))))
-	
+	(trace (strf "checking unreach: %d %d" move-depth solve-depth))
+
+	(local n-moves-left (-
+		(length (unpack-filled-holes
+			state self.n-holes)) 1))
+
+	(if 
+		(<= move-depth 0) nil 
+
+		(. dp state) false
+
+		(<= (- n-moves-left move-depth) 
+			solve-depth)
+		(do 
+			(local the-moves 
+				(self:all-moves-from-state state))
+			(var unreachable true)
+			(trace (to-str the-moves))
+			(each 
+				[_ {: to : from : over} 
+					(ipairs the-moves) &until 
+					(not unreachable)]
+				(local new-state 
+					(jump to from over state))
+				(set unreachable 
+					(and unreachable 
+						(self:solution-unreachable dp
+							new-state (- move-depth 1) 
+								solve-depth))))	
+	  unreachable)
+
+			nil	
+		)
 )
 
-(fn Game.mt.not-winnable 
-	[self max-solution-depth] 
-	; There is proof of unwinnableness if
-	; dp[state] == nil and it's any
-	; board other than the cross.
-	; if it's the cross, then either:
-	; 1. let moves-left = pegs-left - 1
-	;    moves-left <= max-solution-depth
-	;				and dp[state] == nil
-	; 2. solution-reachable
-	;    (moves-left - max-solution-depth) 
-	;    is empty
-)
 
 (fn do-button-click 
 	[current-game button-id]
@@ -972,8 +1009,14 @@
 			(not (game:marble-in-hole? hole)) 
 			game.marble-in-hand)
 
-		(game:try-make-move 
-			game.marble-in-hand hole)
+		(do
+			(game:try-make-move 
+				game.marble-in-hand hole)
+			(tset game :solution-unreachable
+				(game.board:solution-unreachable 
+			 	game.dp game.state
+					game.forward-reachable-depth
+					game.solution-depth)))
 
 
 		(and 
@@ -1108,6 +1151,9 @@
 		; make cursor be the hand
 	 (poke 0x3ffb 129)
 	)
+
+	(when game.solution-unreachable
+		(print "Unwinnable" 0 40 12))
 
 	; debug
 	(let 
