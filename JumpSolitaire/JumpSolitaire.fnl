@@ -64,7 +64,7 @@
 
 (local max-solve-depth-normal 16)
 (local max-solve-depth-english 6)
-(local forward-reachable-depth 8)
+(local forward-reachable-depth 6)
 
 (global game {})
 
@@ -954,7 +954,7 @@
 			state self.n-holes)) 1))
 
 	(if 
-		(<= move-depth 0) nil 
+		(<= move-depth 0) (not (. dp state)) 
 
 		(. dp state) false
 
