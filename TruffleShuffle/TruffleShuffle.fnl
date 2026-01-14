@@ -15,6 +15,7 @@
 (local pack table.pack)
 (local unpack table.unpack)
 (local str_join #(table.concat $1 " "))
+(local strf string.format)
 
 ; utilities
 (macro inc! [x] `(set ,x (+ 1 ,x)))
@@ -237,16 +238,18 @@
 (fn GameState.mt.draw [self]
     (map)
 
-    (local fieldx (* FIELD_X_T TILE_W_PX))
-    (local fieldy (* FIELD_Y_T TILE_H_PX))
+    (let [
+        fieldx (* FIELD_X_T TILE_W_PX)
+        fieldy (* FIELD_Y_T TILE_H_PX)
 
-    (local playeroffx (* TILE_W_PX (- self.player_tx 1)))
-    (local playeroffy (* TILE_H_PX (- self.player_ty 1)))
+        playeroffx (* TILE_W_PX (- self.player_tx 1))
+        playeroffy (* TILE_H_PX (- self.player_ty 1))
 
-    (local playerx (+ fieldx playeroffx))
-    (local playery (+ fieldy playeroffy))
-    (self.anim_states.player_head:draw playerx (- playery TILE_H_PX))
-    (self.anim_states.player_body:draw playerx playery)
+        playerx (+ fieldx playeroffx)
+        playery (+ fieldy playeroffy)
+    ]
+        (self.anim_states.player_head:draw playerx (- playery TILE_H_PX))
+        (self.anim_states.player_body:draw playerx playery))
 )
 
 ; We don't want the gamestate to ever be mutated mid-frame. Instead, store a
@@ -270,8 +273,8 @@
     (local south_speed (if (. appstate.pad_state DIR_S) 1 0))
     (local vert_speed (* MOVE_SPEED (+ north_speed south_speed)))
 
-    (set com.move_horiz horiz_speed)
-    (set com.move_vert vert_speed)
+    (set com.movehoriz horiz_speed)
+    (set com.movevert vert_speed)
 )
 
 (fn apply_command [command gamestate]
