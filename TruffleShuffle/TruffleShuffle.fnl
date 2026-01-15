@@ -27,7 +27,7 @@
 (fn to_str [thing]
     (case (type thing)
         :table 
-        (if (. thing 1) 
+        (if (~= nil (. thing 1)) 
             (.. "[" (str_join
                 (icollect [_ v (ipairs thing)] 
                     (to_str v))) "]")
@@ -48,6 +48,10 @@
 
 (local [TILE_W_PX TILE_H_PX] [8 8])
 
+; half of a tile offsets, used when drawing characters centered
+(local H_TILE_W_PX_OFF (- (/ TILE_W_PX 2)))
+(local H_TILE_H_PX_OFF (- (/ TILE_H_PX 2)))
+
 (local [FIELD_X_T FIELD_Y_T] [11 1]) ; gamefield top left x and y coords 
 (local [FIELD_W_T FIELD_H_T] [18 15])
 
@@ -58,15 +62,18 @@
 (local TICS_PER_MS (/ TICS_PER_SEC 1000))
 (local MS_PER_TIC (/ 1 TICS_PER_MS))
 
-; in pixels per tick
-(local MOVE_SPEED 0.0625)
+; in tiles per second
+(local MOVE_SPEED_TPS 5)
 
-
-
+; in tiles per tic
+(local MOVE_SPEED (/ MOVE_SPEED_TPS TICS_PER_SEC))
 
 
 ; default animation frame delay in millis
 (local DEF_DELAY_MS 125)
+
+; special anim time for highlight animation beneath pig
+(local HILITE_DELAY_MS 500)
 
 ; map from tile-id -> weight
 (local random-tiles {
@@ -136,22 +143,34 @@
     (local delay (or delay DEF_DELAY_MS))
     (local x_off (or x_off 0))
     (local y_off (or y_off 0))
+
+    (assert (> delay 0))
     
     { : tile_no : delay : x_off : y_off }
 )
 
 (fn Anim.from_frame_nos [frames]
+    (Anim.from_frame_nos_delay DEF_DELAY_MS frames)
+)
+
+(fn Anim.from_frame_nos_delay [delay frames]
     (icollect [_ frame_no (ipairs frames)]
-        (Anim.frame frame_no))
+        (Anim.frame frame_no delay))
 )
 
 (local ANIMS {
     :player_head {
+        :n (Anim.from_frame_nos [40 41])
+        :e (Anim.from_frame_nos [36 37])
         :s (Anim.from_frame_nos [32 33])
+        :w (Anim.from_frame_nos [44 45])
     }
 
     :player_body {
+        :n (Anim.from_frame_nos [56 57 58 59])
+        :e (Anim.from_frame_nos [52 53 54 55])
         :s (Anim.from_frame_nos [48 49 50 51])
+        :w (Anim.from_frame_nos [60 61 62 63])
     }
 })
 
@@ -198,7 +217,15 @@
 
 (fn Anim.State.mt.draw [self xpx ypx]
     "draw the current frame at a given position"
-    (spr (. (self:current_frame) :tile_no) xpx ypx 0)
+    (local x (+ xpx (. (self:current_frame) :x_off)))
+    (local y (+ ypx (. (self:current_frame) :y_off)))
+    (spr (. (self:current_frame) :tile_no) x y 0)
+)
+
+(fn Anim.State.mt.reset [self] 
+    "start idling (reset to first frame, zero progress)"
+    (set self.current_frame_no 1)
+    (set self.progress 0)
 )
 ; ~Animations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -206,7 +233,7 @@
 (local GameState {:mt {}})
 (fn GameState.new [level] 
     (local state {
-        :player_dir DIR_S
+        :player_dir :s
 
         ; player location, tile_x, tile_y in game-tiles (not map memory tiles)
         :player_tx  1
@@ -215,6 +242,8 @@
         :anim_states {
             :player_head (Anim.state ANIMS.player_head.s)
             :player_body (Anim.state ANIMS.player_body.s)
+            ;:hilite (Anim.state 
+            ;    (Anim.from_frame_nos_delay HILITE_DELAY_MS [22 23]))
         }
     })
 
@@ -226,13 +255,11 @@
     state
 )
 
-(fn GameState.mt.move_player_px [self xpx ypx]
-    "move player by given pixel offset"
-    (local toffx (/ xpx TILE_W_PX))
-    (local toffy (/ ypx TILE_H_PX))
+(fn GameState.mt.move_player_px [self xt yt]
+    "move player by given tile offset"
 
-    (set self.player_tx (clamp (+ self.player_tx toffx) 1 FIELD_W_T))
-    (set self.player_Ty (clamp (+ self.player_ty toffy) 1 FIELD_H_T))
+    (set self.player_tx (clamp (+ self.player_tx xt) 1 FIELD_W_T))
+    (set self.player_ty (clamp (+ self.player_ty yt) 1 FIELD_H_T))
 )
 
 (fn GameState.mt.draw [self]
@@ -245,9 +272,10 @@
         playeroffx (* TILE_W_PX (- self.player_tx 1))
         playeroffy (* TILE_H_PX (- self.player_ty 1))
 
-        playerx (+ fieldx playeroffx)
-        playery (+ fieldy playeroffy)
+        playerx (+ fieldx playeroffx H_TILE_W_PX_OFF)
+        playery (+ fieldy playeroffy H_TILE_H_PX_OFF)
     ]
+        ;(self.anim_states.hilite:draw playerx playery)
         (self.anim_states.player_head:draw playerx (- playery TILE_H_PX))
         (self.anim_states.player_body:draw playerx playery))
 )
@@ -265,12 +293,12 @@
     "update the command to reflect what the buttons say to do"
     (set com.dig (appstate:action_button_down))
 
-    (local west_speed (if (. appstate.pad_state DIR_W) -1 0))
-    (local east_speed (if (. appstate.pad_state DIR_E) 1 0))
+    (local west_speed (if (. appstate.pad_state BTN_LEFT) -1 0))
+    (local east_speed (if (. appstate.pad_state BTN_RIGHT) 1 0))
     (local horiz_speed (* MOVE_SPEED (+ west_speed east_speed)))
 
-    (local north_speed (if (. appstate.pad_state DIR_N) -1 0))
-    (local south_speed (if (. appstate.pad_state DIR_S) 1 0))
+    (local north_speed (if (. appstate.pad_state BTN_UP) -1 0))
+    (local south_speed (if (. appstate.pad_state BTN_DOWN) 1 0))
     (local vert_speed (* MOVE_SPEED (+ north_speed south_speed)))
 
     (set com.movehoriz horiz_speed)
@@ -278,6 +306,36 @@
 )
 
 (fn apply_command [command gamestate]
+    (local xt command.movehoriz)
+    (local yt command.movevert)
+    (local st gamestate)
+
+    (local dir1 (if (> xt 0) :e (< xt 0) :w))
+    (local dir2 (if (> yt 0) :s (< yt 0) :n))
+
+    ; keep dir the same as long as it matches one of the directions being
+    ; pressed. otherwise change it with preference to north/south
+    (local new_dir (if
+        (or (= st.player_dir dir1) (= st.player_dir dir2)) st.player_dir
+        dir1 dir1
+        dir2 dir2
+        st.player_dir))
+
+    ; swap out anims
+    (when (and st.player_dir (~= st.player_dir new_dir))
+        (local head (. ANIMS.player_head new_dir))
+        (local body (. ANIMS.player_body new_dir))
+        
+        (set st.anim_states.player_head (Anim.state head))
+        (set st.anim_states.player_body (Anim.state body))
+        
+        (set st.player_dir new_dir))
+
+    ; actually, we're idling
+    (when (and (not dir1) (not dir2))
+        (st.anim_states.player_head:reset)
+        (st.anim_states.player_body:reset))
+
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
 
@@ -313,7 +371,9 @@
 ;; 019:22c2321022322132222212322222120222221010022211002022200000000000
 ;; 020:0222222002222222022222220222222202222222002222220002222000000000
 ;; 021:2222321022222132222212322222120222221010022211002022200000000000
-;; 032:00000000332222333322223322c22c222c9229c22c9229c22233332222333322
+;; 022:cc0000ccc000000c00000000000000000000000000000000c000000ccc0000cc
+;; 023:000000000cc00cc00c0000c000000000000000000c0000c00cc00cc000000000
+;; 032:00000000332222333322223322c22c222c9229c22c9229c22233332202333320
 ;; 033:332222333322223322c22c222c9229c22c9229c2222222222233332202333320
 ;; 036:0000000003332230233322202232c220222c9220222c92232222222302220223
 ;; 037:03332230233322202232c220222c9220222c9223222222230222022302222000
@@ -325,17 +385,17 @@
 ;; 049:0277772022777772337777723367762302200220022002200330000000000000
 ;; 050:0072270002777720227777223377773333677633022662200220022002300320
 ;; 051:0277772027777722277777333267763302200220022002200000033000000000
-;; 052:0000000000772700007227702072277002733770006336000002200000033300
+;; 052:0007770000772700007227702072277002733770006336000002200000033300
 ;; 053:0022770002227770232777700337777000877600002661130322013000330300
-;; 054:0000000000772700007227702072277002733770006336000002200000033300
+;; 054:0007770000772700007227702072277002733770006336000002200000033300
 ;; 055:0072270000722370207733700277777000677600001662230311023000330300
-;; 056:0000000000222200027777202777777237772773376776730776677002200220
+;; 056:0022220002777720077777702777777237772773376776730776677002200220
 ;; 057:0077770002777720077777720772777307677673077667700220022000000220
-;; 058:0000000000222200027777202777777237772773376776730776677002200220
+;; 058:0022220002777720077777702777777237772773376776730776677002200220
 ;; 059:0077770002777720277777703772777037677670077667700220022002200000
-;; 060:0000000000727700077227000772270207733720006336000002200000333000
+;; 060:0077770000727700077227000772270207733720006336000002200000333000
 ;; 061:0077220007772220077772320777733000677800311662000310223000303300
-;; 062:0000000000727700077227000772270207733720006336000002200000333000
+;; 062:0077770000727700077227000772270207733720006336000002200000333000
 ;; 063:0072270007322700073377020777772000677600322661000320113000303300
 ;; 064:000322200033c9200002c9330002223300002220000000000000000000000000
 ;; 080:0000000000000500000065660056656600656566006666660066666600666666
