@@ -50,10 +50,10 @@
 
 ; half of a tile offsets, used when drawing characters centered
 (local H_TILE_W_PX_OFF (- (/ TILE_W_PX 2)))
-(local H_TILE_H_PX_OFF (- (/ TILE_H_PX 2)))
 
 (local [FIELD_X_T FIELD_Y_T] [11 1]) ; gamefield top left x and y coords 
 (local [FIELD_W_T FIELD_H_T] [18 15])
+(local EPS (/ 1 1024)) 
 
 (local [BTN_UP BTN_DOWN BTN_LEFT BTN_RIGHT] [1 2 3 4])
 (local [BTN_A BTN_B BTN_X BTN_Y] [5 6 7 8])
@@ -70,7 +70,7 @@
 
 
 ; default animation frame delay in millis
-(local DEF_DELAY_MS 125)
+(local DEF_DELAY_MS 100)
 
 ; special anim time for highlight animation beneath pig
 (local HILITE_DELAY_MS 500)
@@ -258,8 +258,8 @@
 (fn GameState.mt.move_player_px [self xt yt]
     "move player by given tile offset"
 
-    (set self.player_tx (clamp (+ self.player_tx xt) 1 FIELD_W_T))
-    (set self.player_ty (clamp (+ self.player_ty yt) 1 FIELD_H_T))
+    (set self.player_tx (clamp (+ self.player_tx xt) 1 (- FIELD_W_T 1)))
+    (set self.player_ty (clamp (+ self.player_ty yt) 1 (- FIELD_H_T 1)))
 )
 
 (fn GameState.mt.draw [self]
@@ -269,15 +269,26 @@
         fieldx (* FIELD_X_T TILE_W_PX)
         fieldy (* FIELD_Y_T TILE_H_PX)
 
-        playeroffx (* TILE_W_PX (- self.player_tx 1))
-        playeroffy (* TILE_H_PX (- self.player_ty 1))
+        playeroffx (* TILE_W_PX self.player_tx)
+        playeroffy (* TILE_H_PX self.player_ty)
 
-        playerx (+ fieldx playeroffx H_TILE_W_PX_OFF)
-        playery (+ fieldy playeroffy H_TILE_H_PX_OFF)
+        playerx (+ fieldx playeroffx)
+        playery (+ fieldy playeroffy)
     ]
         ;(self.anim_states.hilite:draw playerx playery)
-        (self.anim_states.player_head:draw playerx (- playery TILE_H_PX))
-        (self.anim_states.player_body:draw playerx playery))
+        (self.anim_states.player_head:draw 
+            (+ playerx H_TILE_W_PX_OFF)
+            (- playery TILE_H_PX TILE_H_PX))
+            
+        ; guide
+        ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
+        
+        (self.anim_states.player_body:draw
+            (+ playerx H_TILE_W_PX_OFF) 
+            (- playery TILE_H_PX))
+    )
+        ; debug
+        ;(pix playerx playery 2))
 )
 
 ; We don't want the gamestate to ever be mutated mid-frame. Instead, store a
@@ -353,6 +364,9 @@
 
     (apply_command command gamestate)
     (gamestate:draw)
+    (print (strf "tile under: %d %d"
+        (math.floor gamestate.player_tx)
+        (math.floor gamestate.player_ty)) 0 128 12)
 )
 
 ;; <TILES>
