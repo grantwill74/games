@@ -75,13 +75,23 @@
 ; special anim time for highlight animation beneath pig
 (local HILITE_DELAY_MS 500)
 
+(local DIGITS [128 129 130 131 132 133 134 135])
+
 ; map from tile-id -> weight
-(local random-tiles {
+(local random_tiles {
     :grass {
         101 10
         97  1
     }
 })
+
+; map tile types
+(local DIRT_TILE 108)
+(local HOLE_TILE 136)
+
+(local EMPTY 0)
+(local HOLE -1)
+(local TRUFFLE -2)
 
 
 ; The basic control flow works like this:
@@ -135,6 +145,14 @@
         (. self.pad_state BTN_B)
         (. self.pad_state BTN_X)
         (. self.pad_state BTN_Y))
+)
+
+(lambda AppState.mt.action_button_pressed [self]
+    (or 
+        (. self.pad_just_pressed BTN_A)
+        (. self.pad_just_pressed BTN_B)
+        (. self.pad_just_pressed BTN_X)
+        (. self.pad_just_pressed BTN_Y))
 )
 
 ; Animation related things ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -229,9 +247,79 @@
 )
 ; ~Animations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(local GameMap {:mt {}})
+(fn GameMap.gen [seed n_truffles n_holes]
+    (math.randomseed seed)
+    (local map [])
+
+    (local max_row (- FIELD_H_T 1))
+    (local max_col (- FIELD_W_T 1))
+
+    (for [r 1 max_row]
+        (local row [])
+        (for [c 1 max_col]
+            (push row 0))
+        (push map row))
+
+    ; really don't want more than half of the tiles to be filled for
+    ; the sake of having the mapgen be completable given its non-determinism
+    (local total_tiles (* max_row max_col))
+    (assert (< (+ n_truffles n_holes) (/ total_tiles 2))
+        "too many objects in field. limit: truffles + holes < total_tiles / 2")
+
+    (var truffles 0)
+    (while (< truffles n_truffles)
+        (local row (math.random 1 max_row))
+        (local col (math.random 1 max_col))
+        (when (= (. map row col) EMPTY)
+            (tset map row col TRUFFLE)
+            (inc! truffles)))
+
+    (var holes 0)
+    (while (< holes n_holes)
+        (local row (math.random 1 max_row))
+        (local col (math.random 1 max_col))
+        (when (= (. map row col) EMPTY)
+            (tset map row col HOLE)
+            (inc! holes)))
+
+    (setmetatable map {
+        :__index GameMap.mt
+        :__tostring to_str
+    })
+    map 
+)
+
+(fn GameMap.mt.at [self x y]
+    "Gets the map cell at position x y or nil if it is out of bounds"
+    (-?> (. self y) (. x))
+)
+
+(fn GameMap.mt.vicinity_count [self x y]
+    "returns the number of [truffles holes] that are adjacent to [x y]"
+    (var truffles 0)
+    (var holes 0)
+    (fn count_elem [x y] 
+        (match (self:at x y)
+            TRUFFLE (inc! truffles)
+            HOLE (inc! holes)))
+
+    (count_elem (- x 1) (- y 1))
+    (count_elem x (- y 1))
+    (count_elem (+ x 1) (- y 1))
+    
+    (count_elem (- x 1) y)
+    (count_elem (+ x 1) y)
+    
+    (count_elem (- x 1) (+ y 1))
+    (count_elem x (+ y 1))
+    (count_elem (+ x 1) (+ y 1))
+
+    [truffles holes]
+)
 
 (local GameState {:mt {}})
-(fn GameState.new [level] 
+(fn GameState.new [level seed] 
     (local state {
         :player_dir :s
 
@@ -245,6 +333,8 @@
             ;:hilite (Anim.state 
             ;    (Anim.from_frame_nos_delay HILITE_DELAY_MS [22 23]))
         }
+
+        :map (GameMap.gen seed 3 10)
     })
 
     (setmetatable state {
@@ -255,11 +345,25 @@
     state
 )
 
+(fn GameState.mt.player_field_coords [self]
+    "returns player's x/y coords in an array relative to the 
+     top left of the game field. 1,1 is the top-left most in-bound. 
+     returns integers."
+    [(math.floor self.player_tx) (math.floor self.player_ty)]     
+)
+
+(fn GameState.mt.player_map_coords [self]
+    "returns the player's coords as an array in 0-based map-coordinates where
+    0,0 refers to the top left of map memory rather than the play-field."
+    (local [fieldx fieldy] (self:player_field_coords))
+    [(+ FIELD_X_T fieldx) (+ FIELD_Y_T fieldy)]
+)
+
 (fn GameState.mt.move_player_px [self xt yt]
     "move player by given tile offset"
 
-    (set self.player_tx (clamp (+ self.player_tx xt) 1 (- FIELD_W_T 1)))
-    (set self.player_ty (clamp (+ self.player_ty yt) 1 (- FIELD_H_T 1)))
+    (set self.player_tx (clamp (+ self.player_tx xt) 1 (- FIELD_W_T 1 EPS)))
+    (set self.player_ty (clamp (+ self.player_ty yt) 1 (- FIELD_H_T 1 EPS)))
 )
 
 (fn GameState.mt.draw [self]
@@ -287,8 +391,6 @@
             (+ playerx H_TILE_W_PX_OFF) 
             (- playery TILE_H_PX))
     )
-        ; debug
-        ;(pix playerx playery 2))
 )
 
 ; We don't want the gamestate to ever be mutated mid-frame. Instead, store a
@@ -302,18 +404,20 @@
 
 (fn poll_buttons [appstate com]
     "update the command to reflect what the buttons say to do"
-    (set com.dig (appstate:action_button_down))
+    (set com.dig (appstate:action_button_pressed))
 
-    (local west_speed (if (. appstate.pad_state BTN_LEFT) -1 0))
-    (local east_speed (if (. appstate.pad_state BTN_RIGHT) 1 0))
-    (local horiz_speed (* MOVE_SPEED (+ west_speed east_speed)))
+    (let [
+        west_speed (if (. appstate.pad_state BTN_LEFT) -1 0)
+        east_speed (if (. appstate.pad_state BTN_RIGHT) 1 0)
+        horiz_speed (* MOVE_SPEED (+ west_speed east_speed))
 
-    (local north_speed (if (. appstate.pad_state BTN_UP) -1 0))
-    (local south_speed (if (. appstate.pad_state BTN_DOWN) 1 0))
-    (local vert_speed (* MOVE_SPEED (+ north_speed south_speed)))
-
-    (set com.movehoriz horiz_speed)
-    (set com.movevert vert_speed)
+        north_speed (if (. appstate.pad_state BTN_UP) -1 0)
+        south_speed (if (. appstate.pad_state BTN_DOWN) 1 0)
+        vert_speed (* MOVE_SPEED (+ north_speed south_speed))
+    ]
+        (set com.movehoriz horiz_speed)
+        (set com.movevert vert_speed)
+    )
 )
 
 (fn apply_command [command gamestate]
@@ -347,12 +451,28 @@
         (st.anim_states.player_head:reset)
         (st.anim_states.player_body:reset))
 
+    ; time to dig
+    (when command.dig
+        (local [tx ty] (gamestate:player_field_coords))
+        (local [mapx mapy] (gamestate:player_map_coords))
+        (local [truffles holes] (gamestate.map:vicinity_count tx ty))
+        (local val (gamestate.map:at tx ty))
+
+        (local tile 
+            (if (= val nil)     nil
+                (= val HOLE)    HOLE_TILE
+                (= holes 0)     DIRT_TILE
+                (> holes 0)     (. DIGITS holes)))
+
+        (mset mapx mapy tile))
+
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
 
 (fn _G.BOOT []
     (global appstate (AppState.new))
-    (global gamestate (GameState.new 0))
+    (global gamestate (GameState.new 0 0 1))
+    
 )
 
 (fn _G.TIC []
@@ -376,11 +496,14 @@
 ;; 005:0044400023330400223303002223330022022000220220002200200022222300
 ;; 006:0ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc000000
 ;; 007:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-;; 008:0000c000000cc00000c0c0000000c0000000c0000000c00000cccc0000000000
-;; 009:000cc00000c00c0000000c000000c000000c000000c0000000cccc0000000000
-;; 010:00ccc00000000c0000000c000000c00000000c0000000c0000ccc00000000000
-;; 011:0000c000000cc00000c0c0000c00c0000ccccc000000c0000000c00000000000
-;; 012:00cccc0000c0000000ccc00000000c0000000c0000000c0000ccc00000000000
+;; 008:0000c000000cc00000c8c0000080c0000000c0000000c00000cccc0000888800
+;; 009:000cc00000c88c0000800c000000c800000c800000c8000000cccc0000888800
+;; 010:00ccc00000888c0000000c000000c80000008c0000000c0000ccc80000888000
+;; 011:0000c000000cc00000c8c0000c80c0000ccccc000888c8000000c00000008000
+;; 012:00cccc0000c8880000ccc00000888c0000000c0000000c0000ccc80000888000
+;; 013:000cc00000c88c0000c0080000ccc00000c88c0000c00c00008cc80000088000
+;; 014:00cccc0000888c0000000c000000c8000000c000000c8000000c000000080000
+;; 015:000cc00000c88c0000c00c00008cc80000c88c0000c00c00008cc80000088000
 ;; 018:0222cc9902222ccc022222220222222202222222002222220002222200000000
 ;; 019:22c2321022322132222212322222120222221010022211002022200000000000
 ;; 020:0222222002222222022222220222222202222222002222220002222000000000
@@ -419,7 +542,7 @@
 ;; 085:6666666666666666666666666666666666666666666666666666666666666666
 ;; 086:6666666666666666666666666666666666666666666666666666666666666666
 ;; 088:0000000000000000000066660006666600666666006666660066666600666666
-;; 089:0000000000000000666666666666666666666666666666666666666666666666
+;; 089:0000000000000000616161611212121225252525323232322121212112121212
 ;; 090:0000000000000000666600006666600066666600666666006666660066666600
 ;; 096:0566666600566666056666660056666600566666006666660066666600666666
 ;; 097:6666666666656665666566656565656565656566656665666666666666666666
@@ -427,9 +550,10 @@
 ;; 100:6666666666666666666666666666666666666666666666666666666666666666
 ;; 101:6666666666666666666666666666666666666666666666666666666666666666
 ;; 102:6666666666666666666666666666666666666666666666666666666666666666
-;; 104:0066666600666666006666660066666600666666006666660066666600666666
+;; 104:0012521200612321001252120061232100125212006123210012521200612321
 ;; 105:2125212512321232212521251232123221252125123212322125212512321232
 ;; 106:2125210012321600212521001232160021252100123216002125210012321600
+;; 108:6622226662222226222222222222222222222222222222226222222666222266
 ;; 112:0066666600666566055665660065666600056666000565660000050000000000
 ;; 113:6666666666666666666665566656656666566566665666660000000000000000
 ;; 114:6666660066666650666665006666650066656000666650000000000000000000
@@ -439,6 +563,15 @@
 ;; 120:0066666600666666006666660066666600066666000066660000000000000000
 ;; 121:6666666666666666666666666666666666666666666666660000000000000000
 ;; 122:6666660066666600666666006666660066666000666600000000000000000000
+;; 128:6622c266622cc22622c8c2222282c2222222c2222222c22262cccc2666888866
+;; 129:6629926662988926228229222222982222298222229822226299992666888866
+;; 130:6644426662888426222224222222482222228422222224226244482666888266
+;; 131:6622326662233226223832222382322223333322288838226222322666228266
+;; 132:66bbbb6662b8882622bbb22222888b2222222b2222222b2262bbb82666888266
+;; 133:662aa26662a88a2622a0082222aaa22222a88a2222a22a22628aa82666288266
+;; 134:6655556662888526222225222222582222225222222582226225222666282266
+;; 135:662dd26662d88d2622d22d22228dd82222d88d2222d22d22628dd82666288266
+;; 136:6600006660000006000000000000000000000000000000006000000666000066
 ;; </TILES>
 
 ;; <MAP>
