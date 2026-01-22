@@ -62,6 +62,10 @@
 (local TICS_PER_MS (/ TICS_PER_SEC 1000))
 (local MS_PER_TIC (/ 1 TICS_PER_MS))
 
+; coordinates to draw truffles
+(local [TRUFFLE_DISPLAY_PX TRUFFLE_DISPLAY_PY] [0 32])
+(local [FLAG_DISPLAY_PX FLAG_DISPLAY_PY] [0 24])
+
 ; in tiles per second
 (local MOVE_SPEED_TPS 5)
 
@@ -88,10 +92,15 @@
 ; map tile types
 (local DIRT_TILE 108)
 (local HOLE_TILE 136)
+(local TRUFFLE_TILE 137)
+
+(local FLAG_SPRITE 148)
+(local FLAG_TILE 149)
 
 (local EMPTY 0)
 (local HOLE -1)
 (local TRUFFLE -2)
+(local FLAG -3)
 
 
 ; The basic control flow works like this:
@@ -139,7 +148,7 @@
     (set self.dtime (- self.time old_time))
 )
 
-(lambda AppState.mt.action_button_down [self]
+(fn AppState.mt.action_button_down [self]
     (or 
         (. self.pad_state BTN_A)
         (. self.pad_state BTN_B)
@@ -147,11 +156,15 @@
         (. self.pad_state BTN_Y))
 )
 
-(lambda AppState.mt.action_button_pressed [self]
+(fn AppState.mt.dig_button_pressed [self]
     (or 
         (. self.pad_just_pressed BTN_A)
+        (. self.pad_just_pressed BTN_X))
+)
+
+(fn AppState.mt.flag_button_pressed [self]
+    (or 
         (. self.pad_just_pressed BTN_B)
-        (. self.pad_just_pressed BTN_X)
         (. self.pad_just_pressed BTN_Y))
 )
 
@@ -252,8 +265,8 @@
     (math.randomseed seed)
     (local map [])
 
-    (local max_row (- FIELD_H_T 1))
-    (local max_col (- FIELD_W_T 1))
+    (local max_row (- FIELD_H_T 2))
+    (local max_col (- FIELD_W_T 2))
 
     (for [r 1 max_row]
         (local row [])
@@ -334,6 +347,13 @@
             ;    (Anim.from_frame_nos_delay HILITE_DELAY_MS [22 23]))
         }
 
+        :first_dig true ; is it the first dig? (hole converted to truffle)
+        :last_dig_time 0 ; time of last dig
+
+        :truffles_gotten 0
+
+        : level
+
         :map (GameMap.gen seed 3 10)
     })
 
@@ -343,6 +363,20 @@
     })
 
     state
+)
+
+(fn GameState.mt.truffle_get [self tx ty appstate]
+    (inc! self.truffles_gotten)
+    (tset self :map ty tx EMPTY)
+    ; add animation and sfx later
+)
+
+(fn GameState.mt.draw_truffles [self]
+    (var px TRUFFLE_DISPLAY_PX)
+
+    (for [truf 0 (- self.truffles_gotten 1)]
+        (spr TRUFFLE_TILE px TRUFFLE_DISPLAY_PY 0)
+        (set px (+ px TILE_W_PX)))
 )
 
 (fn GameState.mt.player_field_coords [self]
@@ -379,6 +413,8 @@
         playerx (+ fieldx playeroffx)
         playery (+ fieldy playeroffy)
     ]
+        (self:draw_truffles)
+
         ;(self.anim_states.hilite:draw playerx playery)
         (self.anim_states.player_head:draw 
             (+ playerx H_TILE_W_PX_OFF)
@@ -400,11 +436,13 @@
     :movehoriz 0    ; amount to move horizontally in pixels
     :movevert 0     ; amount to move vertically in pixels
     :dig false      ; replace with true to dig under the player
+    :flag false 
 })
 
 (fn poll_buttons [appstate com]
     "update the command to reflect what the buttons say to do"
-    (set com.dig (appstate:action_button_pressed))
+    (set com.dig (appstate:dig_button_pressed))
+    (set com.flag (appstate:flag_button_pressed))
 
     (let [
         west_speed (if (. appstate.pad_state BTN_LEFT) -1 0)
@@ -420,7 +458,7 @@
     )
 )
 
-(fn apply_command [command gamestate]
+(fn apply_command [command gamestate appstate]
     (local xt command.movehoriz)
     (local yt command.movevert)
     (local st gamestate)
@@ -451,27 +489,41 @@
         (st.anim_states.player_head:reset)
         (st.anim_states.player_body:reset))
 
+    ; can't dig and flag at the same time. prefer digging.
+    (when (and command.dig command.flag) (set command.flag false))
+
+    (local [tx ty] (gamestate:player_field_coords))
+    (local [mapx mapy] (gamestate:player_map_coords))
+
     ; time to dig
     (when command.dig
-        (local [tx ty] (gamestate:player_field_coords))
-        (local [mapx mapy] (gamestate:player_map_coords))
         (local [truffles holes] (gamestate.map:vicinity_count tx ty))
         (local val (gamestate.map:at tx ty))
 
+        ; when the first tile we dig is a hole, it becomes a truffle
+        (when (or (= val TRUFFLE) (and (= val HOLE) gamestate.first_dig))
+            (gamestate:truffle_get tx ty appstate))
+
         (local tile 
-            (if (= val nil)     nil
-                (= val HOLE)    HOLE_TILE
+            (if (= val HOLE)    HOLE_TILE
                 (= holes 0)     DIRT_TILE
                 (> holes 0)     (. DIGITS holes)))
 
+        (set gamestate.first_dig false)
+        (set gamestate.last_dig_time appstate.time)
+
         (mset mapx mapy tile))
+
+    (when command.flag
+        ; play happy or sad sfx
+        (mset mapx mapy FLAG_TILE))
 
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
 
 (fn _G.BOOT []
     (global appstate (AppState.new))
-    (global gamestate (GameState.new 0 0 1))
+    (global gamestate (GameState.new 1 1 1))
     
 )
 
@@ -482,7 +534,7 @@
     (local command (GameCommand.new))
     (poll_buttons appstate command)
 
-    (apply_command command gamestate)
+    (apply_command command gamestate appstate)
     (gamestate:draw)
     (print (strf "tile under: %d %d"
         (math.floor gamestate.player_tx)
@@ -572,6 +624,17 @@
 ;; 134:6655556662888526222225222222582222225222222582226225222666282266
 ;; 135:662dd26662d88d2622d22d22228dd82222d88d2222d22d22628dd82666288266
 ;; 136:6600006660000006000000000000000000000000000000006000000666000066
+;; 137:0000000000440000044440000434340000444400000434400000440000000000
+;; 144:6666666666666666666666666662266666622666666666666666666666666666
+;; 145:6666666666666666666226666622226666222266666226666666666666666666
+;; 146:6666666666622666662222666222222662222226662222666662266666666666
+;; 147:6622226662222226222222222222222222222222222222226222222666222266
+;; 148:0001444000014444000144400001440000010000000000000000000000000000
+;; 149:6661444666614444666144466661446666616666666666666666666666666666
+;; 160:0000000000000000000000000000000000100100010000100000000000000000
+;; 161:0000000000000000001001000100001000100100010000100000000000000000
+;; 162:0000000001000010101001010000000001000010101001010000000000000000
+;; 163:0000000000000000100000010000000000000000100000010000000000000000
 ;; </TILES>
 
 ;; <MAP>
