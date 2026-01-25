@@ -19,6 +19,7 @@
 
 ; utilities
 (macro inc! [x] `(set ,x (+ 1 ,x)))
+(macro dec! [x] `(set ,x (- ,x 1)))
 
 (fn clamp [x lo hi] (if (<= x lo) lo (>= x hi) hi x))
 (fn empty? [list] (= (length list) 0))
@@ -203,15 +204,18 @@
         :s (Anim.from_frame_nos [48 49 50 51])
         :w (Anim.from_frame_nos [60 61 62 63])
     }
+
+    :dig (Anim.from_frame_nos [160 161 162 163])
 })
 
 (set Anim.State {:mt {}})
-(lambda Anim.state [frames] 
+(lambda Anim.state [frames loop] 
     (local state {
         :current_frame_no 1
         :progress 0
         :n_frames (length frames)
         : frames
+        : loop 
     })
     (setmetatable state {
         :__index Anim.State.mt
@@ -226,7 +230,8 @@
     (while (>= self.progress (self:delay))
         (inc! self.current_frame_no)
         (when (> self.current_frame_no self.n_frames)
-            (set self.current_frame_no 1))
+            (set self.current_frame_no 
+                (if self.loop 1 self.n_frames)))
         
         (set self.progress (- self.progress (self:delay))))
 )
@@ -333,6 +338,14 @@
 
 (local GameState {:mt {}})
 (fn GameState.new [level seed] 
+    ; for each tile we store an animation state
+    ; each row is an empty table that will be filled when tiles are digged 
+    (local dig_anims [])
+    (for [row 1 (- FIELD_W_T 1)]
+        (push dig_anims {})
+    )
+    
+    
     (local state {
         :player_dir :s
 
@@ -340,17 +353,20 @@
         :player_tx  1
         :player_ty  1
 
-        :anim_states {
-            :player_head (Anim.state ANIMS.player_head.s)
-            :player_body (Anim.state ANIMS.player_body.s)
+        :player_anim_states {
+            :player_head (Anim.state ANIMS.player_head.s true)
+            :player_body (Anim.state ANIMS.player_body.s true)
             ;:hilite (Anim.state 
             ;    (Anim.from_frame_nos_delay HILITE_DELAY_MS [22 23]))
         }
+        
+        : dig_anims
 
         :first_dig true ; is it the first dig? (hole converted to truffle)
         :last_dig_time 0 ; time of last dig
 
         :truffles_gotten 0
+        :n_flags 3
 
         : level
 
@@ -368,15 +384,35 @@
 (fn GameState.mt.truffle_get [self tx ty appstate]
     (inc! self.truffles_gotten)
     (tset self :map ty tx EMPTY)
-    ; add animation and sfx later
+)
+
+(fn draw_repeated_sprite [count sprite px_left py transparent_idx]
+    (var px px_left)
+
+    (for [which_one 0 (- count 1)]
+        (spr sprite px py transparent_idx)
+        (set px (+ px TILE_W_PX)))
 )
 
 (fn GameState.mt.draw_truffles [self]
-    (var px TRUFFLE_DISPLAY_PX)
+    (draw_repeated_sprite self.truffles_gotten TRUFFLE_TILE 
+        TRUFFLE_DISPLAY_PX TRUFFLE_DISPLAY_PY 0)
+)
 
-    (for [truf 0 (- self.truffles_gotten 1)]
-        (spr TRUFFLE_TILE px TRUFFLE_DISPLAY_PY 0)
-        (set px (+ px TILE_W_PX)))
+(fn GameState.mt.draw_flags [self]
+    (draw_repeated_sprite self.n_flags FLAG_SPRITE
+        FLAG_DISPLAY_PX FLAG_DISPLAY_PY 0)
+)
+
+(fn GameState.mt.tick_and_draw_dig_anims [self dtime]
+    (for [row 2 (- FIELD_H_T 1)]
+        (for [col 2 (- FIELD_W_T 1)]
+            (local state (. self.dig_anims row col))
+            (when state
+                (local px (* TILE_W_PX (+ col FIELD_X_T)))
+                (local py (* TILE_H_PX (+ row FIELD_Y_T)))
+                (state:draw px py)
+                (state:tick dtime))))
 )
 
 (fn GameState.mt.player_field_coords [self]
@@ -400,6 +436,11 @@
     (set self.player_ty (clamp (+ self.player_ty yt) 1 (- FIELD_H_T 1 EPS)))
 )
 
+(fn GameState.mt.add_dig_anim [self xt yt]
+    (local anim (Anim.state ANIMS.dig))
+    (tset self.dig_anims yt xt anim)
+)
+
 (fn GameState.mt.draw [self]
     (map)
 
@@ -414,16 +455,17 @@
         playery (+ fieldy playeroffy)
     ]
         (self:draw_truffles)
+        (self:draw_flags)
 
         ;(self.anim_states.hilite:draw playerx playery)
-        (self.anim_states.player_head:draw 
+        (self.player_anim_states.player_head:draw 
             (+ playerx H_TILE_W_PX_OFF)
             (- playery TILE_H_PX TILE_H_PX))
             
         ; guide
         ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
         
-        (self.anim_states.player_body:draw
+        (self.player_anim_states.player_body:draw
             (+ playerx H_TILE_W_PX_OFF) 
             (- playery TILE_H_PX))
     )
@@ -479,27 +521,26 @@
         (local head (. ANIMS.player_head new_dir))
         (local body (. ANIMS.player_body new_dir))
         
-        (set st.anim_states.player_head (Anim.state head))
-        (set st.anim_states.player_body (Anim.state body))
+        (set st.player_anim_states.player_head (Anim.state head true))
+        (set st.player_anim_states.player_body (Anim.state body true))
         
         (set st.player_dir new_dir))
 
     ; actually, we're idling
     (when (and (not dir1) (not dir2))
-        (st.anim_states.player_head:reset)
-        (st.anim_states.player_body:reset))
+        (st.player_anim_states.player_head:reset)
+        (st.player_anim_states.player_body:reset))
 
     ; can't dig and flag at the same time. prefer digging.
     (when (and command.dig command.flag) (set command.flag false))
 
     (local [tx ty] (gamestate:player_field_coords))
     (local [mapx mapy] (gamestate:player_map_coords))
+    (local [truffles holes] (gamestate.map:vicinity_count tx ty))
+    (local val (gamestate.map:at tx ty))
 
     ; time to dig
     (when command.dig
-        (local [truffles holes] (gamestate.map:vicinity_count tx ty))
-        (local val (gamestate.map:at tx ty))
-
         ; when the first tile we dig is a hole, it becomes a truffle
         (when (or (= val TRUFFLE) (and (= val HOLE) gamestate.first_dig))
             (gamestate:truffle_get tx ty appstate))
@@ -511,12 +552,21 @@
 
         (set gamestate.first_dig false)
         (set gamestate.last_dig_time appstate.time)
+        (tset gamestate.dig_anims ty tx (Anim.state ANIMS.dig false))
 
         (mset mapx mapy tile))
 
     (when command.flag
-        ; play happy or sad sfx
-        (mset mapx mapy FLAG_TILE))
+        (if
+            (<= gamestate.n_flags 0) (do) ; TODO nope sfx
+
+            (= val HOLE) (do) ; TODO happy sfx
+
+            ; otherwise, subtract a flag and 
+            ; TODO sad sfx
+            (do
+                (dec! gamestate.n_flags)
+                (mset mapx mapy FLAG_TILE))))
 
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
@@ -529,13 +579,14 @@
 
 (fn _G.TIC []
     (appstate:poll)
-    (Anim.states_tick gamestate.anim_states MS_PER_TIC)
+    (Anim.states_tick gamestate.player_anim_states MS_PER_TIC)
 
     (local command (GameCommand.new))
     (poll_buttons appstate command)
 
     (apply_command command gamestate appstate)
     (gamestate:draw)
+    (gamestate:tick_and_draw_dig_anims MS_PER_TIC)
     (print (strf "tile under: %d %d"
         (math.floor gamestate.player_tx)
         (math.floor gamestate.player_ty)) 0 128 12)
@@ -633,7 +684,7 @@
 ;; 149:6661444666614444666144466661446666616666666666666666666666666666
 ;; 160:0000000000000000000000000000000000100100010000100000000000000000
 ;; 161:0000000000000000001001000100001000100100010000100000000000000000
-;; 162:0000000001000010101001010000000001000010101001010000000000000000
+;; 162:0000000001000010001001000000000001000010001001000000000000000000
 ;; 163:0000000000000000100000010000000000000000100000010000000000000000
 ;; </TILES>
 
