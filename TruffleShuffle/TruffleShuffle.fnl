@@ -558,15 +558,17 @@
 
     (when command.flag
         (if
-            (<= gamestate.n_flags 0) (do) ; TODO nope sfx
+            (<= gamestate.n_flags 0)
+            (do) ; TODO nope sfx
 
-            (= val HOLE) (do) ; TODO happy sfx
+            (= val HOLE) 
+            (do (mset mapx mapy FLAG_TILE)) ; TODO happy sfx
 
             ; otherwise, subtract a flag and 
             ; TODO sad sfx
             (do
-                (dec! gamestate.n_flags)
-                (mset mapx mapy FLAG_TILE))))
+                (dec! gamestate.n_flags))))
+                ;(mset mapx mapy FLAG_TILE))))
 
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
