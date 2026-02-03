@@ -709,6 +709,10 @@
                 (dec! gamestate.n_flags))))
                 ;(mset mapx mapy FLAG_TILE))))
 
+    (each [_ [x y] (ipairs command.auto_digs)]
+        (dig x y)
+    )
+
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
 
