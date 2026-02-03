@@ -77,6 +77,10 @@
 ; default animation frame delay in millis
 (local DEF_DELAY_MS 100)
 
+; time between auto-dig generations (i.e., concentric rings of digging that 
+; are triggered by finding a hole with no hazards next to it)
+(local AUTO_DIG_GEN_TIME_MS 500)
+
 ; special anim time for highlight animation beneath pig
 (local HILITE_DELAY_MS 500)
 
@@ -215,7 +219,8 @@
         :progress 0
         :n_frames (length frames)
         : frames
-        : loop 
+        : loop
+        :finished false
     })
     (setmetatable state {
         :__index Anim.State.mt
@@ -230,6 +235,12 @@
     (while (>= self.progress (self:delay))
         (inc! self.current_frame_no)
         (when (> self.current_frame_no self.n_frames)
+            (if self.loop (set self.current_frame_no 1)
+                
+                ;else 
+                (set self.finished true)
+            )
+            
             (set self.current_frame_no 
                 (if self.loop 1 self.n_frames)))
         
@@ -265,6 +276,7 @@
 )
 ; ~Animations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; GameMap ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local GameMap {:mt {}})
 (fn GameMap.gen [seed n_truffles n_holes]
     (math.randomseed seed)
@@ -313,6 +325,25 @@
     (-?> (. self y) (. x))
 )
 
+(fn GameMap.mt.neighbors [self x y]
+    "Returns an array of the in-bound neighbors of tile x,t"
+    (local potential [
+        [(- x 1) (- y 1)]
+        [x (- y 1)]
+        [(+ x 1) (- y 1)]
+
+        [(- x 1) y]
+        [(+ x 1) y]
+
+        [(- x 1) (+ y 1)]
+        [x (+ y 1)]
+        [(+ x 1) (+ y 1)]
+    ])
+
+    (icollect [_ [x y] (ipairs potential)]
+        (when (self:at x y) [x y]))
+)
+
 (fn GameMap.mt.vicinity_count [self x y]
     "returns the number of [truffles holes] that are adjacent to [x y]"
     (var truffles 0)
@@ -320,22 +351,18 @@
     (fn count_elem [x y] 
         (match (self:at x y)
             TRUFFLE (inc! truffles)
-            HOLE (inc! holes)))
+            HOLE (inc! holes))
+    )
 
-    (count_elem (- x 1) (- y 1))
-    (count_elem x (- y 1))
-    (count_elem (+ x 1) (- y 1))
-    
-    (count_elem (- x 1) y)
-    (count_elem (+ x 1) y)
-    
-    (count_elem (- x 1) (+ y 1))
-    (count_elem x (+ y 1))
-    (count_elem (+ x 1) (+ y 1))
+    (each [_ [nx ny] (ipairs (self:neighbors x y))]
+        (count_elem nx ny)
+    )
 
     [truffles holes]
 )
+; ~ GameMap ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; GameState ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local GameState {:mt {}})
 (fn GameState.new [level seed] 
     ; for each tile we store an animation state
@@ -362,6 +389,11 @@
         
         : dig_anims
 
+        ; when a dig triggers other digs automatically because there are no 
+        ; holes in the area
+        :auto_digs [] ; stores [anim_state x y] for auto-dug tiles
+        :auto_dig_start_time 0
+
         :first_dig true ; is it the first dig? (hole converted to truffle)
         :last_dig_time 0 ; time of last dig
 
@@ -380,6 +412,52 @@
 
     state
 )
+
+; TODO fix infinite loop
+(fn gen_auto_digs [map start_time tx ty]
+    "find all the cells from tx ty that can be auto dug.
+     returns [time x y] triples in an array for all the diggable tiels."    
+
+    (local result [])
+
+    (local searched {})
+    (fn searched? [x y] (. searched (+ (lshift y 32) x)))
+    (fn searched! [x y] (tset searched (+ (lshift y 32) x) true))
+
+    ; goofy queue: just use an index to the first element which only
+    ; increases. fine if our size is limited and we free all at once.
+    (local frontier [[start_time tx ty]])
+    (var i 1)
+    (var front_size 1)
+
+    (while (> front_size 0)
+        (local [time fx fy] (. frontier i))
+        (inc! i)
+        (dec! front_size)
+
+        (when (not (searched? fx fy))
+            (searched! fx fy)
+            (local next_time (+ time AUTO_DIG_GEN_TIME_MS))
+            (local [_ holes_next_to] (map:vicinity_count fx fy))
+            (local safe (= holes_next_to 0))
+
+            (when safe 
+                (push result [time fx fy])
+                (local neighbors (map:neighbors fx fy))
+                (each [_ [nx ny] (ipairs neighbors)]
+                    (when (not (searched? nx ny))
+                        (push frontier [next_time nx ny])
+                        (inc! front_size)
+                    )
+                )
+            )
+        )
+    )
+
+    result
+)
+
+
 
 (fn GameState.mt.truffle_get [self tx ty appstate]
     (inc! self.truffles_gotten)
@@ -405,14 +483,19 @@
 )
 
 (fn GameState.mt.tick_and_draw_dig_anims [self dtime]
+    (local clears []) ; list of [row col] pairs to clear
     (for [row 2 (- FIELD_H_T 1)]
         (for [col 2 (- FIELD_W_T 1)]
             (local state (. self.dig_anims row col))
             (when state
                 (local px (* TILE_W_PX (+ col FIELD_X_T)))
                 (local py (* TILE_H_PX (+ row FIELD_Y_T)))
-                (state:draw px py)
-                (state:tick dtime))))
+                (state:tick dtime)
+                (if state.finished (push clears [row col])
+                    ; else 
+                    (state:draw px py)
+                )
+            )))
 )
 
 (fn GameState.mt.player_field_coords [self]
@@ -422,11 +505,15 @@
     [(math.floor self.player_tx) (math.floor self.player_ty)]     
 )
 
+(fn field_coords_to_map_coords [tx ty]
+    [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)]
+)
+
 (fn GameState.mt.player_map_coords [self]
     "returns the player's coords as an array in 0-based map-coordinates where
     0,0 refers to the top left of map memory rather than the play-field."
     (local [fieldx fieldy] (self:player_field_coords))
-    [(+ FIELD_X_T fieldx) (+ FIELD_Y_T fieldy)]
+    (field_coords_to_map_coords fieldx fieldy)
 )
 
 (fn GameState.mt.move_player_px [self xt yt]
@@ -440,6 +527,32 @@
     (local anim (Anim.state ANIMS.dig))
     (tset self.dig_anims yt xt anim)
 )
+
+(fn GameState.mt.tick_auto_digs [self time command]
+    (local auto_digs_to_keep [])
+
+    (each [_ [anim_state start_time x y] (ipairs self.auto_digs)]
+        (when (not anim_state.finished)
+            (when (>= time start_time)
+                ; on the first tick, set the command
+                (when (= anim_state.current_frame_no 1)
+                    (push command.auto_digs [x y]))
+                (anim_state:tick MS_PER_TIC)
+            )
+            (push auto_digs_to_keep [anim_state time x y]))
+    )
+
+    (set self.auto_digs auto_digs_to_keep)
+)
+
+(fn GameState.mt.draw_auto_digs [self]
+    (each [_ [anim_state start_time x y] (ipairs self.auto_digs)]
+        (local px (* TILE_W_PX (+ FIELD_X_T x)))
+        (local py (* TILE_H_PX (+ FIELD_Y_T y)))
+        (anim_state:draw px py)
+    )
+)
+
 
 (fn GameState.mt.draw [self]
     (map)
@@ -456,6 +569,7 @@
     ]
         (self:draw_truffles)
         (self:draw_flags)
+        (self:draw_auto_digs)
 
         ;(self.anim_states.hilite:draw playerx playery)
         (self.player_anim_states.player_head:draw 
@@ -479,6 +593,7 @@
     :movevert 0     ; amount to move vertically in pixels
     :dig false      ; replace with true to dig under the player
     :flag false 
+    :auto_digs []   ; [x y] list of auto-dig tiles
 })
 
 (fn poll_buttons [appstate com]
@@ -535,28 +650,52 @@
     (when (and command.dig command.flag) (set command.flag false))
 
     (local [tx ty] (gamestate:player_field_coords))
-    (local [mapx mapy] (gamestate:player_map_coords))
-    (local [truffles holes] (gamestate.map:vicinity_count tx ty))
-    (local val (gamestate.map:at tx ty))
+;    (local [mapx mapy] (gamestate:player_map_coords))
+;    (local [truffles holes] (gamestate.map:vicinity_count tx ty))
+;    (local val (gamestate.map:at tx ty))
 
-    ; time to dig
-    (when command.dig
-        ; when the first tile we dig is a hole, it becomes a truffle
-        (when (or (= val TRUFFLE) (and (= val HOLE) gamestate.first_dig))
-            (gamestate:truffle_get tx ty appstate))
+    (fn dig [tx ty]
+        (local [mapx mapy] [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)])
+        (local [truffles holes] (gamestate.map:vicinity_count tx ty))
+        (local val (gamestate.map:at tx ty))
 
         (local tile 
             (if (= val HOLE)    HOLE_TILE
                 (= holes 0)     DIRT_TILE
                 (> holes 0)     (. DIGITS holes)))
+        
+        (mset mapx mapy tile)
+    )
+
+    ; time to dig
+    (when command.dig
+        (local val (gamestate.map:at tx ty))
+
+        ; when the first tile we dig is a hole, it becomes a truffle
+        (when (or (= val TRUFFLE) (and (= val HOLE) gamestate.first_dig))
+            (gamestate:truffle_get tx ty appstate)
+            ; play sfx
+        )
+
+        (dig tx ty)
 
         (set gamestate.first_dig false)
         (set gamestate.last_dig_time appstate.time)
         (tset gamestate.dig_anims ty tx (Anim.state ANIMS.dig false))
 
-        (mset mapx mapy tile))
+        ; add autodigs: if the tile had no neighbors, we also search all the
+        ; reachable tiles that also have no neighbors
+        (local auto_digs (gen_auto_digs gamestate.map appstate.time tx ty))
+
+        (each [_ [time x y] (ipairs auto_digs)]
+            (push gamestate.auto_digs [(Anim.state ANIMS.dig false) time x y])
+        )
+    )
 
     (when command.flag
+        (local val (gamestate.map:at tx ty))
+        (local [mapx mapy] [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)])
+
         (if
             (<= gamestate.n_flags 0)
             (do) ; TODO nope sfx
@@ -585,6 +724,7 @@
 
     (local command (GameCommand.new))
     (poll_buttons appstate command)
+    (gamestate:tick_auto_digs appstate.time command)
 
     (apply_command command gamestate appstate)
     (gamestate:draw)
