@@ -439,10 +439,10 @@
             (searched! fx fy)
             (local next_time (+ time AUTO_DIG_GEN_TIME_MS))
             (local [_ holes_next_to] (map:vicinity_count fx fy))
+            (push result [next_time fx fy])
             (local safe (= holes_next_to 0))
 
             (when safe 
-                (push result [time fx fy])
                 (local neighbors (map:neighbors fx fy))
                 (each [_ [nx ny] (ipairs neighbors)]
                     (when (not (searched? nx ny))
@@ -664,7 +664,8 @@
                 (= holes 0)     DIRT_TILE
                 (> holes 0)     (. DIGITS holes)))
         
-        (mset mapx mapy tile)
+        (when (~= val DIRT_TILE)
+            (mset mapx mapy tile))
     )
 
     ; time to dig
@@ -677,18 +678,19 @@
             ; play sfx
         )
 
-        (dig tx ty)
+        (when (~= val DIRT_TILE)
+            (dig tx ty)
+            ; add autodigs: if the tile had no neighbors, we also search all the
+            ; reachable tiles that also have no neighbors
+            (local auto_digs (gen_auto_digs gamestate.map appstate.time tx ty))
+            
+            (set gamestate.first_dig false)
+            (set gamestate.last_dig_time appstate.time)
+            (tset gamestate.dig_anims ty tx (Anim.state ANIMS.dig false))
 
-        (set gamestate.first_dig false)
-        (set gamestate.last_dig_time appstate.time)
-        (tset gamestate.dig_anims ty tx (Anim.state ANIMS.dig false))
-
-        ; add autodigs: if the tile had no neighbors, we also search all the
-        ; reachable tiles that also have no neighbors
-        (local auto_digs (gen_auto_digs gamestate.map appstate.time tx ty))
-
-        (each [_ [time x y] (ipairs auto_digs)]
-            (push gamestate.auto_digs [(Anim.state ANIMS.dig false) time x y])
+            (each [_ [time x y] (ipairs auto_digs)]
+                (push gamestate.auto_digs [(Anim.state ANIMS.dig false) time x y])
+            )
         )
     )
 
@@ -710,7 +712,9 @@
                 ;(mset mapx mapy FLAG_TILE))))
 
     (each [_ [x y] (ipairs command.auto_digs)]
-        (dig x y)
+        (local val (gamestate.map:at x y))
+        (when (~= val DIRT_TILE)
+            (dig x y))
     )
 
     (gamestate:move_player_px command.movehoriz command.movevert)
