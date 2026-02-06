@@ -85,6 +85,7 @@
 (local HILITE_DELAY_MS 500)
 
 (local DIGITS [128 129 130 131 132 133 134 135])
+(local IS_DIGIT (collect [_ v (ipairs DIGITS)] v true))
 
 ; map from tile-id -> weight
 (local random_tiles {
@@ -325,6 +326,18 @@
     (-?> (. self y) (. x))
 )
 
+(fn to_map_coords [tx ty]
+    [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)]
+) 
+
+(fn dug? [tx ty]
+    (local [mx my] (to_map_coords tx ty))
+    (local val (mget mx my))
+    (or (= val DIRT_TILE) 
+        (= val TRUFFLE_TILE)
+        (. IS_DIGIT val))
+)
+
 (fn GameMap.mt.neighbors [self x y]
     "Returns an array of the in-bound neighbors of tile x,t"
     (local potential [
@@ -413,7 +426,6 @@
     state
 )
 
-; TODO fix infinite loop
 (fn gen_auto_digs [map start_time tx ty]
     "find all the cells from tx ty that can be auto dug.
      returns [time x y] triples in an array for all the diggable tiels."    
@@ -664,7 +676,7 @@
                 (= holes 0)     DIRT_TILE
                 (> holes 0)     (. DIGITS holes)))
         
-        (when (~= val DIRT_TILE)
+        (when (not (dug? tx ty))
             (mset mapx mapy tile))
     )
 
@@ -678,7 +690,7 @@
             ; play sfx
         )
 
-        (when (~= val DIRT_TILE)
+        (when (not (dug? tx ty))
             (dig tx ty)
             ; add autodigs: if the tile had no neighbors, we also search all the
             ; reachable tiles that also have no neighbors
@@ -713,7 +725,7 @@
 
     (each [_ [x y] (ipairs command.auto_digs)]
         (local val (gamestate.map:at x y))
-        (when (~= val DIRT_TILE)
+        (when (not (dug? x y))
             (dig x y))
     )
 
