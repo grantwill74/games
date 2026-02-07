@@ -79,7 +79,7 @@
 
 ; time between auto-dig generations (i.e., concentric rings of digging that 
 ; are triggered by finding a hole with no hazards next to it)
-(local AUTO_DIG_GEN_TIME_MS 500)
+(local AUTO_DIG_GEN_TIME_MS 200)
 
 ; special anim time for highlight animation beneath pig
 (local HILITE_DELAY_MS 500)
@@ -451,7 +451,7 @@
             (searched! fx fy)
             (local next_time (+ time AUTO_DIG_GEN_TIME_MS))
             (local [_ holes_next_to] (map:vicinity_count fx fy))
-            (push result [next_time fx fy])
+            (push result [time fx fy])
             (local safe (= holes_next_to 0))
 
             (when safe 
@@ -551,22 +551,25 @@
                     (push command.auto_digs [x y]))
                 (anim_state:tick MS_PER_TIC)
             )
-            (push auto_digs_to_keep [anim_state start_time x y]))
+            (push auto_digs_to_keep [anim_state start_time x y])
+        )
     )
 
     (set self.auto_digs auto_digs_to_keep)
 )
 
-(fn GameState.mt.draw_auto_digs [self]
+(fn GameState.mt.draw_auto_digs [self time]
     (each [_ [anim_state start_time x y] (ipairs self.auto_digs)]
-        (local px (* TILE_W_PX (+ FIELD_X_T x)))
-        (local py (* TILE_H_PX (+ FIELD_Y_T y)))
-        (anim_state:draw px py)
+        (when (>= time start_time)
+            (local px (* TILE_W_PX (+ FIELD_X_T x)))
+            (local py (* TILE_H_PX (+ FIELD_Y_T y)))
+            (anim_state:draw px py)
+        )
     )
 )
 
 
-(fn GameState.mt.draw [self]
+(fn GameState.mt.draw [self time]
     (map)
 
     (let [
@@ -581,7 +584,7 @@
     ]
         (self:draw_truffles)
         (self:draw_flags)
-        (self:draw_auto_digs)
+        (self:draw_auto_digs time)
 
         ;(self.anim_states.hilite:draw playerx playery)
         (self.player_anim_states.player_head:draw 
@@ -747,7 +750,7 @@
     (gamestate:tick_auto_digs appstate.time command)
 
     (apply_command command gamestate appstate)
-    (gamestate:draw)
+    (gamestate:draw appstate.time)
     (gamestate:tick_and_draw_dig_anims MS_PER_TIC)
     (print (strf "tile under: %d %d"
         (math.floor gamestate.player_tx)
