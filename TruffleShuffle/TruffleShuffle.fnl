@@ -542,7 +542,7 @@
 
 (fn GameState.mt.tick_auto_digs [self time command]
     (local auto_digs_to_keep [])
-
+    
     (each [_ [anim_state start_time x y] (ipairs self.auto_digs)]
         (when (not anim_state.finished)
             (when (>= time start_time)
@@ -551,7 +551,7 @@
                     (push command.auto_digs [x y]))
                 (anim_state:tick MS_PER_TIC)
             )
-            (push auto_digs_to_keep [anim_state time x y]))
+            (push auto_digs_to_keep [anim_state start_time x y]))
     )
 
     (set self.auto_digs auto_digs_to_keep)
