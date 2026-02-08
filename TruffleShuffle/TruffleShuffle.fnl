@@ -474,6 +474,7 @@
 (fn GameState.mt.truffle_get [self tx ty appstate]
     (inc! self.truffles_gotten)
     (tset self :map ty tx EMPTY)
+    (sfx 32 "C-5" 64)
 )
 
 (fn draw_repeated_sprite [count sprite px_left py transparent_idx]
@@ -676,11 +677,15 @@
 
         (local tile 
             (if (= val HOLE)    HOLE_TILE
+                (= val TRUFFLE) TRUFFLE_TILE
                 (= holes 0)     DIRT_TILE
                 (> holes 0)     (. DIGITS holes)))
         
         (when (not (dug? tx ty))
             (mset mapx mapy tile))
+
+        (when (= val TRUFFLE)
+            (gamestate:truffle_get tx ty appstate))
     )
 
     ; time to dig
@@ -688,7 +693,7 @@
         (local val (gamestate.map:at tx ty))
 
         ; when the first tile we dig is a hole, it becomes a truffle
-        (when (or (= val TRUFFLE) (and (= val HOLE) gamestate.first_dig))
+        (when (or (and (= val HOLE) gamestate.first_dig))
             (gamestate:truffle_get tx ty appstate)
             ; play sfx
         )
@@ -879,6 +884,7 @@
 
 ;; <SFX>
 ;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
+;; 032:10001000200030004020402050205020504060406040704070c070c080c080c080c090c090c090c0a0c0a0c0b0c0c0c0d0c0d0c0e0c0f0c0f0c0f0c0400000000000
 ;; </SFX>
 
 ;; <TRACKS>
