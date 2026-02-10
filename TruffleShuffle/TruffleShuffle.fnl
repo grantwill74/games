@@ -68,7 +68,7 @@
 (local [FLAG_DISPLAY_PX FLAG_DISPLAY_PY] [0 24])
 
 ; in tiles per second
-(local MOVE_SPEED_TPS 5)
+(local MOVE_SPEED_TPS 6)
 
 ; in tiles per tic
 (local MOVE_SPEED (/ MOVE_SPEED_TPS TICS_PER_SEC))
@@ -79,7 +79,7 @@
 
 ; time between auto-dig generations (i.e., concentric rings of digging that 
 ; are triggered by finding a hole with no hazards next to it)
-(local AUTO_DIG_GEN_TIME_MS 175)
+(local AUTO_DIG_GEN_TIME_MS 200)
 
 ; special anim time for highlight animation beneath pig
 (local HILITE_DELAY_MS 500)
@@ -107,6 +107,9 @@
 (local HOLE -1)
 (local TRUFFLE -2)
 (local FLAG -3)
+
+(local SFX_TRUFFLE 32)
+(local SFX_DIG 33)
 
 
 ; The basic control flow works like this:
@@ -474,7 +477,7 @@
 (fn GameState.mt.truffle_get [self tx ty appstate]
     (inc! self.truffles_gotten)
     (tset self :map ty tx EMPTY)
-    (sfx 32 "C-5" 64)
+    (sfx SFX_TRUFFLE "C-5" 64)
 )
 
 (fn draw_repeated_sprite [count sprite px_left py transparent_idx]
@@ -711,6 +714,8 @@
             (each [_ [time x y] (ipairs auto_digs)]
                 (push gamestate.auto_digs [(Anim.state ANIMS.dig false) time x y])
             )
+
+            (sfx SFX_DIG "C-3" 64)
         )
     )
 
@@ -757,9 +762,6 @@
     (apply_command command gamestate appstate)
     (gamestate:draw appstate.time)
     (gamestate:tick_and_draw_dig_anims MS_PER_TIC)
-    (print (strf "tile under: %d %d"
-        (math.floor gamestate.player_tx)
-        (math.floor gamestate.player_ty)) 0 128 12)
 )
 
 ;; <TILES>
@@ -885,6 +887,7 @@
 ;; <SFX>
 ;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
 ;; 032:10001000200030004020402050205020504060406040704070c070c080c080c080c090c090c090c0a0c0a0c0b0c0c0c0d0c0d0c0e0c0f0c0f0c0f0c0400000000000
+;; 033:002100431075109610b710e710f6101420122030304e306d408b50aa50d8601860487069808d90b190e590f6a007b027b047c065d081e0bee0dbf0f9200000000000
 ;; </SFX>
 
 ;; <TRACKS>
