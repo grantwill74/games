@@ -110,6 +110,10 @@
 
 (local SFX_TRUFFLE 32)
 (local SFX_DIG 33)
+(local SFX_AUTODIG 34)
+(local SFX_SAD 35)
+
+(local SFX_AUTODIG_CHANNEL 2)
 
 
 ; The basic control flow works like this:
@@ -341,6 +345,12 @@
         (. IS_DIGIT val))
 )
 
+(fn flagged? [tx ty]
+    (local [mx my] (to_map_coords tx ty))
+    (local val (mget mx my))
+    (= val FLAG_TILE)
+)
+
 (fn GameMap.mt.neighbors [self x y]
     "Returns an array of the in-bound neighbors of tile x,t"
     (local potential [
@@ -408,7 +418,6 @@
         ; when a dig triggers other digs automatically because there are no 
         ; holes in the area
         :auto_digs [] ; stores [anim_state x y] for auto-dug tiles
-        :auto_dig_start_time 0
 
         :first_dig true ; is it the first dig? (hole converted to truffle)
         :last_dig_time 0 ; time of last dig
@@ -715,32 +724,43 @@
                 (push gamestate.auto_digs [(Anim.state ANIMS.dig false) time x y])
             )
 
-            (sfx SFX_DIG "C-3" 64)
+            (sfx SFX_DIG "C-3" 32)
+            (if (not_empty? auto_digs)
+                (sfx SFX_AUTODIG "C-4" -1 SFX_AUTODIG_CHANNEL))
         )
     )
 
     (when command.flag
         (local val (gamestate.map:at tx ty))
         (local [mapx mapy] [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)])
+        (local allowed_to_plant_a_flag (and 
+            (> gamestate.n_flags 0)
+            (not (dug? tx ty))))
 
-        (if
-            (<= gamestate.n_flags 0)
-            (do) ; TODO nope sfx
+        (if allowed_to_plant_a_flag
+            (if (= val HOLE) 
+                (do (mset mapx mapy FLAG_TILE))
+                ; TODO play happy
 
-            (= val HOLE) 
-            (do (mset mapx mapy FLAG_TILE)) ; TODO happy sfx
+                ; else 
+                (do (sfx SFX_SAD "C-3" 32)
+                    (dec! gamestate.n_flags))
+            )
 
-            ; otherwise, subtract a flag and 
-            ; TODO sad sfx
-            (do
-                (dec! gamestate.n_flags))))
-                ;(mset mapx mapy FLAG_TILE))))
+            ; else 
+            (sfx SFX_SAD "C-3" 32)
+        )
+    )
+
 
     (each [_ [x y] (ipairs command.auto_digs)]
         (local val (gamestate.map:at x y))
         (when (not (dug? x y))
             (dig x y))
     )
+
+    (when (empty? gamestate.auto_digs) 
+        (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL))
 
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
@@ -888,6 +908,8 @@
 ;; 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
 ;; 032:10001000200030004020402050205020504060406040704070c070c080c080c080c090c090c090c0a0c0a0c0b0c0c0c0d0c0d0c0e0c0f0c0f0c0f0c0400000000000
 ;; 033:002100431075109610b710e710f6101420122030304e306d408b50aa50d8601860487069808d90b190e590f6a007b027b047c065d081e0bee0dbf0f9200000000000
+;; 034:03e013a023801340d310435043e053b0a39053d073706340e320f310736083d093c093a0a3705350b3a0c310c3e0d3e093b0e3a0e380f360c340f3102000000e0e00
+;; 035:0000001010202040306040804080508060806080708070808080808090809080a080b080b080c090c090d090d090e090e090e090f090f090f080f080380000000000
 ;; </SFX>
 
 ;; <TRACKS>
