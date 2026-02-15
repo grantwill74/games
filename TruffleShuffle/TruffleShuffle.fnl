@@ -443,6 +443,16 @@
     state
 )
 
+(fn GameState.mt.face_player [self new_dir]
+    (local head (. ANIMS.player_head new_dir))
+    (local body (. ANIMS.player_body new_dir))
+
+    (set self.player_anim_states.player_head (Anim.state head true))
+    (set self.player_anim_states.player_body (Anim.state body true))
+
+    (set self.player_dir new_dir)
+)
+
 (fn gen_auto_digs [map start_time tx ty]
     "find all the cells from tx ty that can be auto dug.
      returns [time x y] triples in an array for all the diggable tiels."    
@@ -667,13 +677,7 @@
 
     ; swap out anims
     (when (and st.player_dir (~= st.player_dir new_dir))
-        (local head (. ANIMS.player_head new_dir))
-        (local body (. ANIMS.player_body new_dir))
-        
-        (set st.player_anim_states.player_head (Anim.state head true))
-        (set st.player_anim_states.player_body (Anim.state body true))
-        
-        (set st.player_dir new_dir))
+        (st:face_player new_dir))
 
     ; actually, we're idling
     (when (and (not dir1) (not dir2))
