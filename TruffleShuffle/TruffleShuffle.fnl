@@ -85,6 +85,12 @@
 ; special anim time for highlight animation beneath pig
 (local HILITE_DELAY_MS 500)
 
+; how long to stand in the air like wile e. coyote
+(local FALL_DELAY_MS 1000)
+(local FALL_TIME_MS 3000)
+(local FALL_SPEED_PX_SEC 8)
+(local FALL_SPEED_PX_TIC (/ FALL_SPEED_PX_SEC TICS_PER_SEC))
+
 (local DIGITS [128 129 130 131 132 133 134 135])
 (local IS_DIGIT (collect [_ v (ipairs DIGITS)] v true))
 
@@ -114,8 +120,10 @@
 (local SFX_AUTODIG 34)
 (local SFX_SAD 35)
 (local SFX_GOODFLAG 36)
+(local SFX_FALL 37)
 
 (local SFX_AUTODIG_CHANNEL 2)
+(local SFX_FALL_CHANNEL 2)
 
 (local SPR_HAPPY_PIG 2)
 (local SPR_SAD_PIG 4)
@@ -430,6 +438,9 @@
         :truffles_gotten 0
         :n_flags 3
 
+        ; if falling, this will be the time it started 
+        :falling_start nil 
+
         : level
 
         :map (GameMap.gen seed 3 10)
@@ -610,22 +621,27 @@
         playerx (+ fieldx playeroffx)
         playery (+ fieldy playeroffy)
     ]
+        (fn draw_player []
+            ;(self.anim_states.hilite:draw playerx playery)
+            (self.player_anim_states.player_head:draw 
+                (+ playerx H_TILE_W_PX_OFF)
+                (- playery TILE_H_PX TILE_H_PX))
+                
+            ; guide
+            ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
+            
+            (self.player_anim_states.player_body:draw
+                (+ playerx H_TILE_W_PX_OFF) 
+                (- playery TILE_H_PX))
+        )
+        
         (self:draw_truffles)
         (self:draw_flags)
         (self:draw_auto_digs time)
         (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
 
-        ;(self.anim_states.hilite:draw playerx playery)
-        (self.player_anim_states.player_head:draw 
-            (+ playerx H_TILE_W_PX_OFF)
-            (- playery TILE_H_PX TILE_H_PX))
-            
-        ; guide
-        ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
-        
-        (self.player_anim_states.player_body:draw
-            (+ playerx H_TILE_W_PX_OFF) 
-            (- playery TILE_H_PX))
+        ; TODO draw player blocked by hole under
+        (draw_player)
     )
 )
 
@@ -729,14 +745,27 @@
             (set gamestate.first_dig false)
             (set gamestate.last_dig_time appstate.time)
             (tset gamestate.dig_anims ty tx (Anim.state ANIMS.dig false))
+            
+            (sfx SFX_DIG "C-3" 32)
 
-            (each [_ [time x y] (ipairs auto_digs)]
-                (push gamestate.auto_digs [(Anim.state ANIMS.dig false) time x y])
+            (if (= val HOLE)
+                (do
+                    (set gamestate.falling_start appstate.time)
+                    (gamestate:face_player :s)
+                )
+
+                ; else 
+                (do 
+                    (each [_ [time x y] (ipairs auto_digs)]
+                        (push gamestate.auto_digs 
+                            [(Anim.state ANIMS.dig false) time x y])
+                    )
+
+                    (when (> (length auto_digs) 1)
+                        (sfx SFX_AUTODIG "C-4" -1 SFX_AUTODIG_CHANNEL))
+                )
             )
 
-            (sfx SFX_DIG "C-3" 32)
-            (if (not_empty? auto_digs)
-                (sfx SFX_AUTODIG "C-4" -1 SFX_AUTODIG_CHANNEL))
         )
     )
 
@@ -778,8 +807,7 @@
 
 (fn _G.BOOT []
     (global appstate (AppState.new))
-    (global gamestate (GameState.new 1 1 1))
-    
+    (global gamestate (GameState.new 1 1 1))   
 )
 
 (fn _G.TIC []
@@ -790,9 +818,25 @@
     (poll_buttons appstate command)
     (gamestate:tick_auto_digs appstate.time command)
 
-    (apply_command command gamestate appstate)
     (gamestate:draw appstate.time)
-    (gamestate:tick_and_draw_dig_anims MS_PER_TIC)
+
+    (if gamestate.falling_start
+        (do (if (<= (- appstate.time gamestate.falling_start) FALL_DELAY_MS)
+                ; coyote time, just stare straight ahead
+                (do)
+
+                ; else: actually falling
+                (set gamestate.player_ty 
+                    (+ gamestate.player_ty FALL_SPEED_PX_TIC))
+            )
+        ) 
+    
+        ; else: not falling
+        (do
+            (apply_command command gamestate appstate)
+            (gamestate:tick_and_draw_dig_anims MS_PER_TIC)
+        )
+    )
 )
 
 ;; <TILES>
@@ -922,6 +966,7 @@
 ;; 034:03e013a023801340d310435043e053b0a39053d073706340e320f310736083d093c093a0a3705350b3a0c310c3e0d3e093b0e3a0e380f360c340f3102000000e0e00
 ;; 035:0000001010202040306040804080508060806080708070808080808090809080a080b080b080c090c090d090d090e090e090e090f090f090f080f080380000000000
 ;; 036:10001000200030004020402050205020502060206020702070407040804080408040904090409040a040a040b040c040d040d040e040f040f040f040400000000000
+;; 037:0100111021203130313031404150416051705180619061a061b071c071d081e091f091f091f0a1f0a1f0b1f0b1f0c1f0c1f0d1f0d1f0d1f0e1f0f1f05f0000000000
 ;; </SFX>
 
 ;; <TRACKS>
