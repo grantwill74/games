@@ -67,6 +67,7 @@
 (local [TRUFFLE_DISPLAY_PX TRUFFLE_DISPLAY_PY] [0 32])
 (local [FLAG_DISPLAY_PX FLAG_DISPLAY_PY] [0 24])
 (local [LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY] [2 48])
+(local [STATUS_DISPLAY_PX STATUS_DISPLAY_PY] [2 56])
 
 ; in tiles per second
 (local MOVE_SPEED_TPS 6)
@@ -90,6 +91,7 @@
 (local FALL_TIME_MS 3000)
 (local FALL_SPEED_PX_SEC 8)
 (local FALL_SPEED_PX_TIC (/ FALL_SPEED_PX_SEC TICS_PER_SEC))
+(local STATUS_TIME 2000)
 
 (local DIGITS [128 129 130 131 132 133 134 135])
 (local IS_DIGIT (collect [_ v (ipairs DIGITS)] v true))
@@ -123,7 +125,7 @@
 (local SFX_FALL 37)
 
 (local SFX_AUTODIG_CHANNEL 2)
-(local SFX_FALL_CHANNEL 2)
+(local SFX_FALL_CHANNEL 0)
 
 (local SPR_HAPPY_PIG 2)
 (local SPR_SAD_PIG 4)
@@ -441,6 +443,9 @@
         ; if falling, this will be the time it started 
         :falling_start nil 
 
+        ; status display as a [message, time_left] tuple
+        :status nil 
+
         : level
 
         :map (GameMap.gen seed 3 10)
@@ -452,6 +457,10 @@
     })
 
     state
+)
+
+(fn GameState.mt.post_status [self message time_left]
+    (set self.status [message (or time_left STATUS_TIME)])
 )
 
 (fn GameState.mt.face_player [self new_dir]
@@ -607,6 +616,23 @@
     )
 )
 
+(fn GameState.mt.tick_status [self]
+    (when self.status
+        (local [msg time_left] self.status)
+        (tset self :status 2 (- time_left MS_PER_TIC))
+        (when (< (. self :status 2) 0)
+            (set self.status nil)
+        )
+    )
+)
+
+(fn GameState.mt.draw_status [self]
+    (when self.status
+        (local [msg _] self.status)
+        (print msg STATUS_DISPLAY_PX STATUS_DISPLAY_PY 12)
+    )
+)
+
 
 (fn GameState.mt.draw [self time]
     (map)
@@ -637,6 +663,7 @@
         
         (self:draw_truffles)
         (self:draw_flags)
+        (self:draw_status)
         (self:draw_auto_digs time)
         (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
 
@@ -738,6 +765,10 @@
 
         (when (not (dug? tx ty))
             (dig tx ty)
+
+            ; hide value in case we dug a hole first try
+            (local val (gamestate.map:at tx ty))
+
             ; add autodigs: if the tile had no neighbors, we also search all the
             ; reachable tiles that also have no neighbors
             (local auto_digs (gen_auto_digs gamestate.map appstate.time tx ty))
@@ -752,6 +783,8 @@
                 (do
                     (set gamestate.falling_start appstate.time)
                     (gamestate:face_player :s)
+                    (sfx SFX_FALL "C-6" 64 SFX_FALL_CHANNEL)
+                    (gamestate:post_status "Oh no!" 5000)
                 )
 
                 ; else 
@@ -784,11 +817,14 @@
 
                 ; else 
                 (do (sfx SFX_SAD "C-3" 32)
+                    (gamestate:post_status "Wasn't a hole!")
                     (dec! gamestate.n_flags))
             )
 
-            ; else 
-            (sfx SFX_SAD "C-3" 32)
+            ; else
+            (do (gamestate:post_status "Already dug!") 
+                (sfx SFX_SAD "C-3" 32)
+            )
         )
     )
 
@@ -817,6 +853,7 @@
     (local command (GameCommand.new))
     (poll_buttons appstate command)
     (gamestate:tick_auto_digs appstate.time command)
+    (gamestate:tick_status)
 
     (gamestate:draw appstate.time)
 
