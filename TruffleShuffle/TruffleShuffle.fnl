@@ -96,14 +96,6 @@
 (local DIGITS [128 129 130 131 132 133 134 135])
 (local IS_DIGIT (collect [_ v (ipairs DIGITS)] v true))
 
-; map from tile-id -> weight
-(local random_tiles {
-    :grass {
-        101 10
-        97  1
-    }
-})
-
 ; map tile types
 (local DIRT_TILE 108)
 (local HOLE_TILE 136)
@@ -348,12 +340,20 @@
     (-?> (. self y) (. x))
 )
 
-(fn to_map_coords [tx ty]
+
+(fn field_coords_to_map_coords [tx ty]
     [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)]
-) 
+)
+
+(fn field_coords_to_pixels [tx ty]
+    [
+        (* (+ FIELD_X_T tx) TILE_W_PX)
+        (* (+ FIELD_Y_T ty) TILE_H_PX)
+    ]
+)
 
 (fn dug? [tx ty]
-    (local [mx my] (to_map_coords tx ty))
+    (local [mx my] (field_coords_to_map_coords tx ty))
     (local val (mget mx my))
     (or (= val DIRT_TILE) 
         (= val TRUFFLE_TILE)
@@ -361,7 +361,7 @@
 )
 
 (fn flagged? [tx ty]
-    (local [mx my] (to_map_coords tx ty))
+    (local [mx my] (field_coords_to_map_coords tx ty))
     (local val (mget mx my))
     (= val FLAG_TILE)
 )
@@ -439,6 +439,7 @@
 
         :truffles_gotten 0
         :n_flags 3
+        :lives_remaining 3
 
         ; if falling, this will be the time it started 
         :falling_start nil 
@@ -542,21 +543,31 @@
         FLAG_DISPLAY_PX FLAG_DISPLAY_PY 0)
 )
 
-(fn GameState.mt.tick_and_draw_dig_anims [self dtime]
-    (local clears []) ; list of [row col] pairs to clear
+(fn GameState.mt.tick_dig_anims [self dtime]
     (for [row 2 (- FIELD_H_T 1)]
         (for [col 2 (- FIELD_W_T 1)]
             (local state (. self.dig_anims row col))
-            (when state
-                (local px (* TILE_W_PX (+ col FIELD_X_T)))
-                (local py (* TILE_H_PX (+ row FIELD_Y_T)))
+            (when state 
+                (local [px py] (field_coords_to_map_coords col row))
                 (state:tick dtime)
-                (if state.finished (push clears [row col])
-                    ; else 
-                    (state:draw px py)
-                )
-            )))
+            )
+        )
+    )
 )
+
+(fn GameState.mt.draw_dig_anims [self]
+    (for [row 2 (- FIELD_H_T 1)]
+        (for [col 2 (- FIELD_W_T 1)]
+            (local state (. self.dig_anims row col))
+            (when (and state (not state.finished))
+                (local [px py] (field_coords_to_pixels col row))
+                (state:draw px py)
+            )
+        )
+    )
+)
+
+
 
 (fn GameState.mt.player_field_coords [self]
     "returns player's x/y coords in an array relative to the 
@@ -565,9 +576,6 @@
     [(math.floor self.player_tx) (math.floor self.player_ty)]     
 )
 
-(fn field_coords_to_map_coords [tx ty]
-    [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)]
-)
 
 (fn GameState.mt.player_map_coords [self]
     "returns the player's coords as an array in 0-based map-coordinates where
@@ -854,6 +862,7 @@
     (poll_buttons appstate command)
     (gamestate:tick_auto_digs appstate.time command)
     (gamestate:tick_status)
+    (gamestate:tick_dig_anims appstate.dtime)
 
     (gamestate:draw appstate.time)
 
@@ -871,7 +880,7 @@
         ; else: not falling
         (do
             (apply_command command gamestate appstate)
-            (gamestate:tick_and_draw_dig_anims MS_PER_TIC)
+            (gamestate:draw_dig_anims)
         )
     )
 )
