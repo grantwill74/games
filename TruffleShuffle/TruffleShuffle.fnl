@@ -79,10 +79,20 @@
 (local MS_PER_TIC (/ 1 TICS_PER_MS))
 
 ; coordinates to draw truffles
+(local SIDE_W_T 10) ; the side bar is this wide in tiles
+
 (local [TRUFFLE_DISPLAY_PX TRUFFLE_DISPLAY_PY] [0 32])
 (local [FLAG_DISPLAY_PX FLAG_DISPLAY_PY] [0 24])
 (local [LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY] [2 48])
 (local [STATUS_DISPLAY_PX STATUS_DISPLAY_PY] [2 56])
+
+(local [KEYS_DISPLAY_PX KEYS_DISPLAY_PY] [2 72])
+(local [KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY] [4 80])
+(local [KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY] [4 88])
+
+(local [PAD_DISPLAY_PX PAD_DISPLAY_PY] [2 96])
+(local [PAD_DIG_DISPLAY_PX PAD_DIG_DISPLAY_PY] [4 104])
+(local [PAD_FLAG_DISPLAY_PX PAD_FLAG_DISPLAY_PY] [4 112])
 
 ; in tiles per second
 (local MOVE_SPEED_TPS 6)
@@ -650,8 +660,6 @@
 
 
 (fn GameState.mt.draw [self time]
-;    (map)
-
     (let [
         fieldx (* FIELD_X_T TILE_W_PX)
         fieldy (* FIELD_Y_T TILE_H_PX)
@@ -681,6 +689,13 @@
         (self:draw_flags)
         (self:draw_status)
         (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
+        (print "Keys:" KEYS_DISPLAY_PX KEYS_DISPLAY_PY 12)
+        (print "Dig: z" KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY 12)
+        (print "Flag: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
+        (print "Gamepad: " PAD_DISPLAY_PX PAD_DISPLAY_PY 12)
+        (print "Dig: a" PAD_DIG_DISPLAY_PX PAD_DIG_DISPLAY_PY 12)
+        (print "Flag: b" PAD_FLAG_DISPLAY_PX PAD_FLAG_DISPLAY_PY 12)
+
 
         ; draw the part of the map before player
         (local [_ py] (self:player_map_coords))
@@ -694,11 +709,11 @@
 
             ; else, falling
             (do (local [mapx mapy] self.falling_pos)
-                (map 0 0 MAP_W mapy)
                 (draw_player)
                 ; draw with colorkey 0 = trans
                 (local map_height (+ 1 (- MAP_H mapy)))
-                (map 0 mapy MAP_W map_height 0 (* mapy TILE_H_PX) 0)
+                (map 0 mapy MAP_W map_height 
+                    0 (* mapy TILE_H_PX) 0)
             )
         )
     )
