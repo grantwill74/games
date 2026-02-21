@@ -60,6 +60,8 @@
 (local [DIR_N DIR_E DIR_S DIR_W] [1 2 3 4])
 (local DIR_NAMES [:n :e :s :w])
 
+(local [MAP_W MAP_H] [30 17])
+
 (local [TILE_W_PX TILE_H_PX] [8 8])
 
 ; half of a tile offsets, used when drawing characters centered
@@ -188,65 +190,6 @@
         (. self.pad_just_pressed BTN_B)
         (. self.pad_just_pressed BTN_Y))
 )
-
-; A state stack ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(local Machine {:mt {}})
-(fn Machine.new []
-    (local machine {
-        :states []
-        :n_states 0
-    })
-
-    (setmetatable machine {
-        :__index Machine.mt
-        :__tostring to_str 
-    })
-)
-
-(local MachineMsgId {
-    :push   {}
-    :drop   {}
-    :change {}
-})
-
-(fn Machine.mt.current_state [self]
-    (. self.states self.n_states)
-)
-
-(fn Machine.mt.push [self child]
-    (push self.states child)
-    (inc! self.n_states)
-)
-
-(fn Machine.mt.drop [self]
-    (pop self.states)
-    (dec! self.n_states)
-)
-
-(fn Machine.mt.change [self new_state]
-    (tset self :states :n_states new_state)
-)
-
-(fn Machine.mt.tick [self appstate]
-    (local [msg payload] (self.current_state:tick appstate))
-    (match msg
-        MachineMsgId.push
-        (self:push payload)
-
-        MachineMsgId.drop
-        (self:drop)
-
-        MachineMsgId.change
-        (self:change payload)
-
-        nil (do)
-
-        other
-        (error (strf "unrecognized machine message %s" (to_str other)))
-    )
-)
-; ~Machine ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
-
 
 ; Animation related things ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local Anim {:mt {}})
@@ -502,7 +445,10 @@
         :lives_remaining 3
 
         ; if falling, this will be the time it started 
-        :falling_start nil 
+        :falling_start nil
+
+        ; if falling, this will be the [map map] where the hole was 
+        :falling_pos nil 
 
         ; status display as a [message, time_left] tuple
         :status nil 
@@ -702,8 +648,9 @@
 )
 
 
+
 (fn GameState.mt.draw [self time]
-    (map)
+;    (map)
 
     (let [
         fieldx (* FIELD_X_T TILE_W_PX)
@@ -714,29 +661,46 @@
 
         playerx (+ fieldx playeroffx)
         playery (+ fieldy playeroffy)
+
+        player_x_off (+ playerx H_TILE_W_PX_OFF)
+        player_head_y (- playery TILE_H_PX TILE_H_PX)
+        player_body_y (- playery TILE_H_PX)        
     ]
         (fn draw_player []
             ;(self.anim_states.hilite:draw playerx playery)
-            (self.player_anim_states.player_head:draw 
-                (+ playerx H_TILE_W_PX_OFF)
-                (- playery TILE_H_PX TILE_H_PX))
+            (self.player_anim_states.player_head:draw player_x_off player_head_y)
                 
             ; guide
             ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
             
-            (self.player_anim_states.player_body:draw
-                (+ playerx H_TILE_W_PX_OFF) 
-                (- playery TILE_H_PX))
+            (self.player_anim_states.player_body:draw player_x_off player_body_y)
         )
         
+        (map) ; draw the map to clear the screen no matter what
         (self:draw_truffles)
         (self:draw_flags)
         (self:draw_status)
-        (self:draw_auto_digs time)
         (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
 
-        ; TODO draw player blocked by hole under
-        (draw_player)
+        ; draw the part of the map before player
+        (local [_ py] (self:player_map_coords))
+        (local py (math.ceil py))
+
+        (if (not self.falling_start)
+            (do (draw_player)
+                (self:draw_auto_digs time)
+                (self:draw_dig_anims)
+            )
+
+            ; else, falling
+            (do (local [mapx mapy] self.falling_pos)
+                (map 0 0 MAP_W mapy)
+                (draw_player)
+                ; draw with colorkey 0 = trans
+                (local map_height (+ 1 (- MAP_H mapy)))
+                (map 0 mapy MAP_W map_height 0 (* mapy TILE_H_PX) 0)
+            )
+        )
     )
 )
 
@@ -850,8 +814,10 @@
             (if (= val HOLE)
                 (do
                     (set gamestate.falling_start appstate.time)
+                    (set gamestate.falling_pos (gamestate:player_map_coords))
                     (gamestate:face_player :s)
                     (sfx SFX_FALL "C-6" 64 SFX_FALL_CHANNEL)
+                    (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL)
                     (gamestate:post_status "Oh no!" 5000)
                 )
 
@@ -914,19 +880,24 @@
     (global gamestate (GameState.new 1 1 1))   
 )
 
-(fn _G.TIC []
-    (appstate:poll)
+(fn GameState.mt.tick [self appstate]
     (Anim.states_tick gamestate.player_anim_states MS_PER_TIC)
-
+    
     (local command (GameCommand.new))
     (poll_buttons appstate command)
     (gamestate:tick_auto_digs appstate.time command)
     (gamestate:tick_status)
     (gamestate:tick_dig_anims appstate.dtime)
 
-;    (fn GamsState.mt.tick [self appstate]
-;        (self:tick_auto_digs appstate.time)
-;    )
+    (when (not gamestate.falling_start)
+        (apply_command command gamestate appstate)
+    )
+)
+
+(fn _G.TIC []
+    (appstate:poll)
+
+    (gamestate:tick appstate)
 
     (gamestate:draw appstate.time)
 
@@ -943,10 +914,11 @@
     
         ; else: not falling
         (do
-            (apply_command command gamestate appstate)
+            ; (apply_command command gamestate appstate)
             (gamestate:draw_dig_anims)
         )
     )
+
 )
 
 ;; <TILES>
