@@ -9,6 +9,19 @@
 ;; saveid: swinesweeper
 ;; input: gamepad
 
+; todos 
+; TODO refactor GameState into a machine state
+; TODO that means give it a tick function
+; TODO make that function return either push or change
+; TODO add falling state
+; TODO make its draw draw upto the pig, then draw the pig, then draw below
+; TODO add lives
+; TODO add gameover state
+; TODO add next level state
+; TODO add congratulations state
+
+
+
 ; common aliases
 (local push table.insert)
 (local pop table.remove)
@@ -123,18 +136,6 @@
 (local SPR_SAD_PIG 4)
 
 
-; The basic control flow works like this:
-; - AppState store "reactable" information that happened between last
-;   tick and this one. Game code will react to these.
-; - Game functions will never act on the game state itself. Instead they will
-;   modify the command buffer which will describe the gamestate change.
-; - The game system will apply the command buffer.
-; - The tic ends
-
-; AppState structure: a table with a :name field that stores
-; the name (type) of the event or command, and maps it to either a single arg 
-; or a table of args if appropriate.
-
 (local AppState {:mt {}})
 (fn AppState.new []
     (local ev {
@@ -187,6 +188,65 @@
         (. self.pad_just_pressed BTN_B)
         (. self.pad_just_pressed BTN_Y))
 )
+
+; A state stack ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(local Machine {:mt {}})
+(fn Machine.new []
+    (local machine {
+        :states []
+        :n_states 0
+    })
+
+    (setmetatable machine {
+        :__index Machine.mt
+        :__tostring to_str 
+    })
+)
+
+(local MachineMsgId {
+    :push   {}
+    :drop   {}
+    :change {}
+})
+
+(fn Machine.mt.current_state [self]
+    (. self.states self.n_states)
+)
+
+(fn Machine.mt.push [self child]
+    (push self.states child)
+    (inc! self.n_states)
+)
+
+(fn Machine.mt.drop [self]
+    (pop self.states)
+    (dec! self.n_states)
+)
+
+(fn Machine.mt.change [self new_state]
+    (tset self :states :n_states new_state)
+)
+
+(fn Machine.mt.tick [self appstate]
+    (local [msg payload] (self.current_state:tick appstate))
+    (match msg
+        MachineMsgId.push
+        (self:push payload)
+
+        MachineMsgId.drop
+        (self:drop)
+
+        MachineMsgId.change
+        (self:change payload)
+
+        nil (do)
+
+        other
+        (error (strf "unrecognized machine message %s" (to_str other)))
+    )
+)
+; ~Machine ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
+
 
 ; Animation related things ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local Anim {:mt {}})
@@ -863,6 +923,10 @@
     (gamestate:tick_auto_digs appstate.time command)
     (gamestate:tick_status)
     (gamestate:tick_dig_anims appstate.dtime)
+
+;    (fn GamsState.mt.tick [self appstate]
+;        (self:tick_auto_digs appstate.time)
+;    )
 
     (gamestate:draw appstate.time)
 
