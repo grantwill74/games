@@ -10,11 +10,7 @@
 ;; input: gamepad
 
 ; todos 
-; TODO refactor GameState into a machine state
-; TODO that means give it a tick function
-; TODO make that function return either push or change
-; TODO add falling state
-; TODO make its draw draw upto the pig, then draw the pig, then draw below
+; TODO add thump on fall
 ; TODO add lives
 ; TODO add gameover state
 ; TODO add next level state
@@ -148,6 +144,8 @@
 (local SPR_SAD_PIG 4)
 
 
+
+
 (local AppState {:mt {}})
 (fn AppState.new []
     (local ev {
@@ -155,7 +153,6 @@
         :pad_state [false false false false false false false false]
 
         :time (time)
-
         :dtime 0 ; time since last frame in millis
     })
     (setmetatable ev {
@@ -415,6 +412,42 @@
     [truffles holes]
 )
 ; ~ GameMap ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Actor; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(local Actor {:mt {}})
+(fn Actor.new [x y]
+    "create a new actor with given world (field) coordinates"
+    (local actor {
+        :dir :s
+        : x : y
+        :anim_state {
+            :head (Anim.state ANIMS.player_head.s true)
+            :body (Anim.state ANIMS.player_body.s true)
+        }
+    })
+
+    (setmetatable actor {
+        :__index Actor.mt
+        :__tostring to_str
+    })
+)
+
+(fn Actor.mt.face [self dir]
+    (local head (. ANIMS.player_head dir))
+    (local body (. ANIMS.player_body dir))
+
+    (set self.anim_state.head (Anim.state head true))
+    (set self.anim_state.body (Anim.state body true))
+
+    (set self.dir dir)
+)
+
+(fn Actor.mt.translate [self tx ty]
+    (set self.x (+ self.x tx))
+    (set self.y (+ self.y ty))
+)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ; GameState ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local GameState {:mt {}})
@@ -689,7 +722,7 @@
         (self:draw_flags)
         (self:draw_status)
         (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
-        (print "Keys:" KEYS_DISPLAY_PX KEYS_DISPLAY_PY 12)
+        (print "Keyboard:" KEYS_DISPLAY_PX KEYS_DISPLAY_PY 12)
         (print "Dig: z" KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY 12)
         (print "Flag: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
         (print "Gamepad: " PAD_DISPLAY_PX PAD_DISPLAY_PY 12)
@@ -890,6 +923,50 @@
     (gamestate:move_player_px command.movehoriz command.movevert)
 )
 
+; Refactor;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(local St_InGame {:mt {}})
+(fn St_InGame.new [level]
+    (local map (GameMap.new [1 1 1]))
+
+    (local state {
+        : map 
+
+        :n_flags 3
+        :n_truffles 0
+        :n_lives 3
+    })
+
+    (setmetatable state {
+        :__index St_InGame.mt
+        :__tostring to_str
+    })
+)
+
+
+(local St_App {:mt {}})
+(fn St_App.new []
+    (local state {
+        :pad_just_pressed   [false false false false false false false false]
+        :pad_state          [false false false false false false false false]
+    
+        :time   (time)
+        :dtime  0   ; time since last frame _ms
+
+        :app_state (St_InGame.new [1])
+    })
+    
+    (setmetatable state {
+        :__index St_App.mt
+        :__tostring to_str
+    })
+)
+
+(fn St_App.mt.tick [self]
+
+)
+
+; ~Refactor ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (fn _G.BOOT []
     (global appstate (AppState.new))
     (global gamestate (GameState.new 1 1 1))   
@@ -916,21 +993,14 @@
 
     (gamestate:draw appstate.time)
 
-    (if gamestate.falling_start
-        (do (if (<= (- appstate.time gamestate.falling_start) FALL_DELAY_MS)
-                ; coyote time, just stare straight ahead
-                (do)
+    (when gamestate.falling_start
+        (if (<= (- appstate.time gamestate.falling_start) FALL_DELAY_MS)
+            ; coyote time, just stare straight ahead
+            (do)
 
-                ; else: actually falling
-                (set gamestate.player_ty 
-                    (+ gamestate.player_ty FALL_SPEED_PX_TIC))
-            )
-        )
-    
-        ; else: not falling
-        (do
-            ; (apply_command command gamestate appstate)
-            (gamestate:draw_dig_anims)
+            ; else: actually falling
+            (set gamestate.player_ty 
+                (+ gamestate.player_ty FALL_SPEED_PX_TIC))
         )
     )
 
