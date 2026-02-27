@@ -442,9 +442,50 @@
     (set self.dir dir)
 )
 
+(fn Actor.mt.idle [self]
+    (self.anim_state.head:reset)
+    (self.anim_state.body:reset)
+)
+
 (fn Actor.mt.translate [self tx ty]
     (set self.x (+ self.x tx))
     (set self.y (+ self.y ty))
+)
+
+(fn Actor.mt.warp [self tx ty]
+    (set self.x tx)
+    (set self.y ty)
+)
+
+(fn Actor.mt.field_coords [self]
+    [(math.floor self.x) (math.floor self.y)]
+)
+
+(fn Actor.mt.map_coords [self]
+    (field_coords_to_map_coords self.x self.y)
+)
+
+(fn Actor.mt.pixel_coords [self]
+    (field_coords_to_pixels self.x self.y)
+)
+
+(fn Actor.mt.tick [self]
+    (Anim.states_tick self.anim_state MS_PER_TIC)
+)
+
+(fn Actor.mt.draw [self]
+    ; top left corner of body tile
+    (local [px py] (self:pixel_coords))
+
+    ; subtract so that pig's body is drawn centered, with the pig's feet being
+    ; the actual location of the coordinates
+    (local [bodyx bodyy] [(+ px H_TILE_W_PX_OFF) (- py TILE_H_PX)])
+
+    ; the head is one tile above the body
+    (local heady (- bodyy TILE_H_PX))
+
+    (self.anim_state.head:draw bodyx heady)
+    (self.anim_state.body:draw bodyx bodyy)
 )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -461,18 +502,7 @@
     
     
     (local state {
-        :player_dir :s
-
-        ; player location, tile_x, tile_y in game-tiles (not map memory tiles)
-        :player_tx  1
-        :player_ty  1
-
-        :player_anim_states {
-            :player_head (Anim.state ANIMS.player_head.s true)
-            :player_body (Anim.state ANIMS.player_body.s true)
-            ;:hilite (Anim.state 
-            ;    (Anim.from_frame_nos_delay HILITE_DELAY_MS [22 23]))
-        }
+        :pig (Actor.new 1 1)
         
         : dig_anims
 
@@ -511,16 +541,6 @@
 
 (fn GameState.mt.post_status [self message time_left]
     (set self.status [message (or time_left STATUS_TIME)])
-)
-
-(fn GameState.mt.face_player [self new_dir]
-    (local head (. ANIMS.player_head new_dir))
-    (local body (. ANIMS.player_body new_dir))
-
-    (set self.player_anim_states.player_head (Anim.state head true))
-    (set self.player_anim_states.player_body (Anim.state body true))
-
-    (set self.player_dir new_dir)
 )
 
 (fn gen_auto_digs [map start_time tx ty]
@@ -616,28 +636,13 @@
     )
 )
 
-
-
-(fn GameState.mt.player_field_coords [self]
-    "returns player's x/y coords in an array relative to the 
-     top left of the game field. 1,1 is the top-left most in-bound. 
-     returns integers."
-    [(math.floor self.player_tx) (math.floor self.player_ty)]     
-)
-
-
-(fn GameState.mt.player_map_coords [self]
-    "returns the player's coords as an array in 0-based map-coordinates where
-    0,0 refers to the top left of map memory rather than the play-field."
-    (local [fieldx fieldy] (self:player_field_coords))
-    (field_coords_to_map_coords fieldx fieldy)
-)
-
 (fn GameState.mt.move_player_px [self xt yt]
     "move player by given tile offset"
 
-    (set self.player_tx (clamp (+ self.player_tx xt) 1 (- FIELD_W_T 1 EPS)))
-    (set self.player_ty (clamp (+ self.player_ty yt) 1 (- FIELD_H_T 1 EPS)))
+    (local new_x (clamp (+ self.pig.x xt) 1 (- FIELD_W_T 1 EPS)))
+    (local new_y (clamp (+ self.pig.y yt) 1 (- FIELD_H_T 1 EPS)))
+
+    (self.pig:warp new_x new_y)
 )
 
 (fn GameState.mt.add_dig_anim [self xt yt]
@@ -696,26 +701,16 @@
     (let [
         fieldx (* FIELD_X_T TILE_W_PX)
         fieldy (* FIELD_Y_T TILE_H_PX)
-
-        playeroffx (* TILE_W_PX self.player_tx)
-        playeroffy (* TILE_H_PX self.player_ty)
-
-        playerx (+ fieldx playeroffx)
-        playery (+ fieldy playeroffy)
-
-        player_x_off (+ playerx H_TILE_W_PX_OFF)
-        player_head_y (- playery TILE_H_PX TILE_H_PX)
-        player_body_y (- playery TILE_H_PX)        
     ]
-        (fn draw_player []
-            ;(self.anim_states.hilite:draw playerx playery)
-            (self.player_anim_states.player_head:draw player_x_off player_head_y)
-                
-            ; guide
-            ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
-            
-            (self.player_anim_states.player_body:draw player_x_off player_body_y)
-        )
+        ; (fn draw_player []
+        ;     ;(self.anim_states.hilite:draw playerx playery)
+        ;     (self.player_anim_states.player_head:draw player_x_off player_head_y)
+        ;         
+        ;     ; guide
+        ;     ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
+        ;     
+        ;     (self.player_anim_states.player_body:draw player_x_off player_body_y)
+        ; )
         
         (map) ; draw the map to clear the screen no matter what
         (self:draw_truffles)
@@ -731,18 +726,18 @@
 
 
         ; draw the part of the map before player
-        (local [_ py] (self:player_map_coords))
+        (local [_ py] (self.pig:map_coords))
         (local py (math.ceil py))
 
         (if (not self.falling_start)
-            (do (draw_player)
+            (do (self.pig:draw)
                 (self:draw_auto_digs time)
                 (self:draw_dig_anims)
             )
 
             ; else, falling
             (do (local [mapx mapy] self.falling_pos)
-                (draw_player)
+                (self.pig:draw)
                 ; draw with colorkey 0 = trans
                 (local map_height (+ 1 (- MAP_H mapy)))
                 (map 0 mapy MAP_W map_height 
@@ -804,13 +799,15 @@
 
     ; actually, we're idling
     (when (and (not dir1) (not dir2))
-        (st.player_anim_states.player_head:reset)
-        (st.player_anim_states.player_body:reset))
+        (st.pig:idle)
+        ; (st.player_anim_states.player_head:reset)
+        ; (st.player_anim_states.player_body:reset)
+    )
 
     ; can't dig and flag at the same time. prefer digging.
     (when (and command.dig command.flag) (set command.flag false))
 
-    (local [tx ty] (gamestate:player_field_coords))
+    (local [tx ty] (gamestate.pig:field_coords))
 ;    (local [mapx mapy] (gamestate:player_map_coords))
 ;    (local [truffles holes] (gamestate.map:vicinity_count tx ty))
 ;    (local val (gamestate.map:at tx ty))
@@ -973,13 +970,14 @@
 )
 
 (fn GameState.mt.tick [self appstate]
-    (Anim.states_tick gamestate.player_anim_states MS_PER_TIC)
-    
+    ;(Anim.states_tick self.player_anim_states MS_PER_TIC)
+    (self.pig:tick)
+
     (local command (GameCommand.new))
     (poll_buttons appstate command)
-    (gamestate:tick_auto_digs appstate.time command)
-    (gamestate:tick_status)
-    (gamestate:tick_dig_anims appstate.dtime)
+    (self:tick_auto_digs appstate.time command)
+    (self:tick_status)
+    (self:tick_dig_anims appstate.dtime)
 
     (when (not gamestate.falling_start)
         (apply_command command gamestate appstate)
