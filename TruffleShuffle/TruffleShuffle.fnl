@@ -492,6 +492,10 @@
     (Anim.states_tick self.anim_state MS_PER_TIC)
 )
 
+(fn Actor.mt.body_x [self]
+    ; TODO
+)
+
 (fn Actor.mt.draw [self]
     ; top left corner of body tile
     (local [px py] (self:pixel_coords))
@@ -522,6 +526,7 @@
     
     (local state {
         :pig (Actor.new 1 1)
+        :map (GameMap.gen seed 3 10)
         
         : dig_anims
 
@@ -546,8 +551,6 @@
         :status nil 
 
         : level
-
-        :map (GameMap.gen seed 3 10)
     })
 
     (setmetatable state {
@@ -708,51 +711,36 @@
 
 
 (fn GameState.mt.draw [self time]
-    (let [
-        fieldx (* FIELD_X_T TILE_W_PX)
-        fieldy (* FIELD_Y_T TILE_H_PX)
-    ]
-        ; (fn draw_player []
-        ;     ;(self.anim_states.hilite:draw playerx playery)
-        ;     (self.player_anim_states.player_head:draw player_x_off player_head_y)
-        ;         
-        ;     ; guide
-        ;     ;(spr 22 (+ playerx H_TILE_W_PX_OFF) (+ playery H_TILE_W_PX_OFF) 0)
-        ;     
-        ;     (self.player_anim_states.player_body:draw player_x_off player_body_y)
-        ; )
-        
-        (map) ; draw the map to clear the screen no matter what
-        (self:draw_truffles)
-        (self:draw_flags)
-        (self:draw_status)
-        (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
-        (print "Keyboard:" KEYS_DISPLAY_PX KEYS_DISPLAY_PY 12)
-        (print "Dig: z" KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY 12)
-        (print "Flag: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
-        (print "Gamepad: " PAD_DISPLAY_PX PAD_DISPLAY_PY 12)
-        (print "Dig: a" PAD_DIG_DISPLAY_PX PAD_DIG_DISPLAY_PY 12)
-        (print "Flag: b" PAD_FLAG_DISPLAY_PX PAD_FLAG_DISPLAY_PY 12)
+    (map) ; draw the map to clear the screen no matter what
+    (self:draw_truffles)
+    (self:draw_flags)
+    (self:draw_status)
+    (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
+    (print "Keyboard:" KEYS_DISPLAY_PX KEYS_DISPLAY_PY 12)
+    (print "Dig: z" KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY 12)
+    (print "Flag: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
+    (print "Gamepad: " PAD_DISPLAY_PX PAD_DISPLAY_PY 12)
+    (print "Dig: a" PAD_DIG_DISPLAY_PX PAD_DIG_DISPLAY_PY 12)
+    (print "Flag: b" PAD_FLAG_DISPLAY_PX PAD_FLAG_DISPLAY_PY 12)
 
 
-        ; draw the part of the map before player
-        (local [_ py] (self.pig:map_coords))
-        (local py (math.ceil py))
+    ; draw the part of the map before player
+    (local [_ py] (self.pig:map_coords))
+    (local py (math.ceil py))
 
-        (if (not self.falling_start)
-            (do (self.pig:draw)
-                (self:draw_auto_digs time)
-                (self:draw_dig_anims)
-            )
+    (if (not self.falling_start)
+        (do (self.pig:draw)
+            (self:draw_auto_digs time)
+            (self:draw_dig_anims)
+        )
 
-            ; else, falling
-            (do (local [mapx mapy] self.falling_pos)
-                (self.pig:draw)
-                ; draw with colorkey 0 = trans
-                (local map_height (+ 1 (- MAP_H mapy)))
-                (map 0 mapy MAP_W map_height 
-                    0 (* mapy TILE_H_PX) 0)
-            )
+        ; else, falling
+        (do (local [mapx mapy] self.falling_pos)
+            (self.pig:draw)
+            ; draw with colorkey 0 = trans
+            (local map_height (+ 1 (- MAP_H mapy)))
+            (map 0 mapy MAP_W map_height 
+                0 (* mapy TILE_H_PX) 0)
         )
     )
 )
@@ -852,8 +840,12 @@
             (if (= val HOLE)
                 (do
                     (set gamestate.falling_start appstate.time)
-                    (set gamestate.falling_pos (gamestate:player_map_coords))
-                    (gamestate:face_player :s)
+                    (set gamestate.falling_pos (gamestate.pig:map_coords))
+                    
+                    ; snap pig coordinates
+                    (local [sx sy] (gamestate.pig:field_coords))
+                    (gamestate.pig:warp sx sy)
+                    (gamestate.pig:face :s)
                     (sfx SFX_FALL "C-6" 64 SFX_FALL_CHANNEL)
                     (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL)
                     (gamestate:post_status "Oh no!" 5000)
@@ -948,8 +940,7 @@
             (do)
 
             ; else: actually falling
-            (set gamestate.player_ty 
-                (+ gamestate.player_ty FALL_SPEED_PX_TIC))
+            (gamestate.pig:translate 0 FALL_SPEED_PX_TIC)
         )
     )
 
