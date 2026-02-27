@@ -457,6 +457,25 @@
     (set self.y ty)
 )
 
+(fn Actor.mt.move [self tx ty]
+    "move in a direction and update facing"
+    (local dir1 (if (> tx 0) :e (< tx 0) :w))
+    (local dir2 (if (> ty 0) :s (< ty 0) :n))
+
+    ; keep dir the same as long as it matches one of the directions being
+    ; pressed. otherwise change it with preference to north/south
+    (local new_dir (if
+        (or (= self.dir dir1) (= self.dir dir2)) self.dir
+        dir1 dir1
+        dir2 dir2
+        self.dir))
+
+    (when (~= self.dir new_dir)
+        (self:face new_dir))
+
+    (self:translate tx ty)
+)
+
 (fn Actor.mt.field_coords [self]
     [(math.floor self.x) (math.floor self.y)]
 )
@@ -636,15 +655,6 @@
     )
 )
 
-(fn GameState.mt.move_player_px [self xt yt]
-    "move player by given tile offset"
-
-    (local new_x (clamp (+ self.pig.x xt) 1 (- FIELD_W_T 1 EPS)))
-    (local new_y (clamp (+ self.pig.y yt) 1 (- FIELD_H_T 1 EPS)))
-
-    (self.pig:warp new_x new_y)
-)
-
 (fn GameState.mt.add_dig_anim [self xt yt]
     (local anim (Anim.state ANIMS.dig))
     (tset self.dig_anims yt xt anim)
@@ -782,26 +792,9 @@
     (local yt command.movevert)
     (local st gamestate)
 
-    (local dir1 (if (> xt 0) :e (< xt 0) :w))
-    (local dir2 (if (> yt 0) :s (< yt 0) :n))
-
-    ; keep dir the same as long as it matches one of the directions being
-    ; pressed. otherwise change it with preference to north/south
-    (local new_dir (if
-        (or (= st.player_dir dir1) (= st.player_dir dir2)) st.player_dir
-        dir1 dir1
-        dir2 dir2
-        st.player_dir))
-
-    ; swap out anims
-    (when (and st.player_dir (~= st.player_dir new_dir))
-        (st:face_player new_dir))
-
-    ; actually, we're idling
-    (when (and (not dir1) (not dir2))
+    ; we're idling
+    (when (and (= xt 0) (= yt 0))
         (st.pig:idle)
-        ; (st.player_anim_states.player_head:reset)
-        ; (st.player_anim_states.player_body:reset)
     )
 
     ; can't dig and flag at the same time. prefer digging.
@@ -917,52 +910,10 @@
     (when (empty? gamestate.auto_digs) 
         (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL))
 
-    (gamestate:move_player_px command.movehoriz command.movevert)
+    (gamestate.pig:move command.movehoriz command.movevert)
+    ; (gamestate:move_player_px command.movehoriz command.movevert)
 )
 
-; Refactor;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(local St_InGame {:mt {}})
-(fn St_InGame.new [level]
-    (local map (GameMap.new [1 1 1]))
-
-    (local state {
-        : map 
-
-        :n_flags 3
-        :n_truffles 0
-        :n_lives 3
-    })
-
-    (setmetatable state {
-        :__index St_InGame.mt
-        :__tostring to_str
-    })
-)
-
-
-(local St_App {:mt {}})
-(fn St_App.new []
-    (local state {
-        :pad_just_pressed   [false false false false false false false false]
-        :pad_state          [false false false false false false false false]
-    
-        :time   (time)
-        :dtime  0   ; time since last frame _ms
-
-        :app_state (St_InGame.new [1])
-    })
-    
-    (setmetatable state {
-        :__index St_App.mt
-        :__tostring to_str
-    })
-)
-
-(fn St_App.mt.tick [self]
-
-)
-
-; ~Refactor ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (fn _G.BOOT []
     (global appstate (AppState.new))
