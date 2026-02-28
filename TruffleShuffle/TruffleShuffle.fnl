@@ -622,10 +622,6 @@
     result
 )
 
-(fn move [self dx dy]
-
-)
-
 (fn GameState.mt.truffle_get [self tx ty appstate]
     (inc! self.truffles_gotten)
     (tset self :map ty tx EMPTY)
@@ -724,7 +720,12 @@
     )
 )
 
-
+(fn GameState.mt.move [self dx dy]
+    (self.pig:move dx dy)
+    (local [posx posy] [self.pig.x self.pig.y])
+    (local [posx posy] (GameMap.clamp_to_bounds posx posy))
+    (self.pig:warp posx posy)
+)
 
 (fn GameState.mt.draw [self time]
     (map) ; draw the map to clear the screen no matter what
@@ -915,11 +916,7 @@
     (when (empty? gamestate.auto_digs) 
         (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL))
 
-    (gamestate.pig:move command.movehoriz command.movevert)
-    (local [posx posy] [gamestate.pig.x gamestate.pig.y])
-    (local [posx posy] (GameMap.clamp_to_bounds posx posy))
-    (gamestate.pig:warp posx posy)
-    ; (gamestate:move_player_px command.movehoriz command.movevert)
+    (gamestate:move command.movehoriz command.movevert)
 )
 
 
