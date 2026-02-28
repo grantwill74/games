@@ -484,7 +484,7 @@
     (field_coords_to_map_coords self.x self.y)
 )
 
-(fn Actor.mt.pixel_coords [self]
+(fn Actor.mt.base_pixel_coords [self]
     (field_coords_to_pixels self.x self.y)
 )
 
@@ -492,23 +492,25 @@
     (Anim.states_tick self.anim_state MS_PER_TIC)
 )
 
-(fn Actor.mt.body_x [self]
-    ; TODO
+(fn Actor.mt.body_pixel_coords [self]
+    (local [bx by] (self:base_pixel_coords))
+    (local body_x (+ bx H_TILE_W_PX_OFF))
+    (local body_y (- by TILE_H_PX))
+    [body_x body_y]
 )
 
 (fn Actor.mt.draw [self]
-    ; top left corner of body tile
-    (local [px py] (self:pixel_coords))
-
-    ; subtract so that pig's body is drawn centered, with the pig's feet being
-    ; the actual location of the coordinates
-    (local [bodyx bodyy] [(+ px H_TILE_W_PX_OFF) (- py TILE_H_PX)])
+    (local [bodyx bodyy] (self:body_pixel_coords))
 
     ; the head is one tile above the body
     (local heady (- bodyy TILE_H_PX))
 
     (self.anim_state.head:draw bodyx heady)
     (self.anim_state.body:draw bodyx bodyy)
+
+    ; debugging: draw the true coordinates
+    ; (local [base_x base_y] (self:base_pixel_coords))
+    ; (spr 24 base_x base_y 0)
 )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -967,6 +969,7 @@
 ;; 021:2222321022222132222212322222120222221010022211002022200000000000
 ;; 022:cc0000ccc000000c00000000000000000000000000000000c000000ccc0000cc
 ;; 023:000000000cc00cc00c0000c000000000000000000c0000c00cc00cc000000000
+;; 024:cc000000c0000000000000000000000000000000000000000000000000000000
 ;; 032:00000000332222333322223322c22c222c9229c22c9229c22233332202333320
 ;; 033:332222333322223322c22c222c9229c22c9229c2222222222233332202333320
 ;; 036:0000000003332230233322202232c220222c9220222c92232222222302220223
