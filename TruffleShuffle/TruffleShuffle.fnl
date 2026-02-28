@@ -10,7 +10,6 @@
 ;; input: gamepad
 
 ; bug todos
-; TODO fix collision detection
 ; TODO fix screen tearing on fall
 
 ; refactor todos
@@ -358,6 +357,11 @@
     (-?> (. self y) (. x))
 )
 
+(fn GameMap.clamp_to_bounds [tx ty]
+    (local tx (clamp tx 1 (- FIELD_W_T 1)))
+    (local ty (clamp ty 1 (- FIELD_H_T 1)))
+    [tx ty]
+)
 
 (fn field_coords_to_map_coords [tx ty]
     [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)]
@@ -618,7 +622,9 @@
     result
 )
 
+(fn move [self dx dy]
 
+)
 
 (fn GameState.mt.truffle_get [self tx ty appstate]
     (inc! self.truffles_gotten)
@@ -910,6 +916,9 @@
         (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL))
 
     (gamestate.pig:move command.movehoriz command.movevert)
+    (local [posx posy] [gamestate.pig.x gamestate.pig.y])
+    (local [posx posy] (GameMap.clamp_to_bounds posx posy))
+    (gamestate.pig:warp posx posy)
     ; (gamestate:move_player_px command.movehoriz command.movevert)
 )
 
