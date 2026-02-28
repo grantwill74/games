@@ -9,8 +9,16 @@
 ;; saveid: swinesweeper
 ;; input: gamepad
 
-; todos 
+; bug todos
+; TODO fix collision detection
+; TODO fix screen tearing on fall
+
+; refactor todos
+; TODO refactor anims and tile transitions into GameMap
+
+; feature todos 
 ; TODO add thump on fall
+; TODO add square highlight
 ; TODO add lives
 ; TODO add gameover state
 ; TODO add next level state
@@ -791,9 +799,6 @@
     (when (and command.dig command.flag) (set command.flag false))
 
     (local [tx ty] (gamestate.pig:field_coords))
-;    (local [mapx mapy] (gamestate:player_map_coords))
-;    (local [truffles holes] (gamestate.map:vicinity_count tx ty))
-;    (local val (gamestate.map:at tx ty))
 
     (fn dig [tx ty]
         (local [mapx mapy] [(+ FIELD_X_T tx) (+ FIELD_Y_T ty)])
