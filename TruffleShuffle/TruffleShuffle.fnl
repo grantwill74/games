@@ -9,9 +9,6 @@
 ;; saveid: swinesweeper
 ;; input: gamepad
 
-; bug todos
-; TODO fix screen tearing on fall
-
 ; refactor todos
 ; TODO refactor anims and tile transitions into GameMap
 
@@ -69,6 +66,7 @@
 
 ; half of a tile offsets, used when drawing characters centered
 (local H_TILE_W_PX_OFF (- (/ TILE_W_PX 2)))
+(local H_TILE_H_PX_OFF (- (/ TILE_H_PX 2)))
 
 (local [FIELD_X_T FIELD_Y_T] [11 1]) ; gamefield top left x and y coords 
 (local [FIELD_W_T FIELD_H_T] [18 15])
@@ -306,7 +304,7 @@
     (set self.current_frame_no 1)
     (set self.progress 0)
 )
-; ~Animations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; ~Animations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; GameMap ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local GameMap {:mt {}})
@@ -741,20 +739,17 @@
     (print "Flag: b" PAD_FLAG_DISPLAY_PX PAD_FLAG_DISPLAY_PY 12)
 
 
-    ; draw the part of the map before player
-    (local [_ py] (self.pig:map_coords))
-    (local py (math.ceil py))
+    (self.pig:draw)
 
     (if (not self.falling_start)
-        (do (self.pig:draw)
+        (do 
             (self:draw_auto_digs time)
             (self:draw_dig_anims)
         )
 
         ; else, falling
         (do (local [mapx mapy] self.falling_pos)
-            (self.pig:draw)
-            ; draw with colorkey 0 = trans
+            (local [mapx mapy] [(math.floor mapx) (math.floor mapy)])
             (local map_height (+ 1 (- MAP_H mapy)))
             (map 0 mapy MAP_W map_height 
                 0 (* mapy TILE_H_PX) 0)
@@ -858,6 +853,8 @@
                     
                     ; snap pig coordinates
                     (local [sx sy] (gamestate.pig:field_coords))
+                    (local sx (+ (math.floor sx) 0.5))
+                    (local sy (+ (math.floor sy) 0.5))
                     (gamestate.pig:warp sx sy)
                     (gamestate.pig:face :s)
                     (sfx SFX_FALL "C-6" 64 SFX_FALL_CHANNEL)
