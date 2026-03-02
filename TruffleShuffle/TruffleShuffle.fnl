@@ -10,7 +10,8 @@
 ;; input: gamepad
 
 ; refactor todos
-; TODO refactor anims and tile transitions into GameMap
+; TODO refactor in game state into automata
+;
 
 ; feature todos 
 ; TODO add thump on fall
@@ -202,6 +203,7 @@
         (. self.pad_just_pressed BTN_B)
         (. self.pad_just_pressed BTN_Y))
 )
+; ~AppState ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Animation related things ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local Anim {:mt {}})
@@ -525,6 +527,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+
+; GameState events ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(local Gs_Ev {
+    :dig (lambda [])
+    :move_pig (lambda [offx offy] [:move_pig offx offy])
+    :translate_pig (lambda [offx offy] [:translate_pig offx offy])
+    :change_screen_offset (lambda [dx dy] [:change_screen_offset dx dy])
+})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+; GameState sub_states ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Tick sequence that does the following:
+;   coyote time for a couple of seconds
+;   actually make the pig fall
+;   at the bottom, return "bonk"
+;   signal that the sequence is finished so we can transition to the lives 
+;       screen.
+(fn St_Falling []
+    ; sub-sub states of falling
+
+
+    (fn []
+
+    )
+)
+
 ; GameState ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local GameState {:mt {}})
 (fn GameState.new [level seed] 
@@ -732,12 +761,8 @@
     (self:draw_status)
     (print (strf "Level %d" self.level) LEVEL_DISPLAY_PX LEVEL_DISPLAY_PY 12)
     (print "Keyboard:" KEYS_DISPLAY_PX KEYS_DISPLAY_PY 12)
-    (print "Dig: z" KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY 12)
-    (print "Flag: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
-    (print "Gamepad: " PAD_DISPLAY_PX PAD_DISPLAY_PY 12)
-    (print "Dig: a" PAD_DIG_DISPLAY_PX PAD_DIG_DISPLAY_PY 12)
-    (print "Flag: b" PAD_FLAG_DISPLAY_PX PAD_FLAG_DISPLAY_PY 12)
-
+    (print "Dig: (A) key: z" KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY 12)
+    (print "Flag: (B) key: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
 
     (self.pig:draw)
 
@@ -927,14 +952,31 @@
     (self.pig:tick)
 
     (local command (GameCommand.new))
+
     (poll_buttons appstate command)
     (self:tick_auto_digs appstate.time command)
     (self:tick_status)
     (self:tick_dig_anims appstate.dtime)
 
-    (when (not gamestate.falling_start)
+    (if self.falling_start
+        ; base on the phase, we are either staring straight ahead, falling, or
+        ; bonking the screen
+        (if (<= (- appstate.time self.falling_start) FALL_DELAY_MS)
+            ; coyote time, just stare straight ahead
+            (do)
+        
+            (<= (- appstate.time self.falling_start)
+                (+ FALL_DELAY_MS FALL_TIME_MS))
+            ; falling state, translate the pig down
+            (self.pig:translate 0 FALL_SPEED_PX_TIC)
+        )
+        
+        
+        ; else, just a normal update tick
         (apply_command command gamestate appstate)
     )
+
+
 )
 
 (fn _G.TIC []
@@ -943,17 +985,6 @@
     (gamestate:tick appstate)
 
     (gamestate:draw appstate.time)
-
-    (when gamestate.falling_start
-        (if (<= (- appstate.time gamestate.falling_start) FALL_DELAY_MS)
-            ; coyote time, just stare straight ahead
-            (do)
-
-            ; else: actually falling
-            (gamestate.pig:translate 0 FALL_SPEED_PX_TIC)
-        )
-    )
-
 )
 
 ;; <TILES>
