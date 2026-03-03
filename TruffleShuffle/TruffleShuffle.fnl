@@ -116,6 +116,8 @@
 ; how long to stand in the air like wile e. coyote
 (local FALL_DELAY_MS 1000)
 (local FALL_TIME_MS 3000)
+(local BUMP_TIME_MS 2000)
+(local POST_BUMP_TIME_MS 2000)
 (local FALL_SPEED_PX_SEC 16)
 (local FALL_SPEED_PX_TIC (/ FALL_SPEED_PX_SEC TICS_PER_SEC))
 (local STATUS_TIME 2000)
@@ -538,20 +540,66 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-; GameState sub_states ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Tick sequence that does the following:
-;   coyote time for a couple of seconds
-;   actually make the pig fall
-;   at the bottom, return "bonk"
-;   signal that the sequence is finished so we can transition to the lives 
-;       screen.
-(fn St_Falling []
+; Simple automaton class:
+;   Has a state identified by an id at any point in time.
+;   Has a tick function which takes a 'self' and arbitrary other data, 
+;   returns an event on transition.
+;   In a statically typed language, this type would be parameterized by its 
+;   input alphabet, state type, and output alphabets.
+(local Automaton {})
+(fn Automaton.new [name data start_state tick]
     ; sub-sub states of falling
+    {
+        : name ; the name of the machine itself
+        : data 
+        :state start_state ; the id of the state it's in
+        : tick ; its tick function: self -> InputData -> Event [can mutate self]
+    }
+)
 
+; create a falling substate automaton
+(fn Ss_Falling [now]
+    (local coyote_end FALL_DELAY_MS)
+    (local falling_end (+ coyote_end FALL_TIME_MS))
+    (local bumping_end (+ falling_end BUMP_TIME_MS))
+    (local resting_end (+ bumping_end POST_BUMP_TIME_MS))
 
-    (fn []
+    (local phase_times [
+        [:coyote coyote_end]
+        [:falling falling_end]
+        [:bumping bumping_end]
+        [:resting resting_end] 
+    ])
 
-    )
+    (local data {
+        :phase_ind 1
+        : phase_times
+        :start_time now
+    })
+
+    ; tick function. returns [current_state or nil, leaving_state or nil]
+    (Automaton.new :falling 1 (fn [self time]
+        (local data self.data)
+        
+        (if ; if state is in bounds
+            (< data.phase_ind (length data.phase_times))
+            (do 
+                (local [cur_state end_time] (data.phase_ind))
+                (local time_since_start (- end_time data.start_time))
+                (local leaving_state 
+                    (if (> time_since_start end_time)
+                        (do (inc! data.phase_ind)
+                            cur_state)
+                        ; else, not leaving a state
+                        nil) )  
+                
+                [(. data.phase_times :phase_ind 1) leaving_state]
+            )
+
+            ; else 
+            [nil nil]
+        )
+    ))
 )
 
 ; GameState ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -587,6 +635,9 @@
 
         ; if falling, this will be the [map map] where the hole was 
         :falling_pos nil 
+
+        ; falling automaton
+        :falling_auto nil 
 
         ; status display as a [message, time_left] tuple
         :status nil 
