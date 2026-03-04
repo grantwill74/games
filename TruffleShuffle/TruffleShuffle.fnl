@@ -115,7 +115,7 @@
 
 ; how long to stand in the air like wile e. coyote
 (local FALL_DELAY_MS 1000)
-(local FALL_TIME_MS 3000)
+(local FALL_TIME_MS 1500)
 (local BUMP_TIME_MS 2000)
 (local POST_BUMP_TIME_MS 2000)
 (local FALL_SPEED_PX_SEC 16)
@@ -144,6 +144,7 @@
 (local SFX_SAD 35)
 (local SFX_GOODFLAG 36)
 (local SFX_FALL 37)
+(local SFX_BONK 38)
 
 (local SFX_AUTODIG_CHANNEL 2)
 (local SFX_FALL_CHANNEL 0)
@@ -547,12 +548,11 @@
 ;   In a statically typed language, this type would be parameterized by its 
 ;   input alphabet, state type, and output alphabets.
 (local Automaton {})
-(fn Automaton.new [name data start_state tick]
+(fn Automaton.new [name data tick]
     ; sub-sub states of falling
     {
         : name ; the name of the machine itself
         : data 
-        :state start_state ; the id of the state it's in
         : tick ; its tick function: self -> InputData -> Event [can mutate self]
     }
 )
@@ -577,29 +577,33 @@
         :start_time now
     })
 
-    ; tick function. returns [current_state or nil, leaving_state or nil]
-    (Automaton.new :falling 1 (fn [self time]
+    (fn tick [self time]
         (local data self.data)
+        (local ind data.phase_ind)
+        (local since_start (- time data.start_time))
         
         (if ; if state is in bounds
-            (< data.phase_ind (length data.phase_times))
+            (< ind (length data.phase_times))
             (do 
-                (local [cur_state end_time] (data.phase_ind))
-                (local time_since_start (- end_time data.start_time))
+                (local [cur_state end_time] (. data.phase_times ind))
+                (local time_left (- end_time since_start))
                 (local leaving_state 
-                    (if (> time_since_start end_time)
+                    (if (<= time_left 0)
                         (do (inc! data.phase_ind)
                             cur_state)
                         ; else, not leaving a state
                         nil) )  
                 
-                [(. data.phase_times :phase_ind 1) leaving_state]
+                [(. data.phase_times ind 1) leaving_state]
             )
 
             ; else 
             [nil nil]
         )
-    ))
+    )
+
+    ; tick function. returns [current_state or nil, leaving_state or nil]
+    (Automaton.new :falling data tick)
 )
 
 ; GameState ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -926,6 +930,7 @@
                 (do
                     (set gamestate.falling_start appstate.time)
                     (set gamestate.falling_pos (gamestate.pig:map_coords))
+                    (set gamestate.falling_auto (Ss_Falling appstate.time))
                     
                     ; snap pig coordinates
                     (local [sx sy] (gamestate.pig:field_coords))
@@ -989,7 +994,9 @@
     (when (empty? gamestate.auto_digs) 
         (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL))
 
-    (gamestate:move command.movehoriz command.movevert)
+    (when (not gamestate.falling_auto)
+        (gamestate:move command.movehoriz command.movevert)
+    )
 )
 
 
@@ -1009,25 +1016,34 @@
     (self:tick_status)
     (self:tick_dig_anims appstate.dtime)
 
-    (if self.falling_start
-        ; base on the phase, we are either staring straight ahead, falling, or
-        ; bonking the screen
-        (if (<= (- appstate.time self.falling_start) FALL_DELAY_MS)
-            ; coyote time, just stare straight ahead
-            (do)
-        
-            (<= (- appstate.time self.falling_start)
-                (+ FALL_DELAY_MS FALL_TIME_MS))
-            ; falling state, translate the pig down
-            (self.pig:translate 0 FALL_SPEED_PX_TIC)
+    (if self.falling_auto
+        (do 
+            (local [cur_state leaving] (self.falling_auto:tick appstate.time))
+            (when (= leaving :falling)
+                (sfx SFX_BONK "C-3" 64)
+            )
+            ;(trace (to_str self.falling_auto))
+
+            (case cur_state 
+                :coyote
+                ; coyote time, just stare straight ahead
+                (do) 
+
+                :falling
+                (self.pig:translate 0 FALL_SPEED_PX_TIC)
+
+                ; automaton finished, free it
+                nil
+                (set self.falling_auto nil)
+
+                ; else: do nothing
+                _ (do)
+            )
         )
-        
-        
-        ; else, just a normal update tick
+
+        ; if not falling, this is a normal game tick
         (apply_command command gamestate appstate)
     )
-
-
 )
 
 (fn _G.TIC []
@@ -1167,6 +1183,7 @@
 ;; 035:0000001010202040306040804080508060806080708070808080808090809080a080b080b080c090c090d090d090e090e090e090f090f090f080f080380000000000
 ;; 036:10001000200030004020402050205020502060206020702070407040804080408040904090409040a040a040b040c040d040d040e040f040f040f040400000000000
 ;; 037:0100111021203130313031404150416051705180619061a061b071c071d081e091f091f091f0a1f0a1f0b1f0b1f0c1f0c1f0d1f0d1f0d1f0e1f0f1f05f0000000000
+;; 038:000c101b202b403a604a70699079c089d09ae0b0e0cae0dbe0ecf0fdf0f0f0fef0fff0f0f0f1f0f1f0f1f0f2f0f2f0f2f0e0f0f0f0f0f0f0f0f0f0f0180000000000
 ;; </SFX>
 
 ;; <PATTERNS>
