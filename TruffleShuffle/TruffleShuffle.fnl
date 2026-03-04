@@ -634,9 +634,6 @@
         :n_flags 3
         :lives_remaining 3
 
-        ; if falling, this will be the time it started 
-        :falling_start nil
-
         ; if falling, this will be the [map map] where the hole was 
         :falling_pos nil 
 
