@@ -110,9 +110,9 @@
 
 ; how long to stand in the air like wile e. coyote
 (local FALL_DELAY_MS 1000)
-(local FALL_TIME_MS 1500)
+(local FALL_TIME_MS 1000)
 (local BUMP_TIME_MS 100)
-(local POST_BUMP_TIME_MS 2000)
+(local POST_BUMP_TIME_MS 1000)
 (local FALL_SPEED_PX_SEC 16)
 (local FALL_SPEED_PX_TIC (/ FALL_SPEED_PX_SEC TICS_PER_SEC))
 (local STATUS_TIME 2000)
@@ -156,7 +156,9 @@
 (local INTER_IMG_H (* TILE_H_PX 2))
 ; intermission image might be more than 2*2, so this won't just become 1 maybe?
 (local INTER_IMG_X (- SCREEN_CENT_X_PX (/ INTER_IMG_W 2)))
-(local INTER_IMG_Y (- SCREEN_CENT_Y_PX (/ INTER_IMG_H 2)))
+; changed to * 0 so the pig is front and center
+(local INTER_IMG_Y (+ (* 0 TILE_H_PX) (- SCREEN_CENT_Y_PX (/ INTER_IMG_H 2))))
+(local INTER_TEXT_Y_OFF (* 3 TILE_H_PX))
 
 (local BONK_AMOUNT_PX 4)
 
@@ -537,25 +539,38 @@
 ; Intermission Screens ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local Intermissions {
     :life_lost {
-        :how_long 3000
+        :how_long 2000
         :message "Ouch! Try again!"
         :image SPR_SAD_PIG
         :text_x nil ; set during initialization 
         :text_y nil ; set during initialization
         :draw (fn [self]
-            (print self.message self.text_x self.text_y)
-            (spr SPR_SAD_PIG INTER_IMG_X INTER_IMG_Y)
+            (print self.message self.text_x self.text_y 12)
+            (spr SPR_SAD_PIG INTER_IMG_X INTER_IMG_Y -1 1 0 0 2 2)
         )
     }
 
     :game_over {
-        :how_long 7000
+        :how_long 4000
         :message "Game Over!"
         :image SPR_SAD_PIG
         :text_x nil ; set during initialization 
         :text_y nil ; set during initialization
     }
 })
+
+(fn init_intermission_text_locations []
+    (each [_ inter (pairs Intermissions)]
+        (local text_w (print inter.message 0 (- TILE_H_PX)))
+        (local text_h TILE_H_PX)
+
+        (local text_x (- (/ SCREEN_W_PX 2) (/ text_w 2)))
+        (local text_y (- (/ SCREEN_H_PX 2) (/ text_h 2) INTER_TEXT_Y_OFF))
+
+        (set inter.text_x text_x)
+        (set inter.text_y text_y)
+    )
+)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; GameState events ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -842,9 +857,7 @@
     (self.pig:warp posx posy)
 )
 
-(fn GameState.mt.draw [self time]
-    ; draw the map to clear the screen no matter what
-    (map 0 0 MAP_W MAP_H 0 (- self.falling_bump_off_px))
+(fn GameState.mt.draw_side_panel [self]
     (self:draw_truffles)
     (self:draw_flags)
     (self:draw_status)
@@ -852,22 +865,38 @@
     (print "Keyboard:" KEYS_DISPLAY_PX KEYS_DISPLAY_PY 12)
     (print "Dig: (A) key: z" KEYS_DIG_DISPLAY_PX KEYS_DIG_DISPLAY_PY 12)
     (print "Flag: (B) key: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
+)
 
-    (self.pig:draw)
+(fn GameState.mt.draw [self time]
 
-    (if (not self.falling_start)
-        (do 
-            (self:draw_auto_digs time)
-            (self:draw_dig_anims)
+    (if ; draw an intermission if we're on one
+        self.intermission
+        (do ; clear the screen
+            (map MAP_W MAP_H)
+            (self.intermission:draw)
         )
 
-        ; else, falling
-        (do (local [mapx mapy] self.falling_pos)
+        ; else if, falling
+        self.falling_auto
+        (do 
+            (map 0 0 MAP_W MAP_H 0 (- self.falling_bump_off_px))
+            (self:draw_side_panel)
+            (self.pig:draw)
+            (local [mapx mapy] self.falling_pos)
             (local [mapx mapy] [(math.floor mapx) (math.floor mapy)])
             (local map_height (+ 1 (- MAP_H mapy)))
 
             (map 0 mapy MAP_W map_height 
                 0 (- (* mapy TILE_H_PX) self.falling_bump_off_px) 0)
+        )
+
+        ; no special state: just draw field anims
+        (do 
+            (map 0 0 MAP_W MAP_H 0 (- self.falling_bump_off_px))
+            (self.pig:draw)
+            (self:draw_side_panel)
+            (self:draw_auto_digs time)
+            (self:draw_dig_anims)
         )
     )
 )
@@ -1036,12 +1065,12 @@
 
 
 (fn _G.BOOT []
+    (init_intermission_text_locations)
     (global appstate (AppState.new))
     (global gamestate (GameState.new 1 1 1))   
 )
 
 (fn GameState.mt.tick [self appstate]
-    ;(Anim.states_tick self.player_anim_states MS_PER_TIC)
     (self.pig:tick)
 
     (local command (GameCommand.new))
@@ -1058,8 +1087,6 @@
                 (sfx SFX_BONK "C-3" 64)
                 (set self.falling_bump_off_px BONK_AMOUNT_PX)
             )
-            ;(trace (to_str self.falling_auto))
-
             (case cur_state 
                 :coyote
                 ; coyote time, just stare straight ahead
@@ -1072,10 +1099,22 @@
                 nil
                 (do 
                     (set self.falling_auto nil)
-                    (set self.falling_bump_off_px 0))
+                    (set self.falling_bump_off_px 0)
+                    (set self.intermission Intermissions.life_lost)
+                    (set self.inter_time_left self.intermission.how_long)
+                )
 
                 ; else: do nothing
                 _ (do)
+            )
+        )
+
+        self.intermission
+        (do
+            (set self.inter_time_left (- self.inter_time_left appstate.dtime))
+            (when (< self.inter_time_left 0)
+                (set self.inter_time_left nil)
+                (set self.intermission nil)
             )
         )
 
