@@ -9,12 +9,7 @@
 ;; saveid: swinesweeper
 ;; input: gamepad
 
-; refactor todos
-; TODO refactor in game state into automata
-;
-
 ; feature todos 
-; TODO add thump on fall
 ; TODO add square highlight
 ; TODO add lives
 ; TODO add gameover state
@@ -116,7 +111,7 @@
 ; how long to stand in the air like wile e. coyote
 (local FALL_DELAY_MS 1000)
 (local FALL_TIME_MS 1500)
-(local BUMP_TIME_MS 2000)
+(local BUMP_TIME_MS 100)
 (local POST_BUMP_TIME_MS 2000)
 (local FALL_SPEED_PX_SEC 16)
 (local FALL_SPEED_PX_TIC (/ FALL_SPEED_PX_SEC TICS_PER_SEC))
@@ -152,8 +147,18 @@
 (local SPR_HAPPY_PIG 2)
 (local SPR_SAD_PIG 4)
 
+(local SCREEN_W_PX 240)
+(local SCREEN_H_PX 136)
+(local SCREEN_CENT_X_PX (/ SCREEN_W_PX 2))
+(local SCREEN_CENT_Y_PX (/ SCREEN_H_PX 2))
 
+(local INTER_IMG_W (* TILE_W_PX 2))
+(local INTER_IMG_H (* TILE_H_PX 2))
+; intermission image might be more than 2*2, so this won't just become 1 maybe?
+(local INTER_IMG_X (- SCREEN_CENT_X_PX (/ INTER_IMG_W 2)))
+(local INTER_IMG_Y (- SCREEN_CENT_Y_PX (/ INTER_IMG_H 2)))
 
+(local BONK_AMOUNT_PX 4)
 
 (local AppState {:mt {}})
 (fn AppState.new []
@@ -529,7 +534,29 @@
 )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; Intermission Screens ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(local Intermissions {
+    :life_lost {
+        :how_long 3000
+        :message "Ouch! Try again!"
+        :image SPR_SAD_PIG
+        :text_x nil ; set during initialization 
+        :text_y nil ; set during initialization
+        :draw (fn [self]
+            (print self.message self.text_x self.text_y)
+            (spr SPR_SAD_PIG INTER_IMG_X INTER_IMG_Y)
+        )
+    }
 
+    :game_over {
+        :how_long 7000
+        :message "Game Over!"
+        :image SPR_SAD_PIG
+        :text_x nil ; set during initialization 
+        :text_y nil ; set during initialization
+    }
+})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; GameState events ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local Gs_Ev {
@@ -639,6 +666,15 @@
 
         ; falling automaton
         :falling_auto nil 
+
+        ; how many pixels to bump the screen
+        :falling_bump_off_px 0
+
+        ; which screen to show.
+        :intermission nil
+
+        ; how long to show it
+        :inter_time_left nil 
 
         ; status display as a [message, time_left] tuple
         :status nil 
@@ -807,7 +843,8 @@
 )
 
 (fn GameState.mt.draw [self time]
-    (map) ; draw the map to clear the screen no matter what
+    ; draw the map to clear the screen no matter what
+    (map 0 0 MAP_W MAP_H 0 (- self.falling_bump_off_px))
     (self:draw_truffles)
     (self:draw_flags)
     (self:draw_status)
@@ -828,8 +865,9 @@
         (do (local [mapx mapy] self.falling_pos)
             (local [mapx mapy] [(math.floor mapx) (math.floor mapy)])
             (local map_height (+ 1 (- MAP_H mapy)))
+
             (map 0 mapy MAP_W map_height 
-                0 (* mapy TILE_H_PX) 0)
+                0 (- (* mapy TILE_H_PX) self.falling_bump_off_px) 0)
         )
     )
 )
@@ -1018,6 +1056,7 @@
             (local [cur_state leaving] (self.falling_auto:tick appstate.time))
             (when (= leaving :falling)
                 (sfx SFX_BONK "C-3" 64)
+                (set self.falling_bump_off_px BONK_AMOUNT_PX)
             )
             ;(trace (to_str self.falling_auto))
 
@@ -1031,7 +1070,9 @@
 
                 ; automaton finished, free it
                 nil
-                (set self.falling_auto nil)
+                (do 
+                    (set self.falling_auto nil)
+                    (set self.falling_bump_off_px 0))
 
                 ; else: do nothing
                 _ (do)
