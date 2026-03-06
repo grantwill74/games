@@ -10,11 +10,13 @@
 ;; input: gamepad
 
 ; feature todos 
-; TODO add square highlight
 ; TODO add lives
 ; TODO add gameover state
 ; TODO add next level state
 ; TODO add congratulations state
+; TODO gameover music
+; TODO next level music
+; TODO congratulations music
 
 
 
@@ -110,7 +112,7 @@
 
 ; how long to stand in the air like wile e. coyote
 (local FALL_DELAY_MS 1000)
-(local FALL_TIME_MS 1000)
+(local FALL_TIME_MS 1500)
 (local BUMP_TIME_MS 100)
 (local POST_BUMP_TIME_MS 1000)
 (local FALL_SPEED_PX_SEC 16)
@@ -146,6 +148,8 @@
 
 (local SPR_HAPPY_PIG 2)
 (local SPR_SAD_PIG 4)
+(local SPR_LIFE 32)
+(local SPR_HIGHLIGHT 150)
 
 (local SCREEN_W_PX 240)
 (local SCREEN_H_PX 136)
@@ -252,6 +256,9 @@
     }
 
     :dig (Anim.from_frame_nos [160 161 162 163])
+
+    ; not using highlight delay right now, so it's just a sprite
+    :highlight (Anim.from_frame_nos_delay HILITE_DELAY_MS [150])
 })
 
 (set Anim.State {:mt {}})
@@ -573,16 +580,6 @@
 )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; GameState events ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(local Gs_Ev {
-    :dig (lambda [])
-    :move_pig (lambda [offx offy] [:move_pig offx offy])
-    :translate_pig (lambda [offx offy] [:translate_pig offx offy])
-    :change_screen_offset (lambda [dx dy] [:change_screen_offset dx dy])
-})
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
 ; Simple automaton class:
 ;   Has a state identified by an id at any point in time.
 ;   Has a tick function which takes a 'self' and arbitrary other data, 
@@ -625,7 +622,7 @@
         (local since_start (- time data.start_time))
         
         (if ; if state is in bounds
-            (< ind (length data.phase_times))
+            (<= ind (length data.phase_times))
             (do 
                 (local [cur_state end_time] (. data.phase_times ind))
                 (local time_left (- end_time since_start))
@@ -647,6 +644,8 @@
     ; tick function. returns [current_state or nil, leaving_state or nil]
     (Automaton.new :falling data tick)
 )
+; ~Ss_Falling ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ; GameState ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (local GameState {:mt {}})
@@ -693,6 +692,9 @@
 
         ; status display as a [message, time_left] tuple
         :status nil 
+
+        ; blinking tile animation over tile pig is standing on
+        :highlight (Anim.state ANIMS.highlight true)
 
         : level
     })
@@ -867,6 +869,14 @@
     (print "Flag: (B) key: x" KEYS_FLAG_DISPLAY_PX KEYS_FLAG_DISPLAY_PY 12)
 )
 
+(fn GameState.mt.draw_highlight [self]
+    (local [mapx mapy] (self.pig:map_coords))
+    (local [px py] [
+        (* (math.floor mapx) TILE_W_PX)
+        (* (math.floor mapy) TILE_H_PX)])
+    (self.highlight:draw px py)
+)
+
 (fn GameState.mt.draw [self time]
 
     (if ; draw an intermission if we're on one
@@ -893,7 +903,9 @@
         ; no special state: just draw field anims
         (do 
             (map 0 0 MAP_W MAP_H 0 (- self.falling_bump_off_px))
+            (self:draw_highlight)
             (self.pig:draw)
+
             (self:draw_side_panel)
             (self:draw_auto_digs time)
             (self:draw_dig_anims)
@@ -1079,14 +1091,22 @@
     (self:tick_auto_digs appstate.time command)
     (self:tick_status)
     (self:tick_dig_anims appstate.dtime)
+    (self.highlight:tick appstate.dtime)
 
     (if self.falling_auto
         (do 
             (local [cur_state leaving] (self.falling_auto:tick appstate.time))
-            (when (= leaving :falling)
-                (sfx SFX_BONK "C-3" 64)
-                (set self.falling_bump_off_px BONK_AMOUNT_PX)
+            (case leaving 
+                :falling 
+                (do
+                    (sfx SFX_BONK "C-3" 64)
+                    (set self.falling_bump_off_px BONK_AMOUNT_PX)
+                )
+
+                :bumping
+                (set self.falling_bump_off_px 0)
             )
+
             (case cur_state 
                 :coyote
                 ; coyote time, just stare straight ahead
@@ -1222,10 +1242,12 @@
 ;; 147:6611116661111116111111111111111111111111111111116111111666111166
 ;; 148:0001444000014444000144400001440000010000000000000000000000000000
 ;; 149:6661444666614444666144466661446666616666666666666666666666666666
+;; 150:cc0000ccc000000c00000000000000000000000000000000c000000ccc0000cc
 ;; 160:0000000000000000000000000000000000300300030000300000000000000000
 ;; 161:0000000000000000003003000300003000300300030000300000000000000000
 ;; 162:0000000003000030003003000000000003000030003003000000000000000000
 ;; 163:0000000000000000300000030000000000000000300000030000000000000000
+;; 255:c6c6c6c66c6c6c6cc6c6c6c66c6c6c6cc6c6c6c66c6c6c6cc6c6c6c66c6c6c6c
 ;; </TILES>
 
 ;; <MAP>
