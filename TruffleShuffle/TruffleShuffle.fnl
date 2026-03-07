@@ -111,10 +111,10 @@
 
 ; how long to stand in the air like wile e. coyote
 (local FALL_DELAY_MS 1000)
-(local FALL_TIME_MS 1500)
+(local FALL_TIME_MS 1000)
 (local BUMP_TIME_MS 100)
 (local POST_BUMP_TIME_MS 1000)
-(local FALL_SPEED_PX_SEC 16)
+(local FALL_SPEED_PX_SEC 24)
 (local FALL_SPEED_PX_TIC (/ FALL_SPEED_PX_SEC TICS_PER_SEC))
 (local STATUS_TIME 2000)
 
@@ -169,7 +169,9 @@
 (local LEVEL_DIFF [
     10 15 20 25 30
     35 40 45 50 60
+    65 80
 ])
+(local MAX_LEVEL (length LEVEL_DIFF))
 
 (local AppState {:mt {}})
 (fn AppState.new []
@@ -185,6 +187,15 @@
         :__tostring to_str
     })
     ev 
+)
+
+(fn AppState.mt.any_face_button_pressed [self]
+    (or
+        (. self.pad_just_pressed BTN_A)
+        (. self.pad_just_pressed BTN_B)
+        (. self.pad_just_pressed BTN_X)
+        (. self.pad_just_pressed BTN_Y)
+    )
 )
 
 (lambda AppState.mt.poll [self]
@@ -554,12 +565,13 @@
         :name :life_lost
         :how_long 2000
         :message "Ouch! Try again!"
+        :track -1
         :image SPR_SAD_PIG
         :text_x nil ; set during initialization 
         :text_y nil ; set during initialization
         :draw (fn [self]
             (print self.message self.text_x self.text_y 12)
-            (spr SPR_SAD_PIG INTER_IMG_X INTER_IMG_Y -1 1 0 0 2 2)
+            (spr self.image INTER_IMG_X INTER_IMG_Y -1 1 0 0 2 2)
         )
     }
 
@@ -567,12 +579,40 @@
         :name :game_over
         :how_long 5000
         :message "Game Over!"
+        :track 1
         :image SPR_SAD_PIG
         :text_x nil ; set during initialization 
         :text_y nil ; set during initialization
         :draw (fn [self]
             (print self.message self.text_x self.text_y 12)
-            (spr SPR_SAD_PIG INTER_IMG_X INTER_IMG_Y -1 1 0 0 2 2)
+            (spr self.image INTER_IMG_X INTER_IMG_Y -1 1 0 0 2 2)
+        )
+    }
+
+    :next_level {
+        :name :next_level
+        :how_long 6000
+        :image SPR_HAPPY_PIG
+        :message "Try level 20!"
+        :track 2
+        :text_x nil 
+        :text_y nil
+        :which_level 0
+        :how_many_holes 0
+        :draw (fn [self]
+            (print (strf "Try level %d!" self.which_level) 
+                self.text_x self.text_y 12)
+            ; magic numbers made by hand adjustment
+            (local watch_x (- self.text_x 32))
+            ; could make an "align text" function in the future
+            (local watch_y (+ self.text_y 8))
+            (print (strf "Watch out for %d holes!" self.how_many_holes) 
+                watch_x watch_y 12)
+            (spr self.image INTER_IMG_X INTER_IMG_Y -1 1 0 0 2 2)
+
+            (local press_x (- self.text_x 8))
+            (local press_y (+ self.text_y 64))
+            (print "Press X to skip." press_x press_y 12)
         )
     }
 })
@@ -970,6 +1010,19 @@
     )
 )
 
+(fn GameState.mt.enter_intermission [self which]
+    (self:leave_intermission)
+    (set self.intermission which)
+    (set self.inter_time_left which.how_long)
+    (music which.track)
+)
+
+(fn GameState.mt.leave_intermission [self]
+    (set self.inter_time_left nil)
+    (set self.intermission nil)
+    (music -1)
+)
+
 ; We don't want the gamestate to ever be mutated mid-frame. Instead, store a
 ; set of changes to make on frame-end. 
 (local GameCommand {})
@@ -1136,7 +1189,11 @@
 (fn _G.BOOT []
     (init_intermission_text_locations)
     (global appstate (AppState.new))
-    (global gamestate (GameState.new 1 1 1))   
+    (global gamestate (GameState.new 1 1 1))
+
+    (set Intermissions.next_level.which_level 1)
+    (set Intermissions.next_level.how_many_holes (. LEVEL_DIFF 1))
+    (gamestate:enter_intermission Intermissions.next_level)
 )
 
 (fn GameState.mt.tick [self appstate]
@@ -1178,14 +1235,11 @@
                     (set self.falling_auto nil)
                     (set self.falling_bump_off_px 0)
                     (dec! self.lives_remaining)
-                    (set self.intermission 
+                    (self:enter_intermission 
                         (if (>= self.lives_remaining 0)
                             Intermissions.life_lost
 
-                            (do 
-                                (music 1)
-                                Intermissions.game_over
-                            )
+                            Intermissions.game_over
                         )
                     )
                     (set self.inter_time_left self.intermission.how_long)
@@ -1199,15 +1253,28 @@
         self.intermission
         (do
             (set self.inter_time_left (- self.inter_time_left appstate.dtime))
-            (when (< self.inter_time_left 0)
-                (when (= self.intermission.name :game_over)
-                    (self:back_to_level_1)
-                    (set self.lives_remaining 3)
-                    (music -1)
+            (when 
+                (or 
+                    (< self.inter_time_left 0) 
+                    (appstate:any_face_button_pressed)
                 )
 
-                (set self.inter_time_left nil)
-                (set self.intermission nil)
+                ; leaving intermission
+                (case self.intermission.name
+                    :next_level (self:leave_intermission)
+
+                    :game_over (do
+                        (self:back_to_level_1)
+                        (set self.lives_remaining 3)
+                        (set Intermissions.next_level.which_level self.level)
+                        (set Intermissions.next_level.how_many_holes 
+                            (. LEVEL_DIFF self.level))
+                        (self:enter_intermission Intermissions.next_level)
+                    )
+
+                    :life_lost (self:leave_intermission)
+                )
+
             )
         )
 
