@@ -10,15 +10,8 @@
 ;; input: gamepad
 
 ; feature todos 
-; TODO add post level state
-;   TODO time taken
-;   TODO flags right
-;   TODO flags lost
-;   TODO lives lost
-;   TODO lives left
-; TODO detect level end
+; TODO freeze time when last truffle gotten
 ; TODO add congratulations state
-; TODO next level music
 ; TODO congratulations music
 
 
@@ -172,9 +165,8 @@
 
 ; difficulty table. maps level to number of holes
 (local LEVEL_DIFF [
-    10 15 20 25 30
-    35 40 45 50 60
-    65 80
+    10 20 25 27 29
+    32 35 38 40 45
 ])
 (local MAX_LEVEL (length LEVEL_DIFF))
 
@@ -631,8 +623,8 @@
         :text_y nil
         :which_level 0
         :time_taken 0
-        :correct_flags 0
-        :wrong_flags 0
+        :flags_right 0
+        :flags_wrong 0
         :draw (fn [self]
             (print (strf "Level %d Complete!" self.which_level) 
                 self.text_x (- self.text_y TILE_H_PX) 12)
@@ -642,9 +634,9 @@
             (local indent_to_x (+ self.text_x TILE_W_PX))
             (local stats_y (+ self.text_y (* 4 TILE_H_PX)))
             (local time_taken (/ self.time_taken 1000))
-            (print (strf "Flags right: %d" self.correct_flags) indent_to_x 
+            (print (strf "Flags right: %d" self.flags_right) indent_to_x 
                 (+ stats_y (* 0 TILE_H_PX)) 12)
-            (print (strf "Flags wrong: %d" self.wrong_flags) indent_to_x
+            (print (strf "Flags wrong: %d" self.flags_wrong) indent_to_x
                 (+ stats_y (* 1 TILE_H_PX)) 12)
             (print (strf "Time taken: %.3f" time_taken) indent_to_x
                 (+ stats_y (* 2 TILE_H_PX)) 12)
@@ -1195,6 +1187,7 @@
         (if allowed_to_plant_a_flag
             (if (= val HOLE) 
                 (do (mset mapx mapy FLAG_TILE)
+                    (inc! gamestate.flags_right)
                     (sfx SFX_GOODFLAG "C-4" 32)
                 )
 
@@ -1344,12 +1337,12 @@
         ; if not falling, this is a normal game tick
         (do
             (if ; did we win?
-                (and (= self.truffles_gotten 3) (= (length self.auto_digs) 0))
+                (and (>= self.truffles_gotten 3) (= (length self.auto_digs) 0))
                 (do 
                     ; ensure the auto_digs sound stops
                     (sfx -1 -1 -1 SFX_AUTODIG_CHANNEL)
-
                     (local i Intermissions.level_complete)
+                    (set i.which_level self.level)
                     (set i.time_taken self.time_taken)
                     (set i.flags_right self.flags_right)
                     (set i.flags_wrong (- 3 self.n_flags))
@@ -1357,8 +1350,10 @@
                 )
 
                 ; no, normal game update
-                (apply_command command gamestate appstate)
-                (set self.time_taken (+ self.time_taken appstate.dtime))
+                (do 
+                    (apply_command command gamestate appstate)
+                    (set self.time_taken (+ self.time_taken appstate.dtime))
+                )
             )
         )
     )
