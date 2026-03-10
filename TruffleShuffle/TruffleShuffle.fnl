@@ -9,12 +9,6 @@
 ;; saveid: swinesweeper
 ;; input: gamepad
 
-; feature todos 
-; TODO stop music looping in level complete state
-; TODO freeze time when last truffle gotten
-; TODO add congratulations state
-
-
 
 ; common aliases
 (local push table.insert)
@@ -96,6 +90,7 @@
 ; in tiles per tic
 (local MOVE_SPEED (/ MOVE_SPEED_TPS TICS_PER_SEC))
 
+(local MAX_LIVES 4)
 
 ; default animation frame delay in millis
 (local DEF_DELAY_MS 100)
@@ -146,6 +141,7 @@
 
 (local SPR_HAPPY_PIG 2)
 (local SPR_SAD_PIG 4)
+(local SPR_JOY_PIG 192)
 (local SPR_HIGHLIGHT 150)
 
 (local SCREEN_W_PX 240)
@@ -165,8 +161,8 @@
 
 ; difficulty table. maps level to number of holes
 (local LEVEL_DIFF [
-    10 20 25 27 29
-    32 35 38 40 45
+    10 25 27 29 30
+    32 35 38 40 42
 ])
 (local MAX_LEVEL (length LEVEL_DIFF))
 
@@ -648,7 +644,7 @@
     :congratulations {
         :name :congratulations
         :how_long nil 
-        :image SPR_HAPPY_PIG
+        :image SPR_JOY_PIG
         :message "Congratulations! You Win!"
         :track 4
         :text_x nil
@@ -662,8 +658,9 @@
             (local time_taken_x (+ self.text_x (* 1 TILE_W_PX)))
             (local time_taken_y (+ self.text_x (* TILE_H_PX 5)))
 
-            (local minutes (math.floor (/ self.total_time 60)))
-            (local seconds (math.floor (% self.total_time 60)))
+            (local total_time_secs (/ self.total_time 1000))
+            (local minutes (math.floor (/ total_time_secs 60)))
+            (local seconds (math.floor (% total_time_secs 60)))
 
             (print (strf "Time playing: %dm, %02ds" minutes seconds)
                 time_taken_x time_taken_y 12)
@@ -786,6 +783,7 @@
         :lives_remaining 3
         :flags_right 0
         :time_taken 0
+        :total_time_taken 0
 
         ; if falling, this will be the [map map] where the hole was 
         :falling_pos nil 
@@ -835,6 +833,8 @@
     (set self.n_flags 3)
     (set self.flags_right 0)
     (set self.time_taken 0)
+    (when (< self.lives_remaining MAX_LIVES) 
+        (inc! self.lives_remaining))
 
     (set self.falling_pos nil)
     (set self.falling_auto nil)
@@ -859,6 +859,7 @@
 (fn GameState.mt.back_to_level_1 [self seed]
     (set self.level 0)
     (self:next_level seed)
+    (set self.total_time_taken 0)
 )
 
 (fn GameState.mt.post_status [self message time_left]
@@ -1077,7 +1078,15 @@
     (self:leave_intermission)
     (set self.intermission which)
     (set self.inter_time_left which.how_long)
-    (music which.track)
+
+    (if ; special case: level complete music must not loop
+        (= which.name :level_complete)
+        (music which.track -1 -1 false)
+
+        ; else let it loop. it either doesn't matter because it's on a timer,
+        ; or the music is designed to loop
+        (music which.track)
+    )
 )
 
 (fn GameState.mt.leave_intermission [self]
@@ -1227,7 +1236,13 @@
                     (dec! gamestate.n_flags))
             )
 
-            ; else
+            ; else if, no flags left
+            (= gamestate.n_flags 0)
+            (do (gamestate:post_status "No flags!")
+                (sfx SFX_SAD "C-3" 32)
+            )
+
+            ; else 
             (do (gamestate:post_status "Already dug!") 
                 (sfx SFX_SAD "C-3" 32)
             )
@@ -1253,7 +1268,7 @@
 (fn _G.BOOT []
     (init_intermission_text_locations)
     (global appstate (AppState.new))
-    (global gamestate (GameState.new 1 1 1))
+    (global gamestate (GameState.new 1))
 
 
     (set Intermissions.next_level.which_level 1)
@@ -1281,6 +1296,9 @@
     (self:tick_dig_anims appstate.dtime)
     (self.highlight:tick appstate.dtime)
 
+    (set self.time_taken (+ self.time_taken appstate.dtime))
+    (set self.total_time_taken (+ self.total_time_taken appstate.dtime))               
+    
     (if self.falling_auto
         (do 
             (local [cur_state leaving] (self.falling_auto:tick appstate.time))
@@ -1329,9 +1347,10 @@
                 (set self.inter_time_left 
                     (- self.inter_time_left appstate.dtime)))
             (when
-                (or (and self.inter_time_left
-                         (< self.inter_time_left 0))
-                    (appstate:any_face_button_pressed)
+                (and  ; we can't leave the congrats state
+                    (not (= self.intermission.name :congratulations)) 
+                    (or (and self.inter_time_left (< self.inter_time_left 0))
+                        (appstate:any_face_button_pressed))
                 )
 
                 ; leaving intermission
@@ -1351,14 +1370,21 @@
 
                     :level_complete 
                     (do 
-                        (self:next_level)
-                        (set Intermissions.next_level.which_level self.level)
-                        (set Intermissions.next_level.how_many_holes
-                            (. LEVEL_DIFF self.level))
                         (self:enter_intermission 
                             (if (< self.level MAX_LEVEL) 
-                                Intermissions.next_level
-                                Intermissions.congratulations
+                                (do
+                                    (self:next_level)
+                                    (set Intermissions.next_level.which_level self.level)
+                                    (set Intermissions.next_level.how_many_holes
+                                        (. LEVEL_DIFF self.level))
+                                    Intermissions.next_level
+                                )
+
+                                (do 
+                                    (local c Intermissions.congratulations)
+                                    (set c.total_time self.total_time_taken)
+                                    c
+                                )
                             )
                         )
                     )
@@ -1385,7 +1411,6 @@
                 ; no, normal game update
                 (do 
                     (apply_command command gamestate appstate)
-                    (set self.time_taken (+ self.time_taken appstate.dtime))
                 )
             )
         )
@@ -1496,6 +1521,10 @@
 ;; 161:0000000000000000003003000300003000300300030000300000000000000000
 ;; 162:0000000003000030003003000000000003000030003003000000000000000000
 ;; 163:0000000000000000300000030000000000000000300000030000000000000000
+;; 192:0320000033202222432222220302222202222222022220020222022002222220
+;; 193:0044400023330400223303002223330022202000220220002202200022022300
+;; 208:0222222002222222022222220222222202222220002222200002222200000000
+;; 209:2222321022322132222212322222120222221010022211000022200000000000
 ;; 255:c6c6c6c66c6c6c6cc6c6c6c66c6c6c6cc6c6c6c66c6c6c6cc6c6c6c66c6c6c6c
 ;; </TILES>
 
