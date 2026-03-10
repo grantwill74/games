@@ -644,6 +644,36 @@
                 (+ stats_y (* 5 TILE_H_PX)) 12)
         )
     }
+
+    :congratulations {
+        :name :congratulations
+        :how_long nil 
+        :image SPR_HAPPY_PIG
+        :message "Congratulations! You Win!"
+        :track 4
+        :text_x nil
+        :text_y nil 
+        :total_time 0 
+        :draw (fn [self]
+            (print self.message self.text_x self.text_y 12)
+            (print "You found all the truffles!" 
+                (- self.text_x (* 1 TILE_W_PX)) (+ TILE_H_PX self.text_y) 12)
+            (spr self.image INTER_IMG_X INTER_IMG_Y -1 1 0 0 2 2)
+            (local time_taken_x (+ self.text_x (* 1 TILE_W_PX)))
+            (local time_taken_y (+ self.text_x (* TILE_H_PX 5)))
+
+            (local minutes (math.floor (/ self.total_time 60)))
+            (local seconds (math.floor (% self.total_time 60)))
+
+            (print (strf "Time playing: %dm, %02ds" minutes seconds)
+                time_taken_x time_taken_y 12)
+            
+            (print "Thank you for playing!" self.text_x 
+                (+ time_taken_y (* 2 TILE_H_PX)) 12)
+            (print "(c) Grant Williams" (+ self.text_x (* 3 TILE_W_PX)) 
+                (+ time_taken_y (* 4 TILE_H_PX)))
+        )
+    }
 })
 
 (fn init_intermission_text_locations []
@@ -1235,6 +1265,9 @@
 ;    (set Intermissions.level_complete.correct_flags 3)
 ;    (set Intermissions.level_complete.wrong_flags 2)
 ;    (gamestate:enter_intermission Intermissions.level_complete)
+
+    ; (set Intermissions.congratulations.total_time 10000)
+    ; (gamestate:enter_intermission Intermissions.congratulations)
 )
 
 (fn GameState.mt.tick [self appstate]
