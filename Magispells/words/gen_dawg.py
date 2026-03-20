@@ -1,5 +1,5 @@
-import typing
 import sys 
+import bisect
 
 # generate a DAWG, a directed acyclic word graph, to compress the wordlist.
 # the wordlist will be read from stdin, one word per line
@@ -17,31 +17,31 @@ import sys
 
 
 class State:
-    ins: list[tuple[str, State]]
-    outs: dict[str, State]
+    children: list[tuple[str, State]]
     freq: int # number of inbound transitions
     final: bool 
 
     def __init__(self: State) -> None:
-        self.ins = list()
-        self.outs = dict()
+        self.children = list()
         self.freq = 0
         self.final = False
 
     def has_children(self: State) -> bool:
-        return len(self.outs.items()) > 0
+        return len(self.children) > 0
+    
+    #def add_child(self: State, letter: str, val: State):
+    #    ind = bisect.insort_left(self.children, (letter, val), key=(lambda k: k[0]))
     
     def last_child(self: State) -> tuple[str, State]:
-        assert len(self.outs) > 0
-        last_key = max(self.outs.keys())
-        return (last_key, self.outs[last_key])
+        assert len(self.children) > 0
+        return self.children[-1]
     
     def equiv(self: State, other: State) -> bool:
-        if len(self.outs) != len(other.outs): return False
+        if len(self.children) != len(other.children): return False
 
-        for k, v in self.outs.items():
-            if k not in other.outs: return False
-            if other.outs[k] is not v: return False
+        for ((k1, v1), (k2, v2)) in zip(self.children, other.children):
+            if k1 != k2: return False 
+            if v1 is not v2: return False 
 
         return True  
 
@@ -54,8 +54,7 @@ class State:
         trans_char = suffix[0]
         st = State()
         st.freq = 1
-        st.ins.append((trans_char, self))
-        self.outs[trans_char] = st
+        self.children.append((trans_char, st))
         st.add_suffix(suffix[1:])
 
     def common_prefix_and_last_state(self: State, word: str) -> tuple[str, State]:
@@ -63,31 +62,32 @@ class State:
 
         next_char = word[0]
 
-        if next_char not in self.outs.keys():
+        if len(self.children) == 0 or self.last_child()[0] != next_char:
             return ("", self)
 
         remaining = word[1:]
         (remaining_prefix, last_state) =\
-            self.outs[next_char].common_prefix_and_last_state(remaining)
+            self.last_child()[1].common_prefix_and_last_state(remaining)
 
         return (next_char + remaining_prefix, last_state)
 
     def dfs(self: State, visited: set[State] = set()) -> set[State]:
         visited.add(self)
         
-        for _, other in self.outs.items():
+        for _, other in self.children:
             if other not in visited:
                 other.dfs(visited)        
 
         return visited
     
-    def __str__(self) -> str:
+    def regex(self) -> str:
         if not self.has_children(): return ""
-        child_strs = []
-        for k, v in self.outs.items():
-            child_strs.append(k + str(v))
+        if len(self.children) == 1: 
+            return self.children[0][0] + self.children[0][1].regex()
 
-        if len(child_strs) == 1: return child_strs[0]
+        child_strs = []
+        for k, v in self.children:
+            child_strs.append(k + v.regex())
 
         return '(' + '|'.join(child_strs) + ')'
 
@@ -98,7 +98,7 @@ def gen_dawg(words: list[str]) -> State:
 
     for word in words:
         (common_prefix, last_state) = start.common_prefix_and_last_state(word)
-        current_suffix = word[len(common_prefix) + 1:]
+        current_suffix = word[len(common_prefix):]
         if last_state.has_children():
             replace_or_register(register, last_state)
         last_state.add_suffix(current_suffix)
@@ -117,7 +117,7 @@ def replace_or_register(register: list[State], state: State) -> None:
     # (could be sped up by making states hashable or ordered) 
     for reg_state in register:
         if reg_state.equiv(child):
-            state.outs[last_key] = reg_state
+            state.children[-1] = (last_key, reg_state)
             break
         else:
             register.append(child)
@@ -125,4 +125,4 @@ def replace_or_register(register: list[State], state: State) -> None:
 words = list(map(lambda s: s.strip(), sys.stdin))
 start = gen_dawg(words)
 
-print(str(start))
+print(start.regex())
