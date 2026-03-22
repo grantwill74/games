@@ -10,17 +10,20 @@ MAX_LENGTH = 8
 
 
 words = set()
+count = 0
 for word in sys.stdin:
     if type(word) != str: break
     word = word.strip()
+    count += 1
 
     if len(word) < MIN_LENGTH: continue
     if len(word) > MAX_LENGTH: continue
     if not word.isascii():
-        print(word, file=sys.stderr)
+        print(word, count, file=sys.stderr)
         continue
 
     words.add(word)
+
 
 wordlist = list(words)
 wordlist.sort()
