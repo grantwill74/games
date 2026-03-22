@@ -14,17 +14,23 @@ import bisect
 # we can maintain the invariant that the dafsa starting with every state other
 # than those along the current prefix-path has been fully and finally minimized.
 
-
+state_count = 0
 
 class State:
     children: list[tuple[str, State]]
     freq: int # number of inbound transitions
+    id: int 
     final: bool 
 
     def __init__(self: State) -> None:
+        global state_count
+
         self.children = list()
         self.freq = 0
         self.final = False
+        self.id = state_count
+
+        state_count += 1
 
     def has_children(self: State) -> bool:
         return len(self.children) > 0
@@ -90,6 +96,18 @@ class State:
             child_strs.append(k + v.regex())
 
         return '(' + '|'.join(child_strs) + ')'
+    
+    def serialize(self):
+        if not self.has_children(): return str(self.id)
+        
+        child_strs = []
+        for k, v in self.children:
+            child_strs.append(k)
+            child_strs.append(hex(v.id)[2:])
+        
+        return "".join(child_strs)
+
+
 
 # generate a dawg and return its start state
 def gen_dawg(words: list[str]) -> State:
