@@ -10,7 +10,7 @@
 -- see here for annotation language: https://luals.github.io/wiki/annotations/
 
 function BOOT()
-    local gex = Regex.parseTerm(WordsRegex);
+    local gex = Regex.parse(WordsRegex)
 end
 
 function TIC()
@@ -137,54 +137,75 @@ end
 --[[
     start ::= term
     term ::= factor (`|` factor)*  
-    term ::= factor +
-    factor ::= <letter>*
+    factor ::= <letter>* factor*
     factor ::= `(` term `)`
 ]]
 
+---@param str string
+---@return Regex 
+function Regex.parse(str)
+    local parsed, _ = Regex.parseTerm(str, 100)
+    return parsed
+end
+
 ---@param str string # input tokens
+---@param recLimit integer
 ---@return Regex, string # result and remaining string
-function Regex.parseFactor(str)
-    if #str == 0 then
-        -- return Regex.empty(), ""
-        error ("found empty string, but this was unexpected in this regex.")
-    -- factor ::= `(` term `)`
-    elseif str[1] == '(' then
-        local regex, rest = Regex.parseTerm(string.sub(str, 2))
-        assert(rest[1] == ')', "expected ')'")
-        return regex, string.sub(rest, 2)
-
-    -- factor ::= <letter> *
-    else
-        local match = string.match(str, '%a*')
-        if #match == 0 then
-            error("found an empty string in match, but this was unexpected")
-        end
-
-        return Regex.string(match), string.sub(str, #match)
+function Regex.parseFactor(str, recLimit)
+    if recLimit <= 0 then 
+        error "recursion limit reached" 
     end
+
+    ---@type Regex[] 
+    local members = {}
+
+    while #str ~= 0 and recLimit > 0 do 
+        -- factor ::= `(` term `)`
+        if str:sub(1, 1) == '(' then
+            local regex, rest = Regex.parseTerm(string.sub(str, 2), recLimit - 1)
+            assert(rest:sub(1, 1) == ')', "expected ')'")
+            str = rest:sub(2)
+            table.insert(members, regex)
+            -- return regex, string.sub(rest, 2)
+
+        -- factor ::= <letter> *
+        elseif str:sub(1, 1) ~= '|' and str:sub(1, 1) ~= ')' then
+            local match = str:match('%a*')
+            if #match == 0 then
+                error("found an empty string in match, but this was unexpected")
+            end
+            table.insert(members, Regex.string(match))
+            str = str:sub(#match + 1)
+        else 
+            break
+        end
+    end
+
+    if recLimit <= 0 then 
+        error "recursion limit reached"
+    end
+
+    return Regex.juxt(members), str
 end
 
 ---@param str string # input tokens 
+---@param recLimit integer
 ---@return Regex, string # result and remaining tokens
-function Regex.parseTerm(str)
-    local fact, rest = Regex.parseFactor(str)
+function Regex.parseTerm(str, recLimit)
+    if recLimit <= 0 then 
+        error "recursion limit reached"
+    end 
 
-    if rest[1] == '|' then 
-        local members = { fact }
-        while rest[1] == '|' do 
-            fact, rest = Regex.parseFactor(rest)
-            table.insert(members, fact)
-        end
-        return Regex.union(members), rest
-    else 
-        local members = { fact }
-        while rest[1] ~= '|' do 
-            fact, rest = Regex.parseFactor(rest)
-            table.insert(members, fact)
-        end
-        return Regex.juxt(members), rest
+    local fact, rest = Regex.parseFactor(str, recLimit - 1)
+
+    local members = { fact }
+    while rest:sub(1, 1) == '|' and recLimit > 0 do 
+        fact, rest = Regex.parseFactor(rest:sub(2), recLimit - 1)
+        table.insert(members, fact)
+        recLimit = recLimit - 1
     end
+
+    return Regex.union(members), rest
 end 
 
 
