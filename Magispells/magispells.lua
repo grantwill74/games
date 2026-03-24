@@ -133,6 +133,27 @@ function Regex.empty()
     return Regex.string("")
 end
 
+--- get the set of regexes which could match the given string.
+--- pushes the results into the given table
+---@param regex Regex 
+---@param str string 
+---@param res Regex[]
+function Regex.matchPrefix(regex, str, res)
+    if regex.kind == 'union' then
+        -- test if any member of the regex matches the prefix of str 
+        local members = regex.data --[[@as Regex[]]
+        --- @type Regex[]
+        local matches = {}
+        for _, v in ipairs(members) do
+            local result = Regex.matchPrefix(v, str, res)
+        end
+    elseif regex.kind == 'juxt' then 
+        
+    else -- kind is string
+
+    end
+end
+
 -- basic regex grammar for our DAWG-generated regex:
 --[[
     start ::= term
