@@ -141,7 +141,7 @@ end
 function Regex.matchPrefix(regex, str, res)
     if regex.kind == 'union' then
         -- test if any member of the regex matches the prefix of str 
-        local members = regex.data --[[@as Regex[]]
+        local members = regex.data --[[@as Regex[] ]]
         --- @type Regex[]
         local matches = {}
         for _, v in ipairs(members) do
