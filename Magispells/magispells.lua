@@ -9,14 +9,10 @@
 
 -- see here for annotation language: https://luals.github.io/wiki/annotations/
 
-function BOOT()
-    local gex = Regex.parse(WordsRegex)
-end
-
-function TIC()
-    cls(0)
-    print("hello world", 50, 50, 12)
-end
+--- The number of regex entries to be processed before yielding (i.e., to
+--- update the loading screen)
+---@type integer
+REGEX_TIME_TO_YIELD = 1000
 
 ---@type string
 WordsRegex =
@@ -133,8 +129,9 @@ function Regex.empty()
     return Regex.string("")
 end
 
---- get the set of regexes which could match the given string.
---- pushes the results into the given table
+--- get the set of regexes which match the given prefix. This does not require
+--- a complete match (e.g., "abc" matches the prefix "ab")
+--- pushes the results onto the given table
 ---@param regex Regex 
 ---@param str string 
 ---@param res Regex[]
@@ -162,33 +159,34 @@ end
     factor ::= `(` term `)`
 ]]
 
+---Create the coroutine that will parse the regex. 
 ---@param str string
----@return Regex 
-function Regex.parse(str)
-    local parsed, _ = Regex.parseTerm(str, 100)
-    return parsed
+---@return thread # a coroutine that will eventually return a Regex.
+function Regex.startParse(str)
+    local co = coroutine.create(Regex.parseTerm)
+    coroutine.resume(co, str, REGEX_TIME_TO_YIELD)
+    return co
 end
 
 ---@param str string # input tokens
----@param recLimit integer
----@return Regex, string # result and remaining string
-function Regex.parseFactor(str, recLimit)
-    if recLimit <= 0 then 
-        error "recursion limit reached" 
-    end
-
+---@param yieldLimit integer
+---@return Regex, string, integer # result, remaining string, regexes left 
+function Regex.parseFactor(str, yieldLimit)
     ---@type Regex[] 
     local members = {}
 
-    while #str ~= 0 and recLimit > 0 do 
+    while #str ~= 0 do 
+        if yieldLimit <= 0 then 
+            coroutine.yield()
+            yieldLimit = REGEX_TIME_TO_YIELD
+        end
+        
         -- factor ::= `(` term `)`
         if str:sub(1, 1) == '(' then
-            local regex, rest = Regex.parseTerm(string.sub(str, 2), recLimit - 1)
+            local regex, rest = Regex.parseTerm(string.sub(str, 2), yieldLimit)
             assert(rest:sub(1, 1) == ')', "expected ')'")
             str = rest:sub(2)
             table.insert(members, regex)
-            -- return regex, string.sub(rest, 2)
-
         -- factor ::= <letter> *
         elseif str:sub(1, 1) ~= '|' and str:sub(1, 1) ~= ')' then
             local match = str:match('%a*')
@@ -200,35 +198,58 @@ function Regex.parseFactor(str, recLimit)
         else 
             break
         end
+
+        yieldLimit = yieldLimit - 1
     end
 
-    if recLimit <= 0 then 
-        error "recursion limit reached"
-    end
-
-    return Regex.juxt(members), str
+    return Regex.juxt(members), str, yieldLimit
 end
 
+---a coroutine that parses a term (list of alternatives) of a regex. 
+---yields after a given number of terms are added
 ---@param str string # input tokens 
----@param recLimit integer
----@return Regex, string # result and remaining tokens
-function Regex.parseTerm(str, recLimit)
-    if recLimit <= 0 then 
-        error "recursion limit reached"
-    end 
-
-    local fact, rest = Regex.parseFactor(str, recLimit - 1)
-
+---@param yieldLimit integer
+---@return Regex, string, integer # result, remaining tokens, yield limit left
+function Regex.parseTerm(str, yieldLimit)
+    local fact, rest;
+    fact, rest, yieldLimit = Regex.parseFactor(str, yieldLimit)
+    
     local members = { fact }
-    while rest:sub(1, 1) == '|' and recLimit > 0 do 
-        fact, rest = Regex.parseFactor(rest:sub(2), recLimit - 1)
+    while rest:sub(1, 1) == '|' do
+        if yieldLimit <= 0 then
+            coroutine.yield()
+            yieldLimit = REGEX_TIME_TO_YIELD
+        end
+        fact, rest = Regex.parseFactor(rest:sub(2), yieldLimit - 1)
         table.insert(members, fact)
-        recLimit = recLimit - 1
+        yieldLimit = yieldLimit - 1
     end
 
-    return Regex.union(members), rest
+    return Regex.union(members), rest, yieldLimit
 end 
 
+
+---@Type Regex
+local WordMatch = Regex.empty()
+
+function BOOT()
+    Task = Regex.startParse(WordsRegex)
+end
+
+local regex_ticks = 0
+
+function TIC()
+    if coroutine.status(Task) == "suspended" then 
+        _, WordMatch, _, _ = coroutine.resume(Task)
+        regex_ticks = regex_ticks + 1
+    elseif coroutine.status(Task) == "dead" then 
+        trace("successfully loaded regex. kind: " .. WordMatch.kind)
+    end
+
+    cls(0)
+    print("hello world", 50, 50, 12)
+    print(string.format("# ticks: %d", regex_ticks), 50, 58, 12)
+end
 
 
 
