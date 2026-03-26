@@ -12,7 +12,7 @@
 --- The number of regex entries to be processed before yielding (i.e., to
 --- update the loading screen)
 ---@type integer
-REGEX_TIME_TO_YIELD = 1000
+REGEX_TIME_TO_YIELD = 222
 
 ---@type string
 WordsRegex =
@@ -183,7 +183,9 @@ function Regex.parseFactor(str, yieldLimit)
         
         -- factor ::= `(` term `)`
         if str:sub(1, 1) == '(' then
-            local regex, rest = Regex.parseTerm(string.sub(str, 2), yieldLimit)
+            local regex, rest;
+            regex, rest, yieldLimit = 
+                Regex.parseTerm(string.sub(str, 2), yieldLimit)
             assert(rest:sub(1, 1) == ')', "expected ')'")
             str = rest:sub(2)
             table.insert(members, regex)
@@ -220,7 +222,7 @@ function Regex.parseTerm(str, yieldLimit)
             coroutine.yield()
             yieldLimit = REGEX_TIME_TO_YIELD
         end
-        fact, rest = Regex.parseFactor(rest:sub(2), yieldLimit - 1)
+        fact, rest, yieldLimit = Regex.parseFactor(rest:sub(2), yieldLimit - 1)
         table.insert(members, fact)
         yieldLimit = yieldLimit - 1
     end
@@ -231,6 +233,7 @@ end
 
 ---@Type Regex
 local WordMatch = Regex.empty()
+local WordMatch_Loaded = false 
 
 function BOOT()
     Task = Regex.startParse(WordsRegex)
@@ -239,16 +242,17 @@ end
 local regex_ticks = 0
 
 function TIC()
-    if coroutine.status(Task) == "suspended" then 
-        _, WordMatch, _, _ = coroutine.resume(Task)
-        regex_ticks = regex_ticks + 1
-    elseif coroutine.status(Task) == "dead" then 
-        trace("successfully loaded regex. kind: " .. WordMatch.kind)
-    end
-
     cls(0)
     print("hello world", 50, 50, 12)
     print(string.format("# ticks: %d", regex_ticks), 50, 58, 12)
+    
+    if coroutine.status(Task) ~= "dead" then 
+        _, WordMatch, _, _ = coroutine.resume(Task)
+        regex_ticks = regex_ticks + 1
+    elseif coroutine.status(Task) == "dead" and not WordMatch_Loaded then 
+        trace("successfully loaded regex. kind: " .. WordMatch.kind)
+        WordMatch_Loaded = true
+    end
 end
 
 

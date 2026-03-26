@@ -32036,7 +32036,6 @@ homme
 hommes
 hommock
 hommocks
-homo
 homodont
 homodyne
 homogamy
@@ -32047,7 +32046,6 @@ homology
 homonym
 homonyms
 homonymy
-homos
 homotony
 homotype
 homotypy
