@@ -87,7 +87,7 @@ class State:
         return visited
     
     def regex(self) -> str:
-        if not self.has_children(): return ""
+        if not self.has_children(): return "#" if self.final else ""
         if len(self.children) == 1: 
             return self.children[0][0] + self.children[0][1].regex()
 
