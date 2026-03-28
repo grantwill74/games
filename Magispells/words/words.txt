@@ -20399,9 +20399,9 @@ dzho
 dzhos
 dzo
 dzos
-Ebauche
-Etape
-Etapes
+ebauche
+etape
+etapes
 each
 eadish
 eager
@@ -21692,7 +21692,7 @@ enlarge
 enlarged
 enlarger
 enlarges
-enlevE
+enleve
 enlist
 enlisted
 enlists
@@ -21716,7 +21716,7 @@ ennobles
 ennui
 ennuied
 ennuis
-ennuyE
+ennuye
 ennuyed
 ennuying
 enodal
@@ -21887,8 +21887,8 @@ entozoa
 entozoal
 entozoic
 entozoon
-entrEe
-entrEes
+entree
+entrees
 entrail
 entrails
 entrain
