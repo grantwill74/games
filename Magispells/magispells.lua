@@ -39,8 +39,8 @@ function ToStr(val)
         local isArray = true
 
         for k, v in pairs(val) do 
-            table.insert(keys, tostring(k))
-            table.insert(values, tostring(v))
+            table.insert(keys, ToStr(k))
+            table.insert(values, ToStr(v))
             nPairs = nPairs + 1
             if isArray and type(k) == 'number' and math.type(k) == 'integer' then 
                 maxKey = math.max(maxKey, k)
@@ -50,25 +50,28 @@ function ToStr(val)
             end
         end
 
-        if isArray and maxKey - minKey + 1 ~= nPairs then 
-            isArray = false 
+        if isArray and maxKey - minKey + 1 ~= nPairs then
+            isArray = false
         end 
+
+        ---@type string[]
+        local str = {}
         
-        if isArray then 
-            local str = {'['}
+        if isArray then
+            str = {'['}
             table.insert(str, table.concat(values, ', '))
             table.insert(str, ']')
-            return table.concat(str)
         else 
-            local str = {'{'}
+            str = {'{'}
             local fields = {}
             for i = 1, nPairs do 
                 table.insert(fields, table.concat {keys[i], '=', values[i]})
             end
             table.insert(str, table.concat(fields, ','))
             table.insert(str, '}')
-            return table.concat(str)
         end
+
+        return table.concat(str)
     else 
         return tostring(val)
     end
@@ -160,7 +163,7 @@ end
 ---@param lastYield integer
 ---@return Regex, integer, integer # the parsed regex, current token, last yield
 function Regex.parseTerm(regex, i, lastYield)
-    trace("parseTerm: " .. regex:sub(i, i + 10))
+    -- trace("parseTerm: " .. regex:sub(i, i + 10))
     assert(i <= #regex)
 
     if i - lastYield >= REGEX_CHARS_PER_YIELD then 
@@ -189,7 +192,7 @@ end
 ---@param lastYield integer
 ---@return Regex, integer, integer # the parsed regex, current token, last yield
 function Regex.parseFactor(regex, i, lastYield)
-    trace("parseFactor: " .. regex:sub(i, i + 10))
+    -- trace("parseFactor: " .. regex:sub(i, i + 10))
     assert(i <= # regex)
 
     if i - lastYield >= REGEX_CHARS_PER_YIELD then 
@@ -200,7 +203,7 @@ function Regex.parseFactor(regex, i, lastYield)
 --    if not regex:match("[%(%a#]", i) then
 --        return Regex.empty(), i, lastYield
 --    end
-    trace('in factor, top char is: ' .. regex:sub(i, i + 1))
+    -- trace('in factor, top char is: ' .. regex:sub(i, i + 1))
 
     local primaries = {}
     while regex:sub(i, i) == '(' or Regex.isChar(regex:sub(i, i)) do
@@ -218,7 +221,7 @@ end
 ---@param lastYield integer
 ---@return Regex, integer, integer
 function Regex.parsePrimary(regex, i, lastYield)
-    trace("parsePrimary: " .. regex:sub(i, i + 10))
+    -- trace("parsePrimary: " .. regex:sub(i, i + 10))
     assert(i <= #regex)
 
     if i - lastYield >= REGEX_CHARS_PER_YIELD then 
@@ -227,19 +230,19 @@ function Regex.parsePrimary(regex, i, lastYield)
     end
 
     if regex:sub(i, i) == '(' then
-        trace("saw (")
+        -- trace("saw (")
         local term
         term, i, lastYield = Regex.parseTerm(regex, i + 1, lastYield)
-        trace("parsed term " .. regex:sub(i, i + 10))
+        -- trace("parsed term " .. regex:sub(i, i + 10))
         assert(regex:sub(i, i) == ')', "no ),got " .. regex:sub(i, i))
         return term, i + 1, lastYield
     elseif Regex.isChar(regex:sub(i, i)) then
         local c = regex:sub(i, i)
-        trace("saw literal " .. c)
+        -- trace("saw literal " .. c)
         assert(c ~= ')')
         return Regex.literal(c), i + 1, lastYield
     else
-        trace("saw empty")
+        -- trace("saw empty")
         return Regex.empty(), i, lastYield
     end
 end
@@ -280,7 +283,7 @@ function TIC()
             exit()
         end
     elseif coroutine.status(Task) == "dead" and not WordMatch_Loaded then
-        trace(ToStr(WordMatch))
+        -- trace(ToStr(WordMatch))
         trace("successfully loaded regex. kind: " .. WordMatch.kind)
         WordMatch_Loaded = true
 
