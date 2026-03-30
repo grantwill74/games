@@ -1,5 +1,6 @@
 import sys 
-import bisect
+import base64
+import typing
 
 # generate a DAWG, a directed acyclic word graph, to compress the wordlist.
 # the wordlist will be read from stdin, one word per line
@@ -42,13 +43,26 @@ class State:
         assert len(self.children) > 0
         return self.children[-1]
     
+    # the hash of a state is based on the hashes of the outbound transitions
+    # combined with the hash of their destinations
+    def __hash__(self) -> int:
+        hashes: set[int] = set()
+        for t, d in self.children:
+            hashes.add(hash(t))
+            hashes.add(hash(d))
+
+        return hash(frozenset(hashes))
+
+    def __eq__(self: State, other: object) -> bool:
+        return self.equiv(typing.cast(State, other))
+    
     def equiv(self: State, other: State) -> bool:
         if len(self.children) != len(other.children): return False
-
+        
         for ((k1, v1), (k2, v2)) in zip(self.children, other.children):
             if k1 != k2: return False 
-            if v1 is not v2: return False 
-
+            if v1.id != v2.id: return False 
+        
         return True  
 
 
@@ -98,21 +112,23 @@ class State:
         return '(' + '|'.join(child_strs) + ')'
     
     def serialize(self):
-        if not self.has_children(): return str(self.id)
+        f = '!' if self.final else ''
+
+        if not self.has_children(): return f + str(self.id)
         
         child_strs = []
         for k, v in self.children:
             child_strs.append(k)
-            child_strs.append(hex(v.id)[2:])
+            child_strs.append(hex(v.id)[2:].upper())
         
-        return "".join(child_strs)
+        return f + "".join(child_strs)
 
 
 
 # generate a dawg and return its start state
 def gen_dawg(words: list[str]) -> State:
-    register = []
-    start = State()
+    register: dict[State, State] = {}
+    start: State = State()
 
     for word in words:
         (common_prefix, last_state) = start.common_prefix_and_last_state(word)
@@ -125,22 +141,36 @@ def gen_dawg(words: list[str]) -> State:
     
     return start
 
-def replace_or_register(register: list[State], state: State) -> None:
+# use a dict[State, State] as the register.
+# originally, the register was a list. this was too slow (quadratic time)
+# set[State] doesn't work because we can't dereference the specific state to be
+# replaced with. dict[id, State] isn't ideal because the hashcode isn't
+# guaranteed to be unique, and I'd have to check twice. while strange, 
+# dict[State, State] meets the requirements well
+def replace_or_register(register: dict[State, State], state: State) -> None:
     last_key, child = state.last_child()
+
 
     if child.has_children():
         replace_or_register(register, child)
 
     # search register for identical state to child 
     # (could be sped up by making states hashable or ordered) 
-    for reg_state in register:
-        if reg_state.equiv(child):
-            state.children[-1] = (last_key, reg_state)
-            break
-        else:
-            register.append(child)
+    if child in register:
+        equiv = register[child]
+        state.children[-1] = (last_key, equiv)
+        equiv.freq += 1
+    else:
+        register[child] = child
 
 words = list(map(lambda s: s.strip(), sys.stdin))
 start = gen_dawg(words)
 
-print(start.regex())
+states = start.dfs()
+states_by_id: dict[str, State] = {}
+
+
+
+for state in states:
+    #print(state.freq, state.serialize())
+    print(state.serialize())
