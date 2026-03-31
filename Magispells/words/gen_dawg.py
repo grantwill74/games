@@ -175,6 +175,9 @@ for new_id, state in enumerate(states):
     old_ids_to_new_ids[state.id] = new_id
     state.id = new_id
 
+serialized = []
 for state in states:
+    serialized.append(state.serialize())
     #print(state.freq, state.serialize())
-    print(state.serialize())
+    #print(state.serialize())
+print(";".join(serialized))
