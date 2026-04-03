@@ -170,10 +170,8 @@ start = gen_dawg(words)
 states = list(start.dfs())
 states_by_id: dict[int, State] = {s.id : s for s in states}
 states.sort(key=lambda s: -s.freq)
-old_ids_to_new_ids: list[int] = [-1] * state_count
 
 for new_id, state in enumerate(states):
-    old_ids_to_new_ids[state.id] = new_id
     state.id = new_id
 
 serialized = []
@@ -181,4 +179,22 @@ for state in states:
     serialized.append(state.serialize())
     #print(state.freq, state.serialize())
     #print(state.serialize())
-print(";".join(serialized))
+print(''.join(map(lambda s: s + ';', serialized)))
+print('start = ', start.id)
+
+def find_in_children(children: list[tuple[str, State]], which: str) -> State | None:
+    res = [child for child in children if child[0] == which]
+    if res: return res[0][1]
+    return None
+
+def print_all_words(state: State, prefix: str = '') -> None:
+    if state.final:
+        print(prefix)
+    
+    for [letter, child] in state.children:
+        print_all_words(child, prefix + letter)
+    
+# print_all_words(start)
+# print(start.serialize())
+
+# print_all_words(start)
