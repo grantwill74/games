@@ -58,6 +58,7 @@ class State:
     
     def equiv(self: State, other: State) -> bool:
         if len(self.children) != len(other.children): return False
+        if self.final != other.final: return False
         
         for ((k1, v1), (k2, v2)) in zip(self.children, other.children):
             if k1 != k2: return False 
