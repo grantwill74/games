@@ -240,8 +240,6 @@ function Dfa:matchPrefix(str, i)
         local state = self.states[current]
         current = state.tx[str:sub(i, i)]
 
-        -- TODO: turn tx into an actual dicitonary: right now it's a list of pairs
-
         if not current then
             return nil
         end
