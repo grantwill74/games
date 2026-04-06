@@ -520,7 +520,6 @@ function StInGame.new()
         FIELD_TOP_OFF_px,
         FIELD_W_px, FIELD_H_px
     )
-    trace(string.format("%s: %d %d %d %d", ndField.id, ndField.xoffpx, ndField.yoffpx, ndField.wpx, ndField.hpx))
 
     local state = {
         ndScreen = ndScreen,
