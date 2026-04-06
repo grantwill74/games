@@ -337,11 +337,73 @@ function Dfa:matchPrefix(str, i)
 end
 
 
-
-
 ---Global word dfa. Never unloaded once loaded.
 ---@type Dfa
 local wordDfa = nil
+
+---For basic scene management
+---@class Node
+---@field id string
+---@field parent Node | nil
+---@field xoffpx number
+---@field yoffpx number
+---@field wpx number | nil
+---@field hpx number | nil
+---@field children table<string, Node>
+Node = {}
+Node.__index = Node
+
+
+---comment
+---@param parent Node | nil
+---@param id string
+---@param xoffpx number
+---@param yoffpx number
+---@param wpx number | nil
+---@param hpx number | nil
+---@return Node
+function Node.new(parent, id, xoffpx, yoffpx, wpx, hpx)
+    local node = {
+        parent = parent,
+        id = id,
+        xoffpx = xoffpx,
+        yoffpx = yoffpx,
+        wpx = wpx,
+        hpx = hpx,
+        children = {}
+    }
+
+    return setmetatable(node, Node)
+end
+
+---create a child node with given coordinates and dimensions and 
+---insert it
+---@param id string
+---@param xoffpx number
+---@param yoffpx number
+---@param wpx number|nil
+---@param hpx number|nil
+---@return Node
+function Node:addChild(id, xoffpx, yoffpx, wpx, hpx)
+    local child = Node.new(self, id, xoffpx, yoffpx, wpx, hpx)
+    self.children[child] = true
+    return child
+end
+
+
+---same as Node:addChild but interprets that child's offset as being from
+---the top right corner. Requires that the parent have a width.
+---@param id string
+---@param xoffFromRightpx number
+---@param yoffpx number
+---@param wpx number|nil
+---@param hpx number|nil
+---@return Node
+function Node:addChildFromTopRight(id, xoffFromRightpx, yoffpx, wpx, hpx)
+    assert(self.wpx, "added child to a node with no width's left boundary")
+    local xoff = self.xoffpx + self.wpx - xoffFromRightpx
+    return self:addChild(id, xoff, yoffpx, wpx, hpx)
+end
 
 
 ---Interface used by the application. Gets ticked every frame with information
@@ -383,7 +445,6 @@ function StLoading.new()
             TILE_H_px
         )
     loadingPercent.yPx = loadingText.yPx + TILE_H_px
-    trace(ToStr(loadingPercent))
 
     local state = setmetatable({
         dawgThread = Dfa.startParsingDawg(Dawg),
@@ -431,11 +492,42 @@ function StLoading:draw()
 end
 
 ---@class StInGame : IAppState
+---@field ndScreen Node
+---@field ndField Node
 StInGame = {}
 StInGame.__index = StInGame
 
+--------------------------- in game constants ----------------------------------
+FIELD_TILES_W = 8
+FIELD_TILES_H = 8
+LETTER_TILE_W_px = TILE_W_px * 2
+LETTER_TILE_H_px = TILE_H_px * 2
+
+---the number of y offset pixels for each column
+FIELD_TILES_Y_OFF_px = {-4, 4, -4, 4, -4, 4, -4, 4}
+assert(#FIELD_TILES_Y_OFF_px == FIELD_TILES_W)
+
+FIELD_W_px = LETTER_TILE_W_px * FIELD_TILES_W
+FIELD_H_px = LETTER_TILE_H_px * (FIELD_TILES_H + 1) --+ 1 for column offsets
+FIELD_RIGHT_BUFFER_px = 8
+FIELD_TOP_OFF_px = 0
+
 function StInGame.new()
-    return setmetatable({}, StInGame)
+    local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
+    local ndField = ndScreen:addChildFromTopRight(
+        'field top left',
+        FIELD_W_px + FIELD_RIGHT_BUFFER_px,
+        FIELD_TOP_OFF_px,
+        FIELD_W_px, FIELD_H_px
+    )
+    trace(string.format("%s: %d %d %d %d", ndField.id, ndField.xoffpx, ndField.yoffpx, ndField.wpx, ndField.hpx))
+
+    local state = {
+        ndScreen = ndScreen,
+        ndField = ndField
+    }
+
+    return setmetatable(state, StInGame)
 end
 
 function StInGame:tick(mouse)
@@ -444,7 +536,8 @@ end
 
 function StInGame:draw()
     cls(0)
-    print("i'm in a state right now", 100, 50, 12)
+    local fld = self.ndField
+    rect(fld.xoffpx, fld.yoffpx, fld.wpx, fld.hpx, 12)
 end
 
 ---@type IAppState
@@ -485,64 +578,64 @@ end
 -- </TILES>
 
 -- <SPRITES>
--- 128:cccccccccccc0000ccc00000cc0cccccc0ccccccc0ccccccc0ccccc0c0cccc00
--- 129:cccccccc00cccccc0000c0cccc000cccc0c00ccc0cc00cccccc00ccc00000ccc
--- 130:cccccccccc00cc00c0cc000cccc0000ccccc000cccc0000ccc00000ccc0c0000
--- 131:cccccccc0000cccccc000cccccc00cccccc00cccccc0cccccc0ccccc0000cccc
--- 132:ccccccccccc0cc00cc0cc000c0cc00c0c0c00cc0c0c00cc0c0c00cc0c0c00cc0
--- 133:cccccccc0000cccc00000cccccc00ccccccccccccccccccccccccccccccccccc
--- 134:ccccccccc0000000cc00ccccccc00c0ccccc0c0cccc00c0cccc00c0cccc00c0c
--- 135:cccccccc000ccccc0000ccccccc00cccccc00cccccc00cccccc00cccccc00ccc
--- 136:cccccccccccc0000ccc00000cc0cc0cccc00c0cccc00c0cccc00c0c0cc00c000
--- 137:cccccccc000ccccc00000ccccc0cccccc0cccccc0ccccccccccccccc000ccccc
--- 138:cccccccccccccc00ccccc000cc0000ccccc0cc00ccc0cc00cc00cc00c0c0cc00
--- 139:cccccccccccc0ccc00000ccc0000cccccccccccccccccccc00000ccc0000cccc
--- 140:cccccccccccc0000ccc00000cc0cc0cccc00c0cccc00c0cccc00c0c0cc00c000
--- 141:cccccccc000ccccc0000cccccccc0ccccccccccc0000cccc00cccccc0000cccc
--- 142:cccccccccc00cc00c0cc000cccc0000ccccc000cccc0000ccc00000ccc0c0000
--- 143:cccccccc0000ccccccc0cccccccccccccccccccccc000ccc00000ccc00c00ccc
--- 144:cc0cc000cccc0000ccc0cccccc00000cc0cc0000cc0ccccccccccccccccccccc
--- 145:00000ccc00000cccccc00ccccc000ccc00c000cccccc0ccccccccccccccccccc
--- 146:cc0c000ccc0c000ccc0c000ccc0c000ccc000000ccccc000cccccccccccccccc
--- 147:cccc0ccccccc0ccccccc0cccccc00ccc0000cccc00cccccccccccccccccccccc
--- 148:c0c00cc0c0c00cc0c0000cc0cc00ccc0ccc00000cccc0000cccccccccccccccc
--- 149:cccccccccccccccccccc0cccccc00ccc0000cccc000ccccccccccccccccccccc
--- 150:cc000c0cc0c00c0cccc00c0ccc000c0cc0000000cc0cc000cccccccccccccccc
--- 151:ccc00cccccc00cccccc00ccccc000ccc0000cccc000ccccccccccccccccccccc
--- 152:cc00c000cc00c0cccc00c0cccc00c0ccccc00000cccc0000cccccccccccccccc
--- 153:00ccccccccccccccccccccccccc00ccc0000cccc000ccccccccccccccccccccc
--- 154:ccc0cc00ccc0cc00ccc0cc00c000cc00cc00cc00ccc0000ccccccccccccccccc
+-- 128:cccccccccccc1111ccc11111cc1cccccc1ccccccc1ccccccc1ccccc1c1cccc11
+-- 129:cccccccc11cccccc1111c1cccc111cccc1c11ccc1cc11cccccc11ccc11111ccc
+-- 130:cccccccccc11cc11c1cc111cccc1111ccccc111cccc1111ccc11111ccc1c1111
+-- 131:cccccccc1111cccccc111cccccc11cccccc11cccccc1cccccc1ccccc1111cccc
+-- 132:ccccccccccc1cc11cc1cc111c1cc11c1c1c11cc1c1c11cc1c1c11cc1c1c11cc1
+-- 133:cccccccc1111cccc11111cccccc11ccccccccccccccccccccccccccccccccccc
+-- 134:ccccccccc1111111cc11ccccccc11c1ccccc1c1cccc11c1cccc11c1cccc11c1c
+-- 135:cccccccc111ccccc1111ccccccc11cccccc11cccccc11cccccc11cccccc11ccc
+-- 136:cccccccccccc1111ccc11111cc1cc1cccc11c1cccc11c1cccc11c1c1cc11c111
+-- 137:cccccccc111ccccc11111ccccc1cccccc1cccccc1ccccccccccccccc111ccccc
+-- 138:cccccccccccccc11ccccc111cc1111ccccc1cc11ccc1cc11cc11cc11c1c1cc11
+-- 139:cccccccccccc1ccc11111ccc1111cccccccccccccccccccc11111ccc1111cccc
+-- 140:cccccccccccc1111ccc11111cc1cc1cccc11c1cccc11c1cccc11c1c1cc11c111
+-- 141:cccccccc111ccccc1111cccccccc1ccccccccccc1111cccc11cccccc1111cccc
+-- 142:cccccccccc11cc11c1cc111cccc1111ccccc111cccc1111ccc11111ccc1c1111
+-- 143:cccccccc1111ccccccc1cccccccccccccccccccccc111ccc11111ccc11c11ccc
+-- 144:cc1cc111cccc1111ccc1cccccc11111cc1cc1111cc1ccccccccccccccccccccc
+-- 145:11111ccc11111cccccc11ccccc111ccc11c111cccccc1ccccccccccccccccccc
+-- 146:cc1c111ccc1c111ccc1c111ccc1c111ccc111111ccccc111cccccccccccccccc
+-- 147:cccc1ccccccc1ccccccc1cccccc11ccc1111cccc11cccccccccccccccccccccc
+-- 148:c1c11cc1c1c11cc1c1111cc1cc11ccc1ccc11111cccc1111cccccccccccccccc
+-- 149:cccccccccccccccccccc1cccccc11ccc1111cccc111ccccccccccccccccccccc
+-- 150:cc111c1cc1c11c1cccc11c1ccc111c1cc1111111cc1cc111cccccccccccccccc
+-- 151:ccc11cccccc11cccccc11ccccc111ccc1111cccc111ccccccccccccccccccccc
+-- 152:cc11c111cc11c1cccc11c1cccc11c1ccccc11111cccc1111cccccccccccccccc
+-- 153:11ccccccccccccccccccccccccc11ccc1111cccc111ccccccccccccccccccccc
+-- 154:ccc1cc11ccc1cc11ccc1cc11c111cc11cc11cc11ccc1111ccccccccccccccccc
 -- 155:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
--- 156:cc00c000cc00c0cccc00c0cccc00c0ccccc00000cccc0000cccccccccccccccc
--- 157:ccc00cccccc00cccccc00ccccc000ccc0000cccc000ccccccccccccccccccccc
--- 158:cc0c0000cc0c000ccc0c000ccc0c000ccc000000ccccc000cccccccccccccccc
--- 159:ccc00cccccc00cccccc00cccccc00cccccc00cccccc0cccccc0ccccccccccccc
--- 160:ccccccccccccc000ccc000c0cccccc00ccccc000ccccc000ccccc000ccccc000
--- 161:cccccccc0000cccc00c0cccc0c0cccccc0ccccccc0ccccccc0ccccccc0cccccc
--- 162:ccccccccccccccccccccccccccccccccccc00000cccccccccccccccccccccccc
--- 163:cccccccccccccccccccccccccc0ccccc00000ccccc0c0ccccc0ccccccc0ccccc
--- 164:ccccccccccccccccccccccccccccccccccccccccccc00ccccccc0ccccccc0cc0
--- 165:cccccccccccccccccccccccccccccccccccccccccc0cccccc00ccccc0ccccccc
--- 166:ccccccccccccccccccccccccccc0ccccccc0ccccccc0ccccccc0ccccccc0cccc
+-- 156:cc11c111cc11c1cccc11c1cccc11c1ccccc11111cccc1111cccccccccccccccc
+-- 157:ccc11cccccc11cccccc11ccccc111ccc1111cccc111ccccccccccccccccccccc
+-- 158:cc1c1111cc1c111ccc1c111ccc1c111ccc111111ccccc111cccccccccccccccc
+-- 159:ccc11cccccc11cccccc11cccccc11cccccc11cccccc1cccccc1ccccccccccccc
+-- 160:ccccccccccccc111ccc111c1cccccc11ccccc111ccccc111ccccc111ccccc111
+-- 161:cccccccc1111cccc11c1cccc1c1cccccc1ccccccc1ccccccc1ccccccc1cccccc
+-- 162:ccccccccccccccccccccccccccccccccccc11111cccccccccccccccccccccccc
+-- 163:cccccccccccccccccccccccccc1ccccc11111ccccc1c1ccccc1ccccccc1ccccc
+-- 164:ccccccccccccccccccccccccccccccccccccccccccc11ccccccc1ccccccc1cc1
+-- 165:cccccccccccccccccccccccccccccccccccccccccc1cccccc11ccccc1ccccccc
+-- 166:ccccccccccccccccccccccccccc1ccccccc1ccccccc1ccccccc1ccccccc1cccc
 -- 167:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
--- 168:cccccccccccccccccccccccccccccccccccc0ccccccc00ccccc0c0ccccc0c0c0
--- 169:cccccccccccccccccccccccccc0cccccc00ccccc000ccccc0c0cccccccc0cccc
+-- 168:cccccccccccccccccccccccccccccccccccc1ccccccc11ccccc1c1ccccc1c1c1
+-- 169:cccccccccccccccccccccccccc1cccccc11ccccc111ccccc1c1cccccccc1cccc
 -- 170:cccccccccccccccccc0ccccccc00cccccc0c0ccccc0cc0cccc0cc0cccc0ccc0c
 -- 171:ccccccccccccccccccccccccccc0ccccccc0ccccccc0ccccccc0ccccccc0cccc
 -- 172:ccccccccccccccccccccccc0ccccc000cccc00ccccc0ccccccc0ccccccc0cccc
 -- 173:cccccccccccccccc000ccccc0c000ccccccc0ccccccc0ccccccc0ccccccc0ccc
 -- 174:cccccccccccc0000cc000ccccc00ccccccc0ccccccc0ccccccc0ccc0ccc00000
 -- 175:cccccccc0cccccccc00ccccccc0ccccccc0ccccccc0ccccc000ccccccccccccc
--- 176:cccccc00cccccc00cccccc00cccccc00ccc00000ccccc000cccccccccccccccc
--- 177:0c0ccccc0c0ccccc0c0ccccc0c0ccccc0c0ccccc0000cccccccccccccccccccc
--- 178:cccccccccccc0cccccc0ccccccc00ccccccc00c0ccccc000cccccccccccccccc
--- 179:cc0ccccccc0ccccccc0cccccc00ccccc00cccccccccccccccccccccccccccccc
--- 180:cccc0c00cccc00c0cccc00cccccc00cccccc00cccccc00cccccc0ccccccccccc
--- 181:cccccccc0ccccccc00cccccccc0cccccccc0cccccccccccccccccccccccccccc
--- 182:cccc0ccccccc0ccccccc0ccccccc0ccccccc0000cccccccccccccccccccccccc
--- 183:cccccccccccccccccccccccccccccccc00000ccccccccccccccccccccccccccc
--- 184:ccc0c0c0ccc0c00cccc0cc0ccc0ccc0ccc0ccccccccccccccccccccccccccccc
--- 185:ccc0ccccccc0ccccccc0cccccccc0ccccccc0ccccccccccccccccccccccccccc
+-- 176:cccccc11cccccc11cccccc11cccccc11ccc11111ccccc111cccccccccccccccc
+-- 177:1c1ccccc1c1ccccc1c1ccccc1c1ccccc1c1ccccc1111cccccccccccccccccccc
+-- 178:cccccccccccc1cccccc1ccccccc11ccccccc11c1ccccc111cccccccccccccccc
+-- 179:cc1ccccccc1ccccccc1cccccc11ccccc11cccccccccccccccccccccccccccccc
+-- 180:cccc1c11cccc11c1cccc11cccccc11cccccc11cccccc11cccccc1ccccccccccc
+-- 181:cccccccc1ccccccc11cccccccc1cccccccc1cccccccccccccccccccccccccccc
+-- 182:cccc1ccccccc1ccccccc1ccccccc1ccccccc1111cccccccccccccccccccccccc
+-- 183:cccccccccccccccccccccccccccccccc11111ccccccccccccccccccccccccccc
+-- 184:ccc1c1c1ccc1c11cccc1cc1ccc1ccc1ccc1ccccccccccccccccccccccccccccc
+-- 185:ccc1ccccccc1ccccccc1cccccccc1ccccccc1ccccccccccccccccccccccccccc
 -- 186:cc0cccc0cc0ccccccc0ccccccc0ccccccc0ccccccccccccccccccccccccccccc
 -- 187:ccc0cccc00c0ccccc000cccccc00cccccccccccccccccccccccccccccccccccc
 -- 188:ccc0ccccccc0ccccccc00ccccccc00ccccccc000cccccccccccccccccccccccc
