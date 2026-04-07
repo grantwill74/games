@@ -38,7 +38,13 @@ LOAD_STATES_PER_YIELD = 210
 ---@type integer
 EXPECTED_N_YIELDS_TO_LOAD = 100
 
-
+---@type table<string, integer>
+LETTER_SPRITES = {
+    a = 384, b = 386, c = 388, d = 390, e = 392, f = 394, g = 396, h = 398,
+    i = 416, j = 418, k = 420, l = 422, m = 424, n = 426, o = 428, p = 430,
+    q = 448, r = 450, s = 452, t = 454, u = 456, v = 458, w = 460, x = 462,
+    y = 480, z = 482,
+}
 
 
 
@@ -405,6 +411,28 @@ function Node:addChildFromTopRight(id, xoffFromRightpx, yoffpx, wpx, hpx)
     return self:addChild(id, xoff, yoffpx, wpx, hpx)
 end
 
+---returns the node's absolute position (recursively adding its offset to its
+---parents absolute positions)
+---@return number, number
+function Node:pos()
+    if not self.parent then
+        return self.xoffpx, self.yoffpx
+    end
+
+    local px, py = self.parent:pos()
+    return px + self.xoffpx, py + self.yoffpx
+end
+
+---compute the vector between the node's absolute position and the given point.
+---returns the vector <node.x, node.y> - <x, y> 
+---@param x number
+---@param y number
+---@return number, number
+function Node:offsetOf(x, y)
+    local px, py = self:pos()
+    return px - x, py - y
+end
+
 
 ---Interface used by the application. Gets ticked every frame with information
 ---abount important app events. Can also draw itself.
@@ -494,6 +522,7 @@ end
 ---@class StInGame : IAppState
 ---@field ndScreen Node
 ---@field ndField Node
+---@field grid LetterGrid
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -504,13 +533,77 @@ LETTER_TILE_W_px = TILE_W_px * 2
 LETTER_TILE_H_px = TILE_H_px * 2
 
 ---the number of y offset pixels for each column
-FIELD_TILES_Y_OFF_px = {-4, 4, -4, 4, -4, 4, -4, 4}
+FIELD_TILES_Y_OFF_px = {8, 0, 8, 0, 8, 0, 8, 0}
+FIELD_TILES_PER_COL = {7, 8, 7, 8, 7, 8, 7, 8}
+FIELD_COL_HEIGHTS = {
+    FIELD_TILES_PER_COL[1] * LETTER_TILE_H_px,
+    FIELD_TILES_PER_COL[2] * LETTER_TILE_H_px,
+    FIELD_TILES_PER_COL[3] * LETTER_TILE_H_px,
+    FIELD_TILES_PER_COL[4] * LETTER_TILE_H_px,
+    FIELD_TILES_PER_COL[5] * LETTER_TILE_H_px,
+    FIELD_TILES_PER_COL[6] * LETTER_TILE_H_px,
+    FIELD_TILES_PER_COL[7] * LETTER_TILE_H_px,
+    FIELD_TILES_PER_COL[8] * LETTER_TILE_H_px,
+}
 assert(#FIELD_TILES_Y_OFF_px == FIELD_TILES_W)
 
 FIELD_W_px = LETTER_TILE_W_px * FIELD_TILES_W
 FIELD_H_px = LETTER_TILE_H_px * (FIELD_TILES_H + 1) --+ 1 for column offsets
-FIELD_RIGHT_BUFFER_px = 8
+FIELD_RIGHT_BUFFER_px = 0
 FIELD_TOP_OFF_px = 0
+
+---responsible for storing the letter tiles, getting the tile under a point,
+---and drawing the letters
+---@class LetterGrid
+---@field cols string[][]
+LetterGrid = {}
+LetterGrid.__index = LetterGrid
+
+function LetterGrid.new()
+    local grid = {}
+    for i = 1, FIELD_TILES_W do
+        table.insert(grid, {})
+    end
+
+    return setmetatable({cols = grid}, LetterGrid)
+end
+
+---add a tile to the top of the given column
+---@param letter string # letter of tile. chars after first are ignored.
+---@param col integer
+function LetterGrid:addTileToCol(letter, col)
+    assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
+    --letter = letter:sub(1, 1)
+    local column = self.cols[col]
+    table.insert(column, letter)
+end
+
+---draw a given letter to a given place
+---@param col integer
+---@param row integer
+---@param px number
+---@param py number
+function LetterGrid:drawLetter(col, row, px, py)
+    assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
+    local letter = self.cols[col][row]
+    if not letter then return end
+    local sprite = LETTER_SPRITES[letter]
+    spr(sprite, px, py, nil, 1, 0, 0, 2, 2)
+end
+
+---draw an entire column
+---@param col integer
+---@param tlPx number # the top left x coordinate to draw the column at
+---@param tlPy number
+function LetterGrid:drawColumn(col, colHeight, tlPx, tlPy)
+    assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
+    local column = self.cols[col]
+    local y = tlPy + colHeight - LETTER_TILE_H_px
+    for i = 1, #column do
+        self:drawLetter(col, i, tlPx, y)
+        y = y - LETTER_TILE_H_px
+    end
+end
 
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
@@ -520,11 +613,21 @@ function StInGame.new()
         FIELD_TOP_OFF_px,
         FIELD_W_px, FIELD_H_px
     )
+    local grid = LetterGrid.new()
 
     local state = {
         ndScreen = ndScreen,
-        ndField = ndField
+        ndField = ndField,
+        grid = grid,
     }
+    
+    -- debug
+    grid:addTileToCol('a', 1)
+    grid:addTileToCol('b', 1)
+    grid:addTileToCol('c', 1)
+    grid:addTileToCol('d', 1)
+    grid:addTileToCol('e', 1)
+    grid:addTileToCol('f', 1)
 
     return setmetatable(state, StInGame)
 end
@@ -536,7 +639,9 @@ end
 function StInGame:draw()
     cls(0)
     local fld = self.ndField
-    rect(fld.xoffpx, fld.yoffpx, fld.wpx, fld.hpx, 12)
+    local fld_x, fld_y = fld:pos()
+    self.grid:drawColumn(1, FIELD_COL_HEIGHTS[1], fld_x, FIELD_TILES_Y_OFF_px[1])
+    -- rect(fld.xoffpx, fld.yoffpx, fld.wpx, fld.hpx, 12)
 end
 
 ---@type IAppState
