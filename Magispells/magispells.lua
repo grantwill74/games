@@ -550,22 +550,26 @@ assert(#FIELD_TILES_Y_OFF_px == FIELD_TILES_W)
 FIELD_W_px = LETTER_TILE_W_px * FIELD_TILES_W
 FIELD_H_px = LETTER_TILE_H_px * (FIELD_TILES_H + 1) --+ 1 for column offsets
 FIELD_RIGHT_BUFFER_px = 0
-FIELD_TOP_OFF_px = 0
+FIELD_TOP_OFF_px = 4
 
 ---responsible for storing the letter tiles, getting the tile under a point,
 ---and drawing the letters
 ---@class LetterGrid
+---@field node Node
 ---@field cols string[][]
 LetterGrid = {}
 LetterGrid.__index = LetterGrid
 
-function LetterGrid.new()
+---create a new letter grid, whose top left is at the given node
+---@param node Node
+---@return LetterGrid
+function LetterGrid.new(node)
     local grid = {}
     for i = 1, FIELD_TILES_W do
         table.insert(grid, {})
     end
 
-    return setmetatable({cols = grid}, LetterGrid)
+    return setmetatable({cols = grid, node = node}, LetterGrid)
 end
 
 ---add a tile to the top of the given column
@@ -605,6 +609,17 @@ function LetterGrid:drawColumn(col, colHeight, tlPx, tlPy)
     end
 end
 
+function LetterGrid:draw()
+    local x, y = self.node:pos()
+    for col=1, FIELD_TILES_W do
+        local colHeight = FIELD_COL_HEIGHTS[col]
+        self:drawColumn(col, colHeight,
+            x + (col - 1 ) * LETTER_TILE_H_px,
+            y + FIELD_TILES_Y_OFF_px[col]
+        )
+    end
+end
+
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
     local ndField = ndScreen:addChildFromTopRight(
@@ -613,7 +628,7 @@ function StInGame.new()
         FIELD_TOP_OFF_px,
         FIELD_W_px, FIELD_H_px
     )
-    local grid = LetterGrid.new()
+    local grid = LetterGrid.new(ndField)
 
     local state = {
         ndScreen = ndScreen,
@@ -621,13 +636,32 @@ function StInGame.new()
         grid = grid,
     }
     
+    local letters = "abcdefghijklmnopqrstuvwxyz"
+    local i = 1
+
+    for col=1, 8 do
+        for row=1, FIELD_TILES_PER_COL[col] do
+            local letter = letters:sub(i, i)
+            grid:addTileToCol(letter, col)
+            i = i + 1
+            if i > #letters then i = 1 end
+        end
+    end
+
     -- debug
+    --[[
     grid:addTileToCol('a', 1)
     grid:addTileToCol('b', 1)
     grid:addTileToCol('c', 1)
     grid:addTileToCol('d', 1)
     grid:addTileToCol('e', 1)
     grid:addTileToCol('f', 1)
+    grid:addTileToCol('g', 1)
+    
+    grid:addTileToCol('h', 2)
+    grid:addTileToCol('i', 2)
+    grid:addTileToCol('j', 2)
+    ]]
 
     return setmetatable(state, StInGame)
 end
@@ -638,10 +672,8 @@ end
 
 function StInGame:draw()
     cls(0)
-    local fld = self.ndField
-    local fld_x, fld_y = fld:pos()
-    self.grid:drawColumn(1, FIELD_COL_HEIGHTS[1], fld_x, FIELD_TILES_Y_OFF_px[1])
-    -- rect(fld.xoffpx, fld.yoffpx, fld.wpx, fld.hpx, 12)
+    
+    self.grid:draw()
 end
 
 ---@type IAppState
