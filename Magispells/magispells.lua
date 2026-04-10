@@ -155,22 +155,56 @@ end
 ---@class MouseState
 ---@field x number
 ---@field y number
+---@field dx number
+---@field dy number
 ---@field left boolean
 ---@field middle boolean
 ---@field right boolean
-local MouseState = {}
+---@field leftTrans 'down' | 'up' | nil # change in left button since last poll
+---@field midTrans 'down' | 'up' | nil # change in middle button since last poll
+---@field rightTrans 'down' | 'up' | nil # change in right button since poll
+MouseState = {}
+MouseState.__index = MouseState
 
-function MouseState.new(x, y, left, middle, right, _scroll_x, _scroll_y)
-    return {
-        x = x,
-        y = y,
-        left = left,
-        middle = middle,
-        right = right,
+function MouseState.new()
+    local state = {
+        x = 0,
+        y = 0,
+        dx = 0,
+        dy = 0,
+        left = false,
+        middle = false,
+        right = false,
     }
+
+    return setmetatable(state, MouseState)
 end
 
+function MouseState:poll()
+    local x, y, l, m, r = mouse()
 
+    self.dx = x - self.x
+    self.dy = y - self.y
+
+    if l and not self.left then
+        self.leftTrans = 'down'
+    elseif not l and self.left then
+        self.leftTrans = 'up'
+    else
+        self.leftTrans = nil
+    end
+
+    if r and not self.right then
+        self.rightTrans = 'down'
+    elseif not r and self.right then
+        self.rightTrans = 'up'
+    else
+        self.rightTrans = nil
+    end
+
+    self.x, self.y = x, y
+    self.left, self.middle, self.right = l, m, r
+end
 
 
 ---@class Dfa
@@ -432,7 +466,7 @@ end
 ---@return number, number
 function Node:offsetOf(x, y)
     local px, py = self:pos()
-    return px - x, py - y
+    return x - px, y - py
 end
 
 
@@ -525,6 +559,7 @@ end
 ---@field ndScreen Node
 ---@field ndField Node
 ---@field grid LetterGrid
+---@field highlight [integer, integer] | nil
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -589,12 +624,18 @@ end
 ---@param row integer
 ---@param px number
 ---@param py number
-function LetterGrid:drawLetter(col, row, px, py)
+---@param highlight boolean
+function LetterGrid:drawLetter(col, row, px, py, highlight)
     assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
     local letter = self.cols[col][row]
     if not letter then return end
     local sprite = LETTER_SPRITES[letter]
-    spr(TILE_BACK, px, py, nil, 1, 0, 0, 2, 2)
+
+    if highlight then
+        spr(TILE_HILITE_BACK, px, py, nil, 1, 0, 0, 2, 2)
+    else
+        spr(TILE_BACK, px, py, nil, 1, 0, 0, 2, 2)
+    end
     spr(sprite, px, py, LETTER_CHROMAKEY, 1, 0, 0, 2, 2)
 end
 
@@ -602,23 +643,61 @@ end
 ---@param col integer
 ---@param tlPx number # the top left x coordinate to draw the column at
 ---@param tlPy number
-function LetterGrid:drawColumn(col, colHeight, tlPx, tlPy)
+---@param highlightRow integer | nil
+function LetterGrid:drawColumn(col, colHeight, tlPx, tlPy, highlightRow)
     assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
     local column = self.cols[col]
     local y = tlPy + colHeight - LETTER_TILE_H_px
-    for i = 1, #column do
-        self:drawLetter(col, i, tlPx, y)
+    for i = 1, FIELD_COL_HEIGHTS[col] do
+        self:drawLetter(col, i, tlPx, y, i == highlightRow)
         y = y - LETTER_TILE_H_px
     end
 end
 
-function LetterGrid:draw()
+
+---Return the column and row the point is over
+---@param mouseOffx number
+---@param mouseOffy number
+---@return [integer, integer] | nil # highlight {col, row} or nil
+function LetterGrid:pointOverTile(mouseOffx, mouseOffy)
+    if  mouseOffx < 0 or mouseOffx > FIELD_W_px or
+        mouseOffy < 0 or mouseOffy > FIELD_H_px
+    then
+        return nil
+    end
+
+    local col = math.floor(mouseOffx / LETTER_TILE_W_px) + 1
+    if col < 1 or col > FIELD_TILES_W then return nil end
+
+    mouseOffy = mouseOffy - FIELD_TILES_Y_OFF_px[col]
+
+    if mouseOffy < 0 then return nil end
+
+    local row = 1 + math.floor(
+        FIELD_TILES_PER_COL[col] - mouseOffy / LETTER_TILE_H_px)
+
+    if row > FIELD_TILES_PER_COL[col] then return nil end
+
+    return {col, row}
+end
+
+---@param highlight [integer, integer] | nil # tile to highlight
+function LetterGrid:draw(highlight)
     local x, y = self.node:pos()
     for col=1, FIELD_TILES_W do
         local colHeight = FIELD_COL_HEIGHTS[col]
+
+        local highlightRow = nil
+
+        -- if there is a highlight and its this column
+        if highlight and highlight[1] == col then
+            highlightRow = highlight[2]
+        end
+
         self:drawColumn(col, colHeight,
             x + (col - 1 ) * LETTER_TILE_H_px,
-            y + FIELD_TILES_Y_OFF_px[col]
+            y + FIELD_TILES_Y_OFF_px[col],
+            highlightRow
         )
     end
 end
@@ -637,6 +716,7 @@ function StInGame.new()
         ndScreen = ndScreen,
         ndField = ndField,
         grid = grid,
+        highlight = nil,
     }
     
     local letters = "abcdefghijklmnopqrstuvwxyz"
@@ -651,44 +731,37 @@ function StInGame.new()
         end
     end
 
-    -- debug
-    --[[
-    grid:addTileToCol('a', 1)
-    grid:addTileToCol('b', 1)
-    grid:addTileToCol('c', 1)
-    grid:addTileToCol('d', 1)
-    grid:addTileToCol('e', 1)
-    grid:addTileToCol('f', 1)
-    grid:addTileToCol('g', 1)
-    
-    grid:addTileToCol('h', 2)
-    grid:addTileToCol('i', 2)
-    grid:addTileToCol('j', 2)
-    ]]
-
     return setmetatable(state, StInGame)
 end
 
+---
+---@param mouse MouseState
 function StInGame:tick(mouse)
-
+    local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
+    self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
 end
 
 function StInGame:draw()
     cls(0)
-    
-    self.grid:draw()
+
+    self.grid:draw(self.highlight)
 end
 
 ---@type IAppState
 local appState = nil
 
+---@type MouseState
+Mouse = nil
+
 function BOOT()
     cls(0)
     appState = StLoading.new()
+    Mouse = MouseState.new()
 end
 
 function TIC()
-    local tx = appState:tick(mouse())
+    Mouse:poll()
+    local tx = appState:tick(Mouse)
 
     if tx then
         appState = tx
