@@ -143,9 +143,12 @@ function memset(addr, value, size) end
 ---@return number tile_id tile index
 function mget(x, y) end
 
+-- added middle button to mouse binding.
+
 ---@return number x x coordinate of the mouse pointer
 ---@return number y y coordinate of the mouse pointer
 ---@return boolean left is left button down
+---@return boolean middle 
 ---@return boolean right is right button down
 ---@return number scroll_x x scroll delta since last frame
 ---@return number scroll_y y scroll delta since last frame
