@@ -47,6 +47,7 @@ LETTER_SPRITES = {
 }
 TILE_BACK = 494
 TILE_HILITE_BACK = 492
+TILE_SELECTED_BACK = 490
 
 LETTER_CHROMAKEY = PALETTE.WHITE
 
@@ -152,6 +153,9 @@ function Text.new(str, fixedMode)
     }, Text)
 end
 
+---@alias Xy {x: number, y: number}
+---@alias Cr {col: integer, row: integer}
+
 ---@class MouseState
 ---@field x number
 ---@field y number
@@ -163,6 +167,7 @@ end
 ---@field leftTrans 'down' | 'up' | nil # change in left button since last poll
 ---@field midTrans 'down' | 'up' | nil # change in middle button since last poll
 ---@field rightTrans 'down' | 'up' | nil # change in right button since poll
+---@field whereLeftDown Xy | nil # where was the mouse clicked? stays for 'up'.
 MouseState = {}
 MouseState.__index = MouseState
 
@@ -175,6 +180,7 @@ function MouseState.new()
         left = false,
         middle = false,
         right = false,
+        whereLeftDown = nil,
     }
 
     return setmetatable(state, MouseState)
@@ -188,10 +194,12 @@ function MouseState:poll()
 
     if l and not self.left then
         self.leftTrans = 'down'
+        self.whereLeftDown = {x = x, y = y}
     elseif not l and self.left then
         self.leftTrans = 'up'
     else
         self.leftTrans = nil
+        self.whereLeftDown = nil
     end
 
     if r and not self.right then
@@ -559,7 +567,8 @@ end
 ---@field ndScreen Node
 ---@field ndField Node
 ---@field grid LetterGrid
----@field highlight [integer, integer] | nil
+---@field highlight Cr | nil
+---@field strand Strand
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -624,15 +633,17 @@ end
 ---@param row integer
 ---@param px number
 ---@param py number
----@param highlight boolean
-function LetterGrid:drawLetter(col, row, px, py, highlight)
+---@param mode 'highlighted' | 'selected' | nil
+function LetterGrid:drawLetter(col, row, px, py, mode)
     assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
     local letter = self.cols[col][row]
     if not letter then return end
     local sprite = LETTER_SPRITES[letter]
 
-    if highlight then
+    if mode =='highlighted' then
         spr(TILE_HILITE_BACK, px, py, nil, 1, 0, 0, 2, 2)
+    elseif mode == 'selected' then
+        spr(TILE_SELECTED_BACK, px, py, nil, 1, 0, 0, 2, 2)
     else
         spr(TILE_BACK, px, py, nil, 1, 0, 0, 2, 2)
     end
@@ -644,12 +655,20 @@ end
 ---@param tlPx number # the top left x coordinate to draw the column at
 ---@param tlPy number
 ---@param highlightRow integer | nil
-function LetterGrid:drawColumn(col, colHeight, tlPx, tlPy, highlightRow)
+---@param strand Strand
+function LetterGrid:drawColumn(col, colHeight, tlPx, tlPy, highlightRow, strand)
     assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
-    local column = self.cols[col]
     local y = tlPy + colHeight - LETTER_TILE_H_px
     for i = 1, FIELD_COL_HEIGHTS[col] do
-        self:drawLetter(col, i, tlPx, y, i == highlightRow)
+        local tileHighlighted = i == highlightRow
+        local mode = nil
+        if strand:tileSelected(col, i) then
+            mode = 'selected'
+        elseif tileHighlighted then
+            mode = 'highlighted'
+        end
+
+        self:drawLetter(col, i, tlPx, y, mode)
         y = y - LETTER_TILE_H_px
     end
 end
@@ -658,7 +677,7 @@ end
 ---Return the column and row the point is over
 ---@param mouseOffx number
 ---@param mouseOffy number
----@return [integer, integer] | nil # highlight {col, row} or nil
+---@return Cr | nil # highlight {col, row} or nil
 function LetterGrid:pointOverTile(mouseOffx, mouseOffy)
     if  mouseOffx < 0 or mouseOffx > FIELD_W_px or
         mouseOffy < 0 or mouseOffy > FIELD_H_px
@@ -678,11 +697,12 @@ function LetterGrid:pointOverTile(mouseOffx, mouseOffy)
 
     if row > FIELD_TILES_PER_COL[col] then return nil end
 
-    return {col, row}
+    return {col = col, row = row}
 end
 
----@param highlight [integer, integer] | nil # tile to highlight
-function LetterGrid:draw(highlight)
+---@param highlight Cr | nil # tile to highlight for mouseover
+---@param strand Strand
+function LetterGrid:draw(highlight, strand)
     local x, y = self.node:pos()
     for col=1, FIELD_TILES_W do
         local colHeight = FIELD_COL_HEIGHTS[col]
@@ -690,17 +710,80 @@ function LetterGrid:draw(highlight)
         local highlightRow = nil
 
         -- if there is a highlight and its this column
-        if highlight and highlight[1] == col then
-            highlightRow = highlight[2]
+        if highlight and highlight.col == col then
+            highlightRow = highlight.row
         end
 
         self:drawColumn(col, colHeight,
             x + (col - 1 ) * LETTER_TILE_H_px,
             y + FIELD_TILES_Y_OFF_px[col],
-            highlightRow
+            highlightRow, strand
         )
     end
 end
+
+---A list of selected tiles
+---@class Strand
+---@field tiles Cr[]
+---@field selected table<integer, table<integer, integer>> selected tiles mapped to index
+Strand = {}
+Strand.__index = Strand
+
+function Strand.new() 
+    local selected = {}
+    for i = 1, FIELD_TILES_W do
+        table.insert(selected, {})
+    end
+
+    local strand = {
+        tiles = {},
+        selected = selected
+    }
+
+    return setmetatable(strand, Strand)
+end
+
+---Add a letter unless it's already in the strand, then trim backwards to that
+---letter.
+---@param col integer
+---@param row integer
+function Strand:addOrTrim(col, row)
+    if self:tileSelected(col, row) then
+        assert(#self.tiles > 0)
+        -- if there's only one tile selected, de-select it
+        if #self.tiles == 1 then
+            self:clear()
+        else
+        -- if there are many tiles selected, clear everything after the selected one
+            local index = self.selected[col][row]
+            while #self.tiles > index do
+                local last = self.tiles[#self.tiles]
+                self.selected[last.col][last.row] = nil
+                table.remove(self.tiles)
+            end
+        end
+    else
+        table.insert(self.tiles, {col = col, row = row})
+        self.selected[col][row] = #self.tiles
+    end
+end
+
+---determine whether a tile has been selected
+---@param col integer
+---@param row integer
+---@return boolean
+function Strand:tileSelected(col, row)
+    return not not self.selected[col][row]
+end
+
+
+function Strand:clear()
+    for _, tile in ipairs(self.tiles) do
+        self.selected[tile.col][tile.row] = nil
+    end
+    self.tiles = {}
+end
+
 
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
@@ -716,9 +799,10 @@ function StInGame.new()
         ndScreen = ndScreen,
         ndField = ndField,
         grid = grid,
+        strand = Strand.new(),
         highlight = nil,
     }
-    
+
     local letters = "abcdefghijklmnopqrstuvwxyz"
     local i = 1
 
@@ -739,12 +823,20 @@ end
 function StInGame:tick(mouse)
     local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
+  
+    if mouse.leftTrans == 'up' then
+        if self.highlight then
+            self.strand:addOrTrim(self.highlight.col, self.highlight.row)
+        else
+            self.strand:clear()
+        end
+    end
 end
 
 function StInGame:draw()
     cls(0)
 
-    self.grid:draw(self.highlight)
+    self.grid:draw(self.highlight, self.strand)
 end
 
 ---@type IAppState
@@ -890,6 +982,8 @@ end
 -- 225:cccccccccccccccccccc0ccccc000ccccc0ccccc00cccccccccccccccccccccc
 -- 226:ccccccccccccccccccc00000cccccccccccccccccccccccccccccccccccccccc
 -- 227:cccccccccccccccc0000ccccccc0cccccc0cccccc0cccccc00cccccc0ccccccc
+-- 234:0ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+-- 235:cccccc00ccccccc0ccccccc3ccccccc3ccccccc3ccccccc3ccccccc3ccccccc3
 -- 236:04c4c4c44c4c4c4cc4c4c4c44c4c4c4cc4c4c4c44c4c4c4cc4c4c4c44c4c4c4c
 -- 237:c4c4c4004c4c4c40c4c4c4c34c4c4c43c4c4c4c34c4c4c43c4c4c4c34c4c4c43
 -- 238:0444444444444444444444444444444444444444444444444444444444444444
@@ -898,6 +992,8 @@ end
 -- 241:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 242:ccccccc0cccccc00ccccc00ccccc00ccccc00000cccccccccccccccccccccccc
 -- 243:cccccccccccccccccccccccccccccccc0000cccccccccccccccccccccccccccc
+-- 250:cccccccccccccccccccccccccccccccccccccccccccccccc0ccccccc03333333
+-- 251:ccccccc3ccccccc3ccccccc3ccccccc3ccccccc3ccccccc3cccccc3333333330
 -- 252:c4c4c4c44c4c4c4cc4c4c4c44c4c4c4cc4c4c4c44c4c4c4c04c4c4c403333333
 -- 253:c4c4c4c34c4c4c43c4c4c4c34c4c4c43c4c4c4c34c4c4c43c4c4c43333333330
 -- 254:4444444444444444444444444444444444444444444444440444444403333333
