@@ -156,6 +156,14 @@ end
 ---@alias Xy {x: number, y: number}
 ---@alias Cr {col: integer, row: integer}
 
+---create a new column/row reference
+---@param col integer
+---@param row integer
+---@return Cr
+function Cr(col, row)
+    return {col = col, row = row}
+end
+
 ---@class MouseState
 ---@field x number
 ---@field y number
@@ -722,6 +730,64 @@ function LetterGrid:draw(highlight, strand)
     end
 end
 
+---whether the given col and row refer to an actual tile
+---@param col integer
+---@param row integer
+---@return boolean
+function LetterGrid:inBounds(col, row)
+    return
+        col >= 1 and col <= FIELD_TILES_W and
+        row >= 1 and row <= FIELD_TILES_PER_COL[col]
+end
+
+---return the list of neighboring tiles
+---@param col integer
+---@param row integer
+---@return Cr[]
+function LetterGrid:neighbors(col, row)
+    local colHeight = FIELD_TILES_PER_COL[col]
+    assert(colHeight == 7 or colHeight == 8, "this code assumes different col heights")
+
+    local neigh = {}
+    local push = table.insert
+
+    -- all tiles, regardless of column, neighbor their above and below tiles
+    if self:inBounds(col, row - 1) then push(neigh, Cr(col, row - 1)) end
+    if self:inBounds(col, row + 1) then push(neigh, Cr(col, row + 1)) end
+
+    local potential = {}
+
+    -- a short column borders its own row in the next long column as well
+    -- as the next row up
+    if colHeight == 7 then
+        potential = {
+            Cr(col + 1, row),
+            Cr(col + 1, row + 1),
+            Cr(col - 1, row),
+            Cr(col - 1, row + 1)
+        }
+
+    else
+    -- a tall column borders its own row and the previous row in adjacent
+    -- short columns
+        potential = {
+            Cr(col + 1, row - 1),
+            Cr(col + 1, row),
+            Cr(col - 1, row - 1),
+            Cr(col - 1, row)
+        }
+    end
+
+    for _, pneigh in ipairs(potential) do
+        if self:inBounds(pneigh.col, pneigh.row) then
+            push(neigh, pneigh)
+        end
+    end
+
+    return neigh
+end
+
+
 ---A list of selected tiles
 ---@class Strand
 ---@field tiles Cr[]
@@ -763,7 +829,7 @@ function Strand:addOrTrim(col, row)
             end
         end
     else
-        table.insert(self.tiles, {col = col, row = row})
+        table.insert(self.tiles, Cr(col, row))
         self.selected[col][row] = #self.tiles
     end
 end
@@ -823,10 +889,34 @@ end
 function StInGame:tick(mouse)
     local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
-  
+
     if mouse.leftTrans == 'up' then
         if self.highlight then
-            self.strand:addOrTrim(self.highlight.col, self.highlight.row)
+            local col = self.highlight.col
+            local row = self.highlight.row
+            -- only add if last tile is a neighbor of highlight or the list
+            -- of selected tiles is empty
+            local lastTile = self.strand.tiles[#self.strand.tiles]
+            local allowed = false
+
+            if self.strand:tileSelected(col, row) then
+                allowed = true
+            elseif lastTile then
+                local neighbors = self.grid:neighbors(col, row)
+                for _, neigh in ipairs(neighbors) do
+                    if neigh.row == lastTile.row and neigh.col == lastTile.col then
+                        allowed = true
+                    end
+                end
+            else
+                allowed = true
+            end
+
+            if allowed then
+                self.strand:addOrTrim(col, row)
+            else
+                -- sad.wav
+            end
         else
             self.strand:clear()
         end
