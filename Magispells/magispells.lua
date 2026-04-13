@@ -25,7 +25,9 @@ SCREEN_H_tiles = SCREEN_H_px / TILE_H_px
 ---default palette colors
 PALETTE = {
     BLACK = 0,
-    WHITE = 12
+    WHITE = 12,
+    LT_GRAY = 13,
+    DK_GRAY = 14,
 }
 
 --- The number of regex entries to be processed before yielding (i.e., to
@@ -621,6 +623,7 @@ end
 ---@class StInGame : IAppState
 ---@field ndScreen Node
 ---@field ndField Node
+---@field ndStatus Node
 ---@field grid LetterGrid
 ---@field highlight Cr | nil
 ---@field strand Strand
@@ -906,11 +909,17 @@ function StInGame.new()
         FIELD_TOP_OFF_px,
         FIELD_W_px, FIELD_H_px
     )
+    local ndStatus = ndScreen:addChild(
+        'status area',
+        0, 60, 96, 104
+    )
+
     local grid = LetterGrid.new(ndField)
 
     local state = {
         ndScreen = ndScreen,
         ndField = ndField,
+        ndStatus = ndStatus,
         grid = grid,
         strand = Strand.new(),
         highlight = nil,
@@ -928,7 +937,7 @@ end
 
 ---
 ---@param mouse MouseState
-function StInGame:tick(mouse)
+function StInGame:handleClick(mouse)
     local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
 
@@ -965,10 +974,33 @@ function StInGame:tick(mouse)
     end
 end
 
+---
+---@param mouse MouseState
+function StInGame:tick(mouse)
+    self:handleClick(mouse)
+
+
+end
+
+---draw the status bar to the left
+---@param node Node
+---@param letters string
+---@param isWord boolean
+function DrawStatus(node, letters, isWord)
+    local x, y = node:pos()
+    local color = isWord and PALETTE.WHITE or PALETTE.LT_GRAY
+    print(letters, x, y, color)
+end
+
 function StInGame:draw()
     cls(0)
 
     self.grid:draw(self.highlight, self.strand)
+
+    DrawStatus(self.ndStatus, "dog", true)
+    -- local n = self.ndStatus
+    -- local sx, sy = n:pos()
+    -- rect(sx, sy, n.wpx, n.hpx, 12)
 end
 
 ---@type IAppState
