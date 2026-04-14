@@ -16,6 +16,7 @@ SCREEN_W_px = 240
 SCREEN_H_px = 136
 TILE_W_px = 8
 TILE_H_px = 8
+MAX_WORD_LEN = 8
 
 ---@type integer
 SCREEN_W_tiles = SCREEN_W_px / TILE_W_px
@@ -597,7 +598,7 @@ function StLoading:tick(_)
             error('error occurred when loading words: ' .. results[2])
         end
 
-        wordDfa = results[1] -- loaded the DFA
+        wordDfa = results[2] -- loaded the DFA
 
         return StInGame.new()
     else
@@ -616,7 +617,7 @@ function StLoading:draw()
     local loaded =
         math.floor(0.5 +  100 * self.nYields / EXPECTED_N_YIELDS_TO_LOAD)
     local percentStr = string.format("%2.0f%%", loaded)
-    local x, y = self.loadingPercent.xPx, self.loadingPercent.yPx
+    x, y = self.loadingPercent.xPx, self.loadingPercent.yPx
     print(percentStr, x, y, PALETTE.WHITE, true)
 end
 
@@ -627,6 +628,7 @@ end
 ---@field grid LetterGrid
 ---@field highlight Cr | nil
 ---@field strand Strand
+---@field dfaState DfaState
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -859,16 +861,19 @@ function Strand.new()
     return setmetatable(strand, Strand)
 end
 
+---@alias AddOrTrimResult 'added' | 'cleared' | 'trimmed' | 'tooLong'
 ---Add a letter unless it's already in the strand, then trim backwards to that
 ---letter.
 ---@param col integer
 ---@param row integer
+---@returns AddOrTrimResult
 function Strand:addOrTrim(col, row)
     if self:tileSelected(col, row) then
         assert(#self.tiles > 0)
         -- if there's only one tile selected, de-select it
         if #self.tiles == 1 then
             self:clear()
+            return 'cleared'
         else
         -- if there are many tiles selected, clear everything after the selected one
             local index = self.selected[col][row]
@@ -877,11 +882,21 @@ function Strand:addOrTrim(col, row)
                 self.selected[last.col][last.row] = nil
                 table.remove(self.tiles)
             end
+
+            return 'trimmed'
         end
-    else
+    elseif self:length() < MAX_WORD_LEN then
         table.insert(self.tiles, Cr(col, row))
         self.selected[col][row] = #self.tiles
+        return 'added'
+    else
+        return 'tooLong'
     end
+end
+
+---@return integer
+function Strand:length()
+    return #self.tiles
 end
 
 ---determine whether a tile has been selected
@@ -898,6 +913,20 @@ function Strand:clear()
         self.selected[tile.col][tile.row] = nil
     end
     self.tiles = {}
+end
+
+---return a string containing the letters that make up the strand
+---@param grid LetterGrid
+---@return string
+function Strand:asString(grid)
+    local chars = {}
+    for _, cr in ipairs(self.tiles) do
+        local letter = grid.cols[cr.col][cr.row]
+        assert (letter, 'invalid letter stored in strand')
+        table.insert(chars, letter)
+    end
+
+    return table.concat(chars, '')
 end
 
 
@@ -923,6 +952,7 @@ function StInGame.new()
         grid = grid,
         strand = Strand.new(),
         highlight = nil,
+        dfaState = wordDfa.states[DawgStart]
     }
 
     for col=1, 8 do
@@ -934,6 +964,7 @@ function StInGame.new()
 
     return setmetatable(state, StInGame)
 end
+
 
 ---
 ---@param mouse MouseState
@@ -965,11 +996,15 @@ function StInGame:handleClick(mouse)
 
             if allowed then
                 self.strand:addOrTrim(col, row)
+                
+                local word = self.strand:asString(self.grid)
+                self.dfaNode = wordDfa:matchPrefix(word, 1)
             else
                 -- sad.wav
             end
         else
             self.strand:clear()
+            self.dfaNode = wordDfa.states[DawgStart]
         end
     end
 end
@@ -997,7 +1032,9 @@ function StInGame:draw()
 
     self.grid:draw(self.highlight, self.strand)
 
-    DrawStatus(self.ndStatus, "dog", true)
+    local currentWord = self.strand:asString(self.grid)
+    DrawStatus(self.ndStatus, currentWord,
+        self.dfaNode and self.dfaNode.final or false)
     -- local n = self.ndStatus
     -- local sx, sy = n:pos()
     -- rect(sx, sy, n.wpx, n.hpx, 12)
