@@ -674,11 +674,26 @@ FIELD_H_px = LETTER_TILE_H_px * (FIELD_TILES_H + 1) --+ 1 for column offsets
 FIELD_RIGHT_BUFFER_px = 0
 FIELD_TOP_OFF_px = 4
 
+
+---a tile in the grid, stores the letter and also the (possibly fractional) column
+---for when the tile is smoothly falling down.
+---@class GridTile
+---@field letter string
+---@field row number
+GridTile = {}
+
+---@param letter string
+---@param row number
+function GridTile.new(letter, row)
+    assert(#letter == 1, "tried to make a tile with more than 1 letter")
+    return {letter = letter, row = row}
+end
+
 ---responsible for storing the letter tiles, getting the tile under a point,
 ---and drawing the letters
 ---@class LetterGrid
 ---@field node Node
----@field cols string[][]
+---@field cols GridTile[][]
 LetterGrid = {}
 LetterGrid.__index = LetterGrid
 
@@ -701,7 +716,9 @@ function LetterGrid:addTileToCol(letter, col)
     assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
     --letter = letter:sub(1, 1)
     local column = self.cols[col]
-    table.insert(column, letter)
+    local row = #column + 1
+
+    table.insert(column, GridTile.new(letter, row))
 end
 
 ---draw a given letter to a given place
@@ -712,9 +729,11 @@ end
 ---@param mode 'highlighted' | 'selected' | nil
 function LetterGrid:drawLetter(col, row, px, py, mode)
     assert(col > 0 and col <= FIELD_TILES_W, "column out of bounds")
-    local letter = self.cols[col][row]
-    if not letter then return end
+    local tile = self.cols[col][row]
+    if not tile then return end
+    local letter = tile.letter
     local sprite = LETTER_SPRITES[letter]
+    local offy = tile.row * LETTER_TILE_H_px
 
     if mode =='highlighted' then
         spr(TILE_HILITE_BACK, px, py, nil, 1, 0, 0, 2, 2)
@@ -937,9 +956,9 @@ end
 function Strand:asString(grid)
     local chars = {}
     for _, cr in ipairs(self.tiles) do
-        local letter = grid.cols[cr.col][cr.row]
-        assert (letter, 'invalid letter stored in strand')
-        table.insert(chars, letter)
+        local tile = grid.cols[cr.col][cr.row]
+        assert (tile.letter, 'invalid letter stored in strand')
+        table.insert(chars, tile.letter)
     end
 
     return table.concat(chars, '')
@@ -995,48 +1014,54 @@ function StInGame:handleClick(mouse)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
 
     if mouse.leftTrans == 'up' then
-        if self.highlight then
-            local col = self.highlight.col
-            local row = self.highlight.row
-            -- only add if last tile is a neighbor of highlight or the list
-            -- of selected tiles is empty
-            local lastTile = self.strand:lastTile()
-            local tileSubmitted =
-                lastTile and
-                self.highlight.col == lastTile.col and
-                self.highlight.row == lastTile.row and
-                self.strand:length() >= MIN_WORD_LEN
+        local highlightedTile =
+            self.highlight and
+            self.grid.cols[self.highlight.col][self.highlight.row]
+        
+        if not highlightedTile then
+            self.strand:clear()
+            self.dfaNode = wordDfa.states[DawgStart]
+            return
+        end
+        
+        local col = self.highlight.col
+        local row = self.highlight.row
+        -- only add if last tile is a neighbor of highlight or the list
+        -- of selected tiles is empty
+        local lastTile = self.strand:lastTile()
+        local tileSubmitted =
+            lastTile and
+            self.highlight.col == lastTile.col and
+            self.highlight.row == lastTile.row and
+            self.strand:length() >= MIN_WORD_LEN
 
-            if tileSubmitted then
-                self:submitWord()
-            else
-                local allowed = false
-                
-                if self.strand:tileSelected(col, row) then
-                    allowed = true
-                elseif lastTile then
-                    local neighbors = self.grid:neighbors(col, row)
-                    for _, neigh in ipairs(neighbors) do
-                        if neigh.row == lastTile.row and neigh.col == lastTile.col then
-                            allowed = true
-                        end
-                    end
-                else
-                    allowed = true
-                end
+        if tileSubmitted then
+            self:submitWord()
+            return
+        end
 
-                if allowed then
-                    self.strand:addOrTrim(col, row)
-                    
-                    local word = self.strand:asString(self.grid)
-                    self.dfaNode = wordDfa:matchPrefix(word, 1)
-                else
-                    -- sad.wav
+        local allowed = false
+    
+        if self.strand:tileSelected(col, row) then
+            allowed = true
+        elseif lastTile then
+            local neighbors = self.grid:neighbors(col, row)
+            for _, neigh in ipairs(neighbors) do
+                if neigh.row == lastTile.row and neigh.col == lastTile.col then
+                    allowed = true
                 end
             end
         else
-            self.strand:clear()
-            self.dfaNode = wordDfa.states[DawgStart]
+            allowed = true
+        end
+
+        if allowed then
+            self.strand:addOrTrim(col, row)
+            
+            local word = self.strand:asString(self.grid)
+            self.dfaNode = wordDfa:matchPrefix(word, 1)
+        else
+            -- sad.wav
         end
     end
 end
@@ -1051,6 +1076,31 @@ function StInGame:submitWord()
 
     self.score = self.score + score
     self.strand:clear()
+
+    self:startFalling()
+end
+
+---make it so that every gap has everything above it fall down
+function StInGame:startFalling()
+    for col=1, FIELD_TILES_W do
+        for row=1, FIELD_COL_HEIGHTS[col] do
+            local tile = self.grid.cols[col][row]
+            
+            -- every tile above, have its row offset set to + 1, so that
+            -- we know it's at least 1 row too high. it will be ticked down
+            -- every frame.
+            if not tile then
+                for above=row + 1, FIELD_COL_HEIGHTS[col] do
+                    local aboveTile = self.grid.cols[col][above]
+                    if aboveTile then
+                        aboveTile.row = aboveTile.row + 1
+                    end
+                    self.grid.cols[col][above - 1] = self.grid.cols[col][above]
+                end
+            end
+
+        end
+    end
 end
 
 ---
