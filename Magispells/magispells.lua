@@ -72,8 +72,10 @@ LETTER_FREQ = {
     a = .078, b = .020, c = .040, d = .038, e = .110, f = .014, g = .030,
     h = .023, i = .086, j = .0025,k = .0097,l = .053, m = .027, n = .072,
     o = .061, p = .028, q = .0019,r = .073, s = .087, t = .067, u = .033,
-    v = .010, w = .0091,x = .0027,y = .016, z = .0044,ex = .001
+    v = .010, w = .0091,x = .0027,y = .016, z = .0044, -- ex= .001
 }
+
+LETTER_FREQ['!'] = .001
 
 ---@type [string, number][]
 LetterDraw = {}
@@ -685,7 +687,7 @@ GridTile = {}
 ---@param letter string
 ---@param row number
 function GridTile.new(letter, row)
-    assert(#letter == 1, "tried to make a tile with more than 1 letter")
+    assert(#letter == 1, "tried to make a tile with more than 1 letter: " .. ToStr(letter))
     return {letter = letter, row = row}
 end
 
@@ -929,6 +931,28 @@ function Strand:addOrTrim(col, row)
     end
 end
 
+---unselect tiles until reaching col row
+---@param col integer
+---@param row integer
+function Strand:trimTo(col, row)
+    assert(self:tileSelected(col, row))
+    
+    while #self.tiles > 0 do
+        local last = self.tiles[#self.tiles]
+        self.selected[last.col][last.row] = nil
+        if last.col == col and last.row == row then break end
+        table.remove(self.tiles)
+    end
+end
+
+---add a tile to the strand
+---@param col integer
+---@param row integer
+function Strand:add(col, row)
+    table.insert(self.tiles, Cr(col, row))
+    self.selected[col][row] = #self.tiles
+end
+
 ---@return integer
 function Strand:length()
     return #self.tiles
@@ -1017,51 +1041,81 @@ function StInGame:handleClick(mouse)
         local highlightedTile =
             self.highlight and
             self.grid.cols[self.highlight.col][self.highlight.row]
-        
+
         if not highlightedTile then
             self.strand:clear()
             self.dfaNode = wordDfa.states[DawgStart]
             return
         end
-        
+
         local col = self.highlight.col
         local row = self.highlight.row
         -- only add if last tile is a neighbor of highlight or the list
         -- of selected tiles is empty
         local lastTile = self.strand:lastTile()
+
+        if self.strand:length() == 0 then
+            self.strand:add(col, row)
+            trace('len zero adding')
+            return
+        end
+
+        -- if the tile was previously selected, trim to it
+        if self.strand:tileSelected(col, row) and 
+            lastTile and lastTile.col ~= col and lastTile.row ~= row 
+        then
+            -- if there is only one tile selected and we just clicked it
+            if self.strand:length() == 1 then
+                self.strand:clear()
+                trace('len 1 clearing')
+                -- clear.wav
+                return
+            end
+
+            -- otherwise, trim
+            trace('trimming to ' .. ToStr(col) .. ',' .. ToStr(row))
+            self.strand:trimTo(col, row)
+            -- trim.wav
+            return
+        end
+
+        assert(lastTile)
+
+        local isNeighbor = false
+        trace('checking neighbors')
+
+        local neighbors = self.grid:neighbors(col, row)
+        for _, neigh in ipairs(neighbors) do
+            if neigh.row == lastTile.row and neigh.col == lastTile.col then
+                -- we can add it, so skip the next return
+                isNeighbor = true
+            end
+        end
+        
+        if not isNeighbor then
+            trace ('not a neighbor')
+            -- cant.wav
+            return
+        end
+
+        -- add.wav
+        self.strand:add(col, row)
+        trace('adding')
+        
+        local word = self.strand:asString(self.grid)
+        self.dfaNode = wordDfa:matchPrefix(word, 1)
+
         local tileSubmitted =
             lastTile and
+            self.dfaNode and self.dfaNode.final and
             self.highlight.col == lastTile.col and
             self.highlight.row == lastTile.row and
             self.strand:length() >= MIN_WORD_LEN
 
         if tileSubmitted then
+            trace('submitted')
             self:submitWord()
-            return
-        end
-
-        local allowed = false
-    
-        if self.strand:tileSelected(col, row) then
-            allowed = true
-        elseif lastTile then
-            local neighbors = self.grid:neighbors(col, row)
-            for _, neigh in ipairs(neighbors) do
-                if neigh.row == lastTile.row and neigh.col == lastTile.col then
-                    allowed = true
-                end
-            end
-        else
-            allowed = true
-        end
-
-        if allowed then
-            self.strand:addOrTrim(col, row)
-            
-            local word = self.strand:asString(self.grid)
-            self.dfaNode = wordDfa:matchPrefix(word, 1)
-        else
-            -- sad.wav
+            -- submit.wav
         end
     end
 end
@@ -1090,15 +1144,15 @@ function StInGame:startFalling()
             -- we know it's at least 1 row too high. it will be ticked down
             -- every frame.
             if not tile then
-                for above=row + 1, FIELD_COL_HEIGHTS[col] do
+                for above=row + 1, FIELD_TILES_PER_COL[col] do
                     local aboveTile = self.grid.cols[col][above]
                     if aboveTile then
                         aboveTile.row = aboveTile.row + 1
                     end
                     self.grid.cols[col][above - 1] = self.grid.cols[col][above]
                 end
+                self.grid.cols[col][FIELD_TILES_PER_COL[col]] = nil
             end
-
         end
     end
 end
@@ -1107,8 +1161,6 @@ end
 ---@param mouse MouseState
 function StInGame:tick(mouse)
     self:handleClick(mouse)
-
-
 end
 
 ---draw the status bar to the left
