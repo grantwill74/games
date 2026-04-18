@@ -939,8 +939,8 @@ function Strand:trimTo(col, row)
     
     while #self.tiles > 0 do
         local last = self.tiles[#self.tiles]
-        self.selected[last.col][last.row] = nil
         if last.col == col and last.row == row then break end
+        self.selected[last.col][last.row] = nil
         table.remove(self.tiles)
     end
 end
@@ -1037,87 +1037,82 @@ function StInGame:handleClick(mouse)
     local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
 
-    if mouse.leftTrans == 'up' then
-        local highlightedTile =
-            self.highlight and
-            self.grid.cols[self.highlight.col][self.highlight.row]
+    if mouse.leftTrans ~= 'up' then
+        return
+    end
 
-        if not highlightedTile then
-            self.strand:clear()
-            self.dfaNode = wordDfa.states[DawgStart]
-            return
-        end
+    local highlightedTile =
+        self.highlight and
+        self.grid.cols[self.highlight.col][self.highlight.row]
 
-        local col = self.highlight.col
-        local row = self.highlight.row
-        -- only add if last tile is a neighbor of highlight or the list
-        -- of selected tiles is empty
-        local lastTile = self.strand:lastTile()
+    if not highlightedTile then
+        self.strand:clear()
+        self.dfaNode = wordDfa.states[DawgStart]
+        return
+    end
 
-        if self.strand:length() == 0 then
-            self.strand:add(col, row)
-            trace('len zero adding')
-            return
-        end
+    local col = self.highlight.col
+    local row = self.highlight.row
+    -- only add if last tile is a neighbor of highlight or the list
+    -- of selected tiles is empty
+    local lastTile = self.strand:lastTile()
 
-        -- if the tile was previously selected, trim to it
-        if self.strand:tileSelected(col, row) and 
-            lastTile and lastTile.col ~= col and lastTile.row ~= row 
-        then
-            -- if there is only one tile selected and we just clicked it
-            if self.strand:length() == 1 then
-                self.strand:clear()
-                trace('len 1 clearing')
-                -- clear.wav
-                return
-            end
-
-            -- otherwise, trim
-            trace('trimming to ' .. ToStr(col) .. ',' .. ToStr(row))
-            self.strand:trimTo(col, row)
-            -- trim.wav
-            return
-        end
-
-        assert(lastTile)
-
-        local isNeighbor = false
-        trace('checking neighbors')
-
-        local neighbors = self.grid:neighbors(col, row)
-        for _, neigh in ipairs(neighbors) do
-            if neigh.row == lastTile.row and neigh.col == lastTile.col then
-                -- we can add it, so skip the next return
-                isNeighbor = true
-            end
-        end
-        
-        if not isNeighbor then
-            trace ('not a neighbor')
-            -- cant.wav
-            return
-        end
-
-        -- add.wav
+    if self.strand:length() == 0 then
         self.strand:add(col, row)
-        trace('adding')
-        
+        return
+    end
+
+    -- if the tile was previously selected, trim to it
+    if self.strand:tileSelected(col, row) then
+        -- if there is only one tile selected and we just clicked it
+        if self.strand:length() == 1 then
+            self.strand:clear()
+            -- clear.wav
+            return
+        end
+
+        -- we clicked the last tile of a long enough strand: submit.
         local word = self.strand:asString(self.grid)
-        self.dfaNode = wordDfa:matchPrefix(word, 1)
+        local dfaNode = wordDfa:matchPrefix(word, 1)
 
         local tileSubmitted =
             lastTile and
-            self.dfaNode and self.dfaNode.final and
+            dfaNode and dfaNode.final and
             self.highlight.col == lastTile.col and
             self.highlight.row == lastTile.row and
             self.strand:length() >= MIN_WORD_LEN
 
         if tileSubmitted then
-            trace('submitted')
             self:submitWord()
             -- submit.wav
+            return
+        end
+
+        -- otherwise, trim
+        self.strand:trimTo(col, row)
+        -- trim.wav
+        return
+    end
+
+    assert(lastTile)
+
+    local isNeighbor = false
+
+    local neighbors = self.grid:neighbors(col, row)
+    for _, neigh in ipairs(neighbors) do
+        if neigh.row == lastTile.row and neigh.col == lastTile.col then
+            -- we can add it, so skip the next return
+            isNeighbor = true
         end
     end
+    
+    if not isNeighbor then
+        -- cant.wav
+        return
+    end
+
+    -- add.wav
+    self.strand:add(col, row)
 end
 
 function StInGame:submitWord()
@@ -1138,20 +1133,18 @@ end
 function StInGame:startFalling()
     for col=1, FIELD_TILES_W do
         for row=1, FIELD_COL_HEIGHTS[col] do
-            local tile = self.grid.cols[col][row]
-            
             -- every tile above, have its row offset set to + 1, so that
             -- we know it's at least 1 row too high. it will be ticked down
             -- every frame.
-            if not tile then
-                for above=row + 1, FIELD_TILES_PER_COL[col] do
-                    local aboveTile = self.grid.cols[col][above]
-                    if aboveTile then
-                        aboveTile.row = aboveTile.row + 1
+            if not self.grid.cols[col][row] then 
+                for above=row + 1, FIELD_COL_HEIGHTS[col] do
+                    if self.grid.cols[col][above] then
+                        self.grid.cols[col][above - 1],
+                        self.grid.cols[col][above] =
+                            self.grid.cols[col][above],
+                            self.grid.cols[col][above - 1]
                     end
-                    self.grid.cols[col][above - 1] = self.grid.cols[col][above]
                 end
-                self.grid.cols[col][FIELD_TILES_PER_COL[col]] = nil
             end
         end
     end
@@ -1195,7 +1188,8 @@ function StInGame:draw()
     self.grid:draw(self.highlight, self.strand)
 
     local currentWord = self.strand:asString(self.grid)
-    local isAWord = self.dfaNode and self.dfaNode.final or false
+    local dfaNode = wordDfa:matchPrefix(currentWord, 1)
+    local isAWord = dfaNode and dfaNode.final or false
     DrawStatus(
         self.ndStatus,
         currentWord,
