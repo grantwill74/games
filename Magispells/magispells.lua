@@ -1136,13 +1136,12 @@ function StInGame:startFalling()
             -- every tile above, have its row offset set to + 1, so that
             -- we know it's at least 1 row too high. it will be ticked down
             -- every frame.
-            if not self.grid.cols[col][row] then 
-                for above=row + 1, FIELD_COL_HEIGHTS[col] do
+            if not self.grid.cols[col][row] then
+                for above=row+1, FIELD_COL_HEIGHTS[col] do
                     if self.grid.cols[col][above] then
-                        self.grid.cols[col][above - 1],
-                        self.grid.cols[col][above] =
-                            self.grid.cols[col][above],
-                            self.grid.cols[col][above - 1]
+                        self.grid.cols[col][row] = self.grid.cols[col][above]
+                        self.grid.cols[col][above] = nil
+                        break
                     end
                 end
             end
