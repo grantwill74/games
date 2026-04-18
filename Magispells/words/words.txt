@@ -6159,7 +6159,6 @@ beweep
 beweeps
 bewept
 bewet
-bewhore
 bewig
 bewigged
 bewigs
@@ -63309,10 +63308,6 @@ slushier
 slushing
 slushy
 slusing
-slut
-sluts
-sluttery
-sluttish
 sly
 slyboots
 slyer
@@ -78389,13 +78384,6 @@ whopper
 whoppers
 whopping
 whops
-whore
-whored
-whoredom
-whores
-whoreson
-whoring
-whorish
 whorl
 whorled
 whorls
@@ -78487,7 +78475,6 @@ wigans
 wigeon
 wigeons
 wigged
-wiggery
 wigging
 wiggings
 wiggle

@@ -1,5 +1,4 @@
 import sys 
-import base64
 import typing
 
 # generate a DAWG, a directed acyclic word graph, to compress the wordlist.
@@ -18,12 +17,12 @@ import typing
 state_count = 0
 
 class State:
-    children: list[tuple[str, State]]
+    children: list[tuple[str, 'State']]
     freq: int # number of inbound transitions
     id: int 
     final: bool 
 
-    def __init__(self: State) -> None:
+    def __init__(self: 'State') -> None:
         global state_count
 
         self.children = list()
@@ -33,13 +32,13 @@ class State:
 
         state_count += 1
 
-    def has_children(self: State) -> bool:
+    def has_children(self: 'State') -> bool:
         return len(self.children) > 0
     
     #def add_child(self: State, letter: str, val: State):
     #    ind = bisect.insort_left(self.children, (letter, val), key=(lambda k: k[0]))
     
-    def last_child(self: State) -> tuple[str, State]:
+    def last_child(self: 'State') -> tuple[str, 'State']:
         assert len(self.children) > 0
         return self.children[-1]
     
@@ -53,10 +52,10 @@ class State:
 
         return hash(frozenset(hashes))
 
-    def __eq__(self: State, other: object) -> bool:
+    def __eq__(self: 'State', other: object) -> bool:
         return self.equiv(typing.cast(State, other))
     
-    def equiv(self: State, other: State) -> bool:
+    def equiv(self: 'State', other: 'State') -> bool:
         if len(self.children) != len(other.children): return False
         if self.final != other.final: return False
         
@@ -67,7 +66,7 @@ class State:
         return True  
 
 
-    def add_suffix(self: State, suffix: str) -> None:
+    def add_suffix(self: 'State', suffix: str) -> None:
         if suffix == "":
             self.final = True 
             return
@@ -78,7 +77,7 @@ class State:
         self.children.append((trans_char, st))
         st.add_suffix(suffix[1:])
 
-    def common_prefix_and_last_state(self: State, word: str) -> tuple[str, State]:
+    def common_prefix_and_last_state(self: 'State', word: str) -> tuple[str, 'State']:
         if word == "": return ("", self) 
 
         next_char = word[0]
@@ -92,7 +91,7 @@ class State:
 
         return (next_char + remaining_prefix, last_state)
 
-    def dfs(self: State, visited: set[State] = set()) -> set[State]:
+    def dfs(self: 'State', visited: set['State'] = set()) -> set['State']:
         visited.add(self)
         
         for _, other in self.children:
@@ -181,6 +180,7 @@ for state in states:
     #print(state.serialize())
 print(''.join(map(lambda s: s + ';', serialized)))
 print('start = ', start.id)
+print('in lua:', start.id + 1)
 
 def find_in_children(children: list[tuple[str, State]], which: str) -> State | None:
     res = [child for child in children if child[0] == which]
