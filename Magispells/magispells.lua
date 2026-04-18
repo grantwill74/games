@@ -77,7 +77,7 @@ LETTER_FREQ = {
     v = .010, w = .0091,x = .0027,y = .016, z = .0044, -- ex= .001
 }
 
-LETTER_FREQ['!'] = .001
+LETTER_FREQ['!'] = .01
 
 ---@type [string, number][]
 LetterDraw = {}
@@ -1066,6 +1066,10 @@ function StInGame:handleClick(mouse)
         return
     end
 
+    local word = self.strand:asString(self.grid)
+    local exclamation = word:sub(#word, #word) == '!'
+    if exclamation then word = word:sub(1, #word - 1) end
+
     -- if the tile was previously selected, trim to it
     if self.strand:tileSelected(col, row) then
         -- if there is only one tile selected and we just clicked it
@@ -1076,7 +1080,6 @@ function StInGame:handleClick(mouse)
         end
 
         -- we clicked the last tile of a long enough strand: submit.
-        local word = self.strand:asString(self.grid)
         local dfaNode = wordDfa:matchPrefix(word, 1)
 
         local tileSubmitted =
@@ -1112,6 +1115,11 @@ function StInGame:handleClick(mouse)
     
     if not isNeighbor then
         -- cant.wav
+        return
+    end
+
+    if exclamation then
+        -- exclamation point must end the word
         return
     end
 
@@ -1199,8 +1207,10 @@ function DrawStatus(node, letters, isWord, wordScore)
     local x, y = node:pos()
     local color = isWord and PALETTE.WHITE or PALETTE.LT_GRAY
     print(letters, x, y, color)
+    local score = ToStr(wordScore)
+    if letters:sub(-1) == '!' and score ~= nil then score = score .. '!' end
     if wordScore then
-        print(ToStr(wordScore), x, y + 8, PALETTE.YELLOW)
+        print(score, x, y + 8, PALETTE.YELLOW)
     end
 end
 
@@ -1224,13 +1234,16 @@ function StInGame:draw()
     self.grid:draw(self.highlight, self.strand)
 
     local currentWord = self.strand:asString(self.grid)
-    local dfaNode = wordDfa:matchPrefix(currentWord, 1)
+    local exclamation = currentWord:sub(-1) == '!'
+    local lookupWord =
+        exclamation and currentWord:sub(1, -2) or currentWord
+    local dfaNode = wordDfa:matchPrefix(lookupWord, 1)
     local isAWord = dfaNode and dfaNode.final or false
     DrawStatus(
         self.ndStatus,
         currentWord,
         isAWord,
-        isAWord and WordScore(currentWord) or nil
+        WordScore(currentWord)
     )
 end
 
