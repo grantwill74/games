@@ -648,7 +648,9 @@ end
 ---@field highlight Cr | nil
 ---@field strand Strand
 ---@field dfaState DfaState
----@field score integer
+---@field xp integer
+---@field level integer
+---@field nextLevelTarget integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -997,6 +999,13 @@ function Strand:lastTile()
     return self.tiles[#self.tiles]
 end
 
+---compute what the score needs to be for the level
+---@param lvl integer
+function TotalXpForLevel(lvl)
+    assert(lvl > 0)
+
+    return (lvl - 1) * lvl * 1000
+end
 
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
@@ -1021,7 +1030,9 @@ function StInGame.new()
         strand = Strand.new(),
         highlight = nil,
         dfaState = wordDfa.states[DawgStart],
-        score = 0
+        xp = 0,
+        level = 1,
+        nextLevelTarget = TotalXpForLevel(2)
     }
 
     for col=1, 8 do
@@ -1135,11 +1146,21 @@ function StInGame:submitWord()
         self.grid.cols[cr.col][cr.row] = nil
     end
 
-    self.score = self.score + score
+    self.xp = self.xp + score
     self.strand:clear()
+    self.nextLevelTarget = self.nextLevelTarget - score
+
+    if self.nextLevelTarget < 0 then
+        self:levelUp()
+    end
 
     self:startFalling()
     self:spawnTiles()
+end
+
+function StInGame:levelUp()
+    self.level = self.level + 1
+    self.nextLevelTarget = TotalXpForLevel(self.level + 1)
 end
 
 ---make it so that every gap has everything above it fall down
@@ -1203,7 +1224,10 @@ end
 ---@param letters string
 ---@param isWord boolean
 ---@param wordScore integer | nil
-function DrawStatus(node, letters, isWord, wordScore)
+---@param xp integer
+---@param level integer
+---@param next integer 
+function DrawStatus(node, letters, isWord, wordScore, xp, level, next)
     local x, y = node:pos()
     local color = isWord and PALETTE.WHITE or PALETTE.LT_GRAY
     print(letters, x, y, color)
@@ -1212,6 +1236,10 @@ function DrawStatus(node, letters, isWord, wordScore)
     if wordScore then
         print(score, x, y + 8, PALETTE.YELLOW)
     end
+
+    print("Xp: " .. ToStr(xp), x, y + 16, PALETTE.WHITE)
+    print("Level: " .. ToStr(level), x, y + 24, PALETTE.WHITE)
+    print("Target: " .. ToStr(next), x, y + 32, PALETTE.WHITE)
 end
 
 ---
@@ -1243,7 +1271,10 @@ function StInGame:draw()
         self.ndStatus,
         currentWord,
         isAWord,
-        WordScore(currentWord)
+        WordScore(currentWord),
+        self.xp,
+        self.level,
+        self.nextLevelTarget
     )
 end
 
@@ -1348,8 +1379,8 @@ end
 -- 179:c11c1cccc11c1cccc11c1cccc11c1ccc111c1ccc1111cccccccccccccccccccc
 -- 180:cc111c11c1c11c11ccc11c1cccc11c1cccc11c1ccc111111cccccccccccccccc
 -- 181:111ccccc1111ccccc1111ccccc1111ccccc111ccccc111cccccccccccccccccc
--- 182:ccc111ccccc111c1ccc11111ccc11111ccc11111c111111ccccccccccccccccc
--- 183:cccccccc1111c1cc111111cc111111cccc1111ccccc111cccccccccccccccccc
+-- 182:ccc111ccccc111ccccc111c1ccc11111ccc11111c111111ccccccccccccccccc
+-- 183:ccccccccccccc1cc1111c1cc111111cc111111ccccc111cccccccccccccccccc
 -- 184:cc11c1cccc11c1cccc11c1cccc11c1cccc11c1ccc11111ccc1cccccccccccccc
 -- 185:11c111cc11c111cc11c111cc11c111cc11c1111cc1cc11cccccccccccccccccc
 -- 186:cc11c1c1cc11c1c1cc11c1cccc11c1cccc11c1ccc11111cccccccccccccccccc
@@ -1363,7 +1394,7 @@ end
 -- 194:cccccccccc11cc11c1cc1111ccc11c11ccc11c1cccc11c1cccc11c1cccc11c1c
 -- 195:cccccccc111ccccc1111cccc11111cccccc11cccccc11ccccc11ccccc11ccccc
 -- 196:ccccccccccccc111ccc11111cc111111cc111ccccc111ccccc111111ccc11111
--- 197:cccccccc111ccccc11c1cccc11111cccccc11ccccccc1ccc111ccccc11c1cccc
+-- 197:cccccccc111ccccc11c1cccc11111ccccccccccccccccccc111ccccc11c1cccc
 -- 198:cccccccccc1ccccccc111111ccc11111cc111111cccc111ccccc11c1ccc11c1c
 -- 199:cccccccccccccccc11111ccc11111cccc1111ccc1ccc1ccccccc1ccccccccccc
 -- 200:cccccccccc1111ccc1ccc11ccc11c11cc1c1c11cccc1c11cccc1c11cccc1c11c
@@ -1390,10 +1421,10 @@ end
 -- 221:1cc1c11c1cc1c11c1cc1c11c1cc1c11c1ccc111c111111ccc1111ccccccccccc
 -- 222:cccccc1ccccccc11ccccc1cccccc1cccccc11ccccc11111ccc11111ccccccccc
 -- 223:11ccccccc11ccccc1c11ccccc1c11cccc1c11ccc1cc111cc111111cccccccccc
--- 224:ccccccccccccccccc11111cccc1c11cccc1c11ccccc1c11ccccc1c11ccccc1c1
+-- 224:ccccccccccccccccc11111cccc1111cccc1111ccccc1111ccccc1111ccccc111
 -- 225:cccccccccccccccc111111ccc1111ccccc11ccccc11ccccc11cccccc1ccccccc
 -- 226:cccccccccccccccccc111111cc111111cc11cccccc1cccccccccccccccccc1c1
--- 227:cccccccccccccccc11111ccc11111ccccc1c1cccc1c1cccc1c1cccccc1cccccc
+-- 227:cccccccccccccccc11111ccc111c1ccccc1c1cccc111cccc1c1cccccc1cccccc
 -- 228:ccccccccccccccc1cccccc11ccccc111ccccc111cccccc11cccccc11cccccc11
 -- 229:cccccccc1cccccccc1ccccccc11cccccc11cccccc1ccccccc1ccccccc1cccccc
 -- 234:0ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -1402,10 +1433,10 @@ end
 -- 237:c4c4c4004c4c4c40c4c4c4c34c4c4c43c4c4c4c34c4c4c43c4c4c4c34c4c4c43
 -- 238:0444444444444444444444444444444444444444444444444444444444444444
 -- 239:4444440044444440444444434444444344444443444444434444444344444443
--- 240:cccccc1cccccccc1cccccccccc1111ccccc111cccccc1111ccccc111cccccccc
--- 241:11ccccccc11ccccc1c11ccccc1c1cccc1c1cccccc1cccccc1ccccccccccccccc
--- 242:cccccc1cccccc1c1cccc1c1cccc1c1cccc111111cc111111cc111111cccccccc
--- 243:1ccccccccccccccc1ccccccccccc1ccc11111ccc11111ccc11111ccccccccccc
+-- 240:cccccc11ccccccc1cccccccccc11111cccc111cccccc111cccccc111cccccccc
+-- 241:11cccccc111ccccc1111ccccc1c1cccc1c1cccccc1cccccc1ccccccccccccccc
+-- 242:cccccc1cccccc1c1cccc1c1cccc111cccc111111cc111111cc111111cccccccc
+-- 243:1ccccccccccccccc1ccccccccccc1ccc11111ccc111c1ccc11111ccccccccccc
 -- 244:ccccccc1ccccccc1ccccccc1ccccccccccccccc1cccccc11ccccccc1cccccccc
 -- 245:1ccccccc1ccccccc1ccccccccccccccc1ccccccc11cccccc1ccccccccccccccc
 -- 250:cccccccccccccccccccccccccccccccccccccccccccccccc0ccccccc03333333
