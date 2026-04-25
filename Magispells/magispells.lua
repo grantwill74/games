@@ -957,38 +957,6 @@ function Strand.new()
     return setmetatable(strand, Strand)
 end
 
----@alias AddOrTrimResult 'added' | 'cleared' | 'trimmed' | 'tooLong'
----Add a letter unless it's already in the strand, then trim backwards to that
----letter.
----@param col integer
----@param row integer
----@returns AddOrTrimResult
-function Strand:addOrTrim(col, row)
-    if self:tileSelected(col, row) then
-        assert(#self.tiles > 0)
-        -- if there's only one tile selected, de-select it
-        if #self.tiles == 1 then
-            self:clear()
-            return 'cleared'
-        else
-        -- if there are many tiles selected, clear everything after the selected one
-            local index = self.selected[col][row]
-            while #self.tiles > index do
-                local last = self.tiles[#self.tiles]
-                self.selected[last.col][last.row] = nil
-                table.remove(self.tiles)
-            end
-
-            return 'trimmed'
-        end
-    elseif self:length() < MAX_WORD_LEN then
-        table.insert(self.tiles, Cr(col, row))
-        self.selected[col][row] = #self.tiles
-        return 'added'
-    else
-        return 'tooLong'
-    end
-end
 
 ---unselect tiles until reaching col row
 ---@param col integer
