@@ -92,6 +92,15 @@ LETTER_FREQ = {
 
 LETTER_FREQ['!'] = .01
 
+---@type table<string, boolean>
+VOWEL = {
+    a = true,
+    e = true,
+    i = true,
+    o = true,
+    u = true,
+}
+
 ---@type [string, number][]
 LetterDraw = {}
 for letter, freq in pairs(LETTER_FREQ) do
