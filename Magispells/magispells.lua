@@ -987,6 +987,9 @@ function LetterGrid:bestWordStartingAt(col, row)
             end
 
             local neighTile = self.cols[neigh.col][neigh.row]
+
+            if not neighTile then goto ignore_neighbor end
+
             local neighDfaNodeId = node.tx[neighTile.letter]
 
             if not neighDfaNodeId then goto ignore_neighbor end
@@ -995,11 +998,12 @@ function LetterGrid:bestWordStartingAt(col, row)
             local neighElems = {}
             local neighCrs = {}
             for i = 1, #elems do
-                neighElems[i] = elems[1]
+                neighElems[i] = elems[i]
                 neighCrs[i] = crs[i]
             end
             table.insert(neighElems, neighTile.elem)
-
+            table.insert(neighCrs, searchCr)
+            
             ---@type SearchState
             local neighState = {
                 neighDfaNode,
@@ -1103,6 +1107,16 @@ function LetterGrid:selectRandomChargedTile()
     local charged = self:chargedTiles()
     if #charged == 0 then return nil end
     local i = math.random(#charged)
+    return charged[i]
+end
+
+---turn the given array of tiles frozen
+---@param crs Cr[]
+---@return nil
+function LetterGrid:freeze(crs)
+    for _, cr in ipairs(crs) do
+        self.cols[cr.col][cr.row].elem = 'frozen'
+    end
 end
 
 
@@ -1332,6 +1346,7 @@ function StInGame:handleClick(mouse)
     self.strand:add(col, row)
 end
 
+
 function StInGame:submitWord()
     local letters, elems = self.strand:asStringAndElements(self.grid)
     local score = WordScore(letters, elems)
@@ -1340,19 +1355,25 @@ function StInGame:submitWord()
         self.grid.cols[cr.col][cr.row] = nil
     end
 
+    local chargedCr = self.grid:selectRandomChargedTile()
+    if chargedCr then
+        local bestWord, bestElems, bestCrs, bestScore =
+            self.grid:bestWordStartingAt(chargedCr.col, chargedCr.row)
+        
+        if bestScore > score then
+            -- freeze tiles
+            self.grid:freeze(bestCrs)
+        else
+            -- good job!
+        end
+    end
+
     self.xp = self.xp + score
     self.strand:clear()
     self.nextLevelTarget = self.nextLevelTarget - score
 
     if self.nextLevelTarget < 0 then
         self:levelUp()
-    end
-
-    local chargedCr = self.grid:selectRandomChargedTile()
-    if chargedCr then
-        local wordsAtCr = {}
-        self.grid:allWordsAt(chargedCr.col, chargedCr.row, wordsAtCr)
-
     end
 
     self:startFalling()
