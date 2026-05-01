@@ -1487,6 +1487,8 @@ function WordScore(letters, elements)
         local letterScore = LETTER_SCORE[letters:sub(i, i)]
         if elements[i] == 'charged' then
             letterScore = letterScore * CHARGE_SCORE_MULT
+        elseif elements[i] == 'frozen' then
+            letterScore = 0
         end
         score = score + letterScore
     end
