@@ -1535,6 +1535,9 @@ function BOOT()
     cls(0)
     appState = StLoading.new()
     Mouse = MouseState.new()
+
+    sync(16, 1)
+    music(0, 0, 0, true)
 end
 
 function TIC()
