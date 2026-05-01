@@ -19,6 +19,8 @@ TILE_H_px = 8
 MAX_WORD_LEN = 8
 MIN_WORD_LEN = 3
 
+IDEAL_VOWEL_PROP = 0.2
+
 ---@type integer
 SCREEN_W_tiles = SCREEN_W_px / TILE_W_px
 ---@type integer
@@ -90,6 +92,37 @@ LETTER_FREQ = {
     v = .010, w = .0091,x = .0027,y = .016, z = .0044, -- ex= .001
 }
 
+VOWEL_SPAWN_RATE = {
+    a = .2,
+    e = .2,
+    i = .2,
+    o = .2,
+    u = .2,
+}
+
+CONSONANT_SPAWN_RATE = {
+    b = .033,
+    c = .063,
+    d = .061,
+    f = .023,
+    g = .048,
+    h = .037,
+    j = .005,
+    k = .016,
+    l = .084,
+    m = .044,
+    n = .114,
+    p = .045,
+    q = .004,
+    r = .116,
+    s = .138,
+    t = .106,
+    v = .017,
+    w = .015,
+    x = .005,
+    y = .026,
+}
+
 LETTER_FREQ['!'] = .01
 
 ---@type table<string, boolean>
@@ -103,9 +136,21 @@ VOWEL = {
 
 ---@type [string, number][]
 LetterDraw = {}
+---@type [string, number][]
+VowelDraw = {}
+---@type [string, number][]
+ConsonantDraw = {}
+
 for letter, freq in pairs(LETTER_FREQ) do
     table.insert(LetterDraw, {letter, freq})
 end
+for letter, freq in pairs(VOWEL_SPAWN_RATE) do
+    table.insert(VowelDraw, {letter, freq})
+end
+for letter, freq in pairs(CONSONANT_SPAWN_RATE) do
+    table.insert(ConsonantDraw, {letter, freq})
+end
+
 
 LETTER_SCORE = {
     a = 1, b = 4, c = 2, d = 3, e = 1, f = 4, g = 3, h = 4, i = 1,
@@ -199,22 +244,27 @@ function DrawElement()
 end
 
 ---Generate a letter according to the table of frequencies. Shuffles the
----array of frequencies to mitigate the error 
+---array of frequencies to mitigate the error
+---@param pVowels number proportion of vowels
 ---@return string, TileElem
-function DrawLetter()
-    Shuffle(LetterDraw)
-    local r = math.random()
-    local sum = 0
-    local letter = LetterDraw[1][1]
+function DrawLetter(pVowels)
+    local vowelChance = (pVowels ~= 0) and (IDEAL_VOWEL_PROP / pVowels) or 1
+    local isVowel = math.random() <= vowelChance
+    local whereFrom = isVowel and VowelDraw or ConsonantDraw
 
-    for _, l_f in ipairs(LetterDraw) do
+    Shuffle(whereFrom)
+
+    local sum = 0
+    local r = math.random()
+    local letter
+    for _, l_f in ipairs(whereFrom) do
         local freq
         letter, freq = l_f[1], l_f[2]
         sum = sum + freq
         if r <= sum then break end
     end
 
-    local letter = LetterDraw[#LetterDraw][1]
+    local letter = letter or LetterDraw[#LetterDraw][1]
     local elem = DrawElement()
 
     --- exclamation points are never charged
@@ -692,6 +742,8 @@ end
 ---@field xp integer
 ---@field level integer
 ---@field nextLevelTarget integer
+---@field nVowels integer
+---@field nTiles integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -1249,12 +1301,17 @@ function StInGame.new()
         dfaState = wordDfa.states[DawgStart],
         xp = 0,
         level = 1,
-        nextLevelTarget = TotalXpForLevel(2)
+        nextLevelTarget = TotalXpForLevel(2),
+        nVowels = 0,
+        nTiles = 0,
     }
 
     for col=1, 8 do
         for row=1, FIELD_TILES_PER_COL[col] do
-            local letter, element = DrawLetter()
+            local letter, element =
+                DrawLetter(state.nVowels / (state.nTiles or 1))
+            state.nTiles = state.nTiles + 1
+            state.nVowels = state.nVowels + (VOWEL[letter] and 1 or 0)
             grid:addTileToCol(letter, col, element)
         end
     end
@@ -1360,6 +1417,11 @@ function StInGame:submitWord()
     local letters, elems = self.strand:asStringAndElements(self.grid)
     local score = WordScore(letters, elems)
 
+    for i=1, #letters do
+        if VOWEL[letters:sub(i, i)] then self.nVowels = self.nVowels - 1 end
+        self.nTiles = self.nTiles - 1
+    end
+
     for _, cr in ipairs(self.strand.tiles) do
         self.grid.cols[cr.col][cr.row] = nil
     end
@@ -1435,7 +1497,9 @@ function StInGame:spawnTiles()
         local height = FIELD_TILES_PER_COL[col]
         for row=1, height do
             if not self.grid.cols[col][row] then
-                local letter, elem = DrawLetter()
+                local letter, elem = DrawLetter(self.nVowels / (self.nTiles or 1))
+                if VOWEL[letter] then self.nVowels = self.nVowels + 1 end
+                self.nTiles = self.nTiles + 1
                 local rowOff = FIELD_TILES_H
                 self.grid.cols[col][row] = GridTile.new(letter, rowOff, elem)
             end
