@@ -742,8 +742,6 @@ end
 ---@field xp integer
 ---@field level integer
 ---@field nextLevelTarget integer
----@field nVowels integer
----@field nTiles integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -797,6 +795,8 @@ end
 ---@class LetterGrid
 ---@field node Node
 ---@field cols GridTile[][]
+---@field nVowels integer
+---@field nTiles integer
 LetterGrid = {}
 LetterGrid.__index = LetterGrid
 
@@ -809,7 +809,14 @@ function LetterGrid.new(node)
         table.insert(grid, {})
     end
 
-    return setmetatable({cols = grid, node = node}, LetterGrid)
+    local val = {
+        cols = grid,
+        node = node,
+        nVowels = 0,
+        nTiles = 0,
+    }
+
+    return setmetatable(val, LetterGrid)
 end
 
 ---add a tile to the top of the given column
@@ -1180,6 +1187,74 @@ function LetterGrid:freeze(crs)
     end
 end
 
+---find the best word, or nil if there are no words on the board
+---returns the word, its tiles, and score if it exists.
+---otherwise "", {}, {}, 0
+---@return string, TileElem[], Cr[], integer
+function LetterGrid:bestWord()
+    local bestWord = ""
+    local bestElems = {}
+    local bestCrs = {}
+    local bestScore = 0
+
+    for col=1, FIELD_TILES_W do
+        for row=1, FIELD_TILES_PER_COL[col] do
+            local word, elems, crs, score = self:bestWordStartingAt(col, row)
+            if score > bestScore then
+                bestWord, bestElems, bestCrs, bestScore =
+                    word, elems, crs, score
+            end
+        end
+    end
+
+    return bestWord, bestElems, bestCrs, bestScore
+end
+
+---the amount of extra displacement to give to a tile based on how many it is 
+---being spawned over. used to stagger the falling speed.
+SPAWN_EXTRA_ROW_DISP_PER_HEIGHT_TILES = 1
+
+---maximum amount of a random row offset to spawning tiles 
+SPAWN_RANDOM_ROW_OFFSET_MAG = 0.5
+
+function LetterGrid:spawnTiles()
+    for col=1, FIELD_TILES_W do
+        local height = FIELD_TILES_PER_COL[col]
+        local tilesBelow = 0
+        for row=1, height do
+            if not self.cols[col][row] then
+                local letter, elem = DrawLetter(self.nVowels / (self.nTiles or 1))
+                if VOWEL[letter] then self.nVowels = self.nVowels + 1 end
+                self.nTiles = self.nTiles + 1
+                local rowOff = FIELD_TILES_H +
+                    SPAWN_EXTRA_ROW_DISP_PER_HEIGHT_TILES * tilesBelow +
+                    math.random() * SPAWN_RANDOM_ROW_OFFSET_MAG
+                self.cols[col][row] = GridTile.new(letter, rowOff, elem)
+                tilesBelow = tilesBelow + 1
+            end
+        end
+    end
+end
+
+function LetterGrid:clearAllTiles()
+    for col=1, FIELD_TILES_W do
+        for row=1, FIELD_TILES_PER_COL[col] do
+            self.cols[col][row] = nil
+        end
+    end
+end
+
+---replace a tile with nil and update statistics 
+---@param col integer
+---@param row integer
+function LetterGrid:deleteTile(col, row)
+    local tile = self.cols[col][row]
+    if not tile then return end
+    if VOWEL[tile.letter] then self.nVowels = self.nVowels - 1 end
+    self.nTiles = self.nTiles - 1
+    self.cols[col][row] = nil
+end
+
 
 ---A list of selected tiles
 ---@class Strand
@@ -1302,21 +1377,13 @@ function StInGame.new()
         xp = 0,
         level = 1,
         nextLevelTarget = TotalXpForLevel(2),
-        nVowels = 0,
-        nTiles = 0,
     }
 
-    for col=1, 8 do
-        for row=1, FIELD_TILES_PER_COL[col] do
-            local letter, element =
-                DrawLetter(state.nVowels / (state.nTiles or 1))
-            state.nTiles = state.nTiles + 1
-            state.nVowels = state.nVowels + (VOWEL[letter] and 1 or 0)
-            grid:addTileToCol(letter, col, element)
-        end
-    end
+    setmetatable(state, StInGame)
 
-    return setmetatable(state, StInGame)
+    state.grid:spawnTiles()
+    
+    return state
 end
 
 
@@ -1417,13 +1484,9 @@ function StInGame:submitWord()
     local letters, elems = self.strand:asStringAndElements(self.grid)
     local score = WordScore(letters, elems)
 
-    for i=1, #letters do
-        if VOWEL[letters:sub(i, i)] then self.nVowels = self.nVowels - 1 end
-        self.nTiles = self.nTiles - 1
-    end
-
     for _, cr in ipairs(self.strand.tiles) do
-        self.grid.cols[cr.col][cr.row] = nil
+        self.grid:deleteTile(cr.col, cr.row)
+        --self.grid.cols[cr.col][cr.row] = nil
     end
 
     local chargedCr = self.grid:selectRandomChargedTile()
@@ -1448,7 +1511,7 @@ function StInGame:submitWord()
     end
 
     self:startFalling()
-    self:spawnTiles()
+    self.grid:spawnTiles()
 end
 
 function StInGame:levelUp()
@@ -1492,20 +1555,6 @@ function StInGame:fallTick()
     end
 end
 
-function StInGame:spawnTiles()
-    for col=1, FIELD_TILES_W do
-        local height = FIELD_TILES_PER_COL[col]
-        for row=1, height do
-            if not self.grid.cols[col][row] then
-                local letter, elem = DrawLetter(self.nVowels / (self.nTiles or 1))
-                if VOWEL[letter] then self.nVowels = self.nVowels + 1 end
-                self.nTiles = self.nTiles + 1
-                local rowOff = FIELD_TILES_H
-                self.grid.cols[col][row] = GridTile.new(letter, rowOff, elem)
-            end
-        end
-    end
-end
 
 ---
 ---@param mouse MouseState
@@ -1521,7 +1570,7 @@ end
 ---@param wordScore integer | nil
 ---@param xp integer
 ---@param level integer
----@param next integer 
+---@param next integer
 function DrawStatus(node, letters, isWord, isCharged, wordScore, xp, level, next)
     local x, y = node:pos()
     local score = ToStr(wordScore)
