@@ -742,6 +742,7 @@ end
 ---@field xp integer
 ---@field level integer
 ---@field nextLevelTarget integer
+---@field subState StInGame_SubState
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -1178,6 +1179,15 @@ function LetterGrid:selectRandomChargedTile()
     return charged[i]
 end
 
+---@return GridTile | nil, Cr
+function LetterGrid:selectRandomTile()
+    local col = math.random(1, FIELD_TILES_W)
+    local row = math.random(1, FIELD_TILES_PER_COL[col])
+    local tile = self.cols[col][row]
+    assert(tile, "somehow: cr " .. ToStr(col) .. "," .. ToStr(row) .. "isn't there")
+    return tile, Cr(col, row)
+end
+
 ---turn the given array of tiles frozen
 ---@param crs Cr[]
 ---@return nil
@@ -1390,6 +1400,13 @@ end
 ---
 ---@param mouse MouseState
 function StInGame:handleClick(mouse)
+    if self.subState and self.subState.id == 'level up' then
+        self.subState = nil
+        -- play a sound?
+        return
+    end
+
+
     local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
 
@@ -1489,8 +1506,9 @@ function StInGame:submitWord()
         --self.grid.cols[cr.col][cr.row] = nil
     end
 
-    local chargedCr = self.grid:selectRandomChargedTile()
-    if chargedCr then
+    local startTile, chargedCr = self.grid:selectRandomTile()
+    assert(startTile) -- let's check vv
+    if startTile then -- I can't think of when startTile would be nil
         local bestWord, bestElems, bestCrs, bestScore =
             self.grid:bestWordStartingAt(chargedCr.col, chargedCr.row)
         
@@ -1515,6 +1533,15 @@ function StInGame:submitWord()
 end
 
 function StInGame:levelUp()
+    self.subState = StInGame_LevelUp.new {
+        manaGained = self.xp - TotalXpForLevel(self.level),
+        newManaTarget = TotalXpForLevel(self.level + 1),
+        ticksTaken = 0, --TODO add
+        wordsSubmitted = 0, -- TODO add
+        bestWord = "blort", -- TODO add
+        bestWordScore = 1234, -- TODO add
+    }
+
     self.level = self.level + 1
     self.nextLevelTarget = TotalXpForLevel(self.level + 1)
 end
@@ -1562,6 +1589,41 @@ function StInGame:tick(mouse)
     self:handleClick(mouse)
     self:fallTick()
 end
+
+---@class StInGame_LevelUp
+---@field id string
+---@field manaGained integer
+---@field newManaTarget integer
+---@field ticksTaken integer
+---@field wordsSubmitted integer
+---@field bestWord integer
+---@field bestWordScore integer
+StInGame_LevelUp = {}
+
+
+---@alias StInGame_SubState nil|StInGame_LevelUp
+
+---comment
+---@param table {
+--- manaGained:integer, newManaTarget:integer,
+--- ticksTaken:integer, wordsSubmitted:integer,
+--- bestWord:integer, bestWordScore:integer,
+--- [any]:any,
+---}
+---@return any
+function StInGame_LevelUp.new(table)
+    table.id = 'level up'
+    return setmetatable(table, {__index = StInGame_LevelUp})
+end
+
+---@param node Node
+function StInGame_LevelUp:draw(node)
+    local x, y = node:pos()
+    print("Level Up!", x, y, PALETTE.WHITE)
+
+    print("Click/tap anywhere to continue!", x, y + 32, PALETTE.WHITE)
+end
+
 
 ---draw the status bar to the left
 ---@param node Node
@@ -1614,8 +1676,6 @@ function StInGame:draw()
 
     cls(0)
 
-    self.grid:draw(self.highlight, self.strand)
-
     local currentWord, currentElems = self.strand:asStringAndElements(self.grid)
     local exclamation = currentWord:sub(-1) == '!'
     local lookupWord =
@@ -1638,6 +1698,17 @@ function StInGame:draw()
         self.level,
         self.nextLevelTarget
     )
+
+    if self.subState then
+        self.subState:draw(self.grid.node)
+        return
+    end
+
+    self.grid:draw(self.highlight, self.strand)
+
+    
+
+
 end
 
 ---@type IAppState
