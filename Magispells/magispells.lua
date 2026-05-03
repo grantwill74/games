@@ -1400,19 +1400,20 @@ end
 ---
 ---@param mouse MouseState
 function StInGame:handleClick(mouse)
-    if self.subState and self.subState.id == 'level up' then
-        self.subState = nil
-        -- play a sound?
-        return
-    end
-
-
     local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
 
     if mouse.leftTrans ~= 'up' then
         return
     end
+    
+    if self.subState and self.subState.id == 'level up' then
+        self.subState = nil
+
+        -- play a sound?
+        return
+    end
+
 
     local highlightedTile =
         self.highlight and
@@ -1592,6 +1593,7 @@ end
 
 ---@class StInGame_LevelUp
 ---@field id string
+---@field delayTicks integer
 ---@field manaGained integer
 ---@field newManaTarget integer
 ---@field ticksTaken integer
@@ -1613,6 +1615,7 @@ StInGame_LevelUp = {}
 ---@return any
 function StInGame_LevelUp.new(table)
     table.id = 'level up'
+    table.delayTicks = 30
     return setmetatable(table, {__index = StInGame_LevelUp})
 end
 
