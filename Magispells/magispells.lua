@@ -1508,8 +1508,7 @@ function StInGame:submitWord()
     end
 
     local startTile, chargedCr = self.grid:selectRandomTile()
-    assert(startTile) -- let's check vv
-    if startTile then -- I can't think of when startTile would be nil
+    if startTile then -- startTile is nil if it's from a submitted word
         local bestWord, bestElems, bestCrs, bestScore =
             self.grid:bestWordStartingAt(chargedCr.col, chargedCr.row)
         
@@ -1587,6 +1586,10 @@ end
 ---
 ---@param mouse MouseState
 function StInGame:tick(mouse)
+    if CheatKeyPressed() == 'level_up' then
+        self:levelUp()
+    end
+
     self:handleClick(mouse)
     self:fallTick()
 end
@@ -1623,10 +1626,21 @@ end
 function StInGame_LevelUp:draw(node)
     local x, y = node:pos()
     print("Level Up!", x, y, PALETTE.WHITE)
+    print("Mana gained: " .. ToStr(self.manaGained), x + 8, y + 8, PALETTE.BLUE)
 
-    print("Click/tap anywhere to continue!", x, y + 32, PALETTE.WHITE)
+    print("Click/tap anywhere", x, y + 104, PALETTE.WHITE)
+    print("to continue!", x, y + 112, PALETTE.WHITE)
 end
 
+CHEAT_LEVEL_UP_KEY = 12 -- L
+
+
+---@alias Cheat nil|'level_up'
+function CheatKeyPressed()
+    if keyp(CHEAT_LEVEL_UP_KEY) then
+        return 'level_up'
+    end
+end
 
 ---draw the status bar to the left
 ---@param node Node
