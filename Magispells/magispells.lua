@@ -743,6 +743,7 @@ end
 ---@field level integer
 ---@field nextLevelTarget integer
 ---@field subState StInGame_SubState
+---@field ticks integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -1387,6 +1388,7 @@ function StInGame.new()
         xp = 0,
         level = 1,
         nextLevelTarget = TotalXpForLevel(2),
+        ticks = 0,
     }
 
     setmetatable(state, StInGame)
@@ -1538,6 +1540,7 @@ function StInGame:levelUp()
     self.level = self.level + 1
     self.nextLevelTarget = TotalXpForLevel(self.level + 1)
     self.subState = StInGame_LevelUp.new {
+            newLevel = self.level,
             manaGained = self.xp - TotalXpForLevel(self.level - 1),
             newManaTarget = TotalXpForLevel(self.level + 1),
             ticksTaken = 0, --TODO add
@@ -1577,7 +1580,7 @@ function StInGame:fallTick()
 
             local amount = LETTER_FALL_SPEED_ROWS_PER_TICK
             tile.rowOff = math.max((tile.rowOff or 0) - amount, 0)
-
+ 
             ::continue::
         end
     end
@@ -1591,6 +1594,10 @@ function StInGame:tick(mouse)
         self:levelUp()
     end
 
+    if not self.subState then
+        self.ticks = self.ticks + 1
+    end
+
     self:handleClick(mouse)
     self:fallTick()
 end
@@ -1598,6 +1605,7 @@ end
 ---@class StInGame_LevelUp
 ---@field id string
 ---@field delayTicks integer
+---@field newLevel integer
 ---@field manaGained integer
 ---@field newManaTarget integer
 ---@field ticksTaken integer
@@ -1612,7 +1620,7 @@ StInGame_LevelUp = {}
 ---comment
 ---@param table {
 --- manaGained:integer, newManaTarget:integer,
---- ticksTaken:integer, wordsSubmitted:integer,
+--- ticksTaken:integer, newLevel:integer, wordsSubmitted:integer,
 --- bestWord:integer, bestWordScore:integer,
 --- [any]:any,
 ---}
@@ -1626,7 +1634,7 @@ end
 ---@param node Node
 function StInGame_LevelUp:draw(node)
     local x, y = node:pos()
-    print("Level Up!", x, y, PALETTE.WHITE)
+    print("Welcome to level " .. ToStr(self.newLevel) .. "!", x, y, PALETTE.WHITE)
     print("Mana gained: " .. ToStr(self.manaGained), x + 8, y + 8, PALETTE.BLUE)
     print("New target: " .. ToStr(self.newManaTarget), x + 8, y + 16, PALETTE.BLUE)
 
