@@ -1533,17 +1533,18 @@ function StInGame:submitWord()
 end
 
 function StInGame:levelUp()
-    self.subState = StInGame_LevelUp.new {
-        manaGained = self.xp - TotalXpForLevel(self.level),
-        newManaTarget = TotalXpForLevel(self.level + 1),
-        ticksTaken = 0, --TODO add
-        wordsSubmitted = 0, -- TODO add
-        bestWord = "blort", -- TODO add
-        bestWordScore = 1234, -- TODO add
-    }
+    
 
     self.level = self.level + 1
     self.nextLevelTarget = TotalXpForLevel(self.level + 1)
+    self.subState = StInGame_LevelUp.new {
+            manaGained = self.xp - TotalXpForLevel(self.level - 1),
+            newManaTarget = TotalXpForLevel(self.level + 1),
+            ticksTaken = 0, --TODO add
+            wordsSubmitted = 0, -- TODO add
+            bestWord = "blort", -- TODO add
+            bestWordScore = 1234, -- TODO add
+    }
 end
 
 ---make it so that every gap has everything above it fall down
@@ -1627,6 +1628,8 @@ function StInGame_LevelUp:draw(node)
     local x, y = node:pos()
     print("Level Up!", x, y, PALETTE.WHITE)
     print("Mana gained: " .. ToStr(self.manaGained), x + 8, y + 8, PALETTE.BLUE)
+    print("New target: " .. ToStr(self.newManaTarget), x + 8, y + 16, PALETTE.BLUE)
+
 
     print("Click/tap anywhere", x, y + 104, PALETTE.WHITE)
     print("to continue!", x, y + 112, PALETTE.WHITE)
@@ -1722,10 +1725,6 @@ function StInGame:draw()
     end
 
     self.grid:draw(self.highlight, self.strand)
-
-    
-
-
 end
 
 ---@type IAppState
