@@ -731,22 +731,6 @@ function StLoading:draw()
     print(percentStr, x, y, PALETTE.WHITE, true)
 end
 
----@class StInGame : IAppState
----@field ndScreen Node
----@field ndField Node
----@field ndStatus Node
----@field grid LetterGrid
----@field highlight Cr | nil
----@field strand Strand
----@field dfaState DfaState
----@field xp integer
----@field level integer
----@field nextLevelTarget integer
----@field subState StInGame_SubState
----@field ticks integer
-StInGame = {}
-StInGame.__index = StInGame
-
 --------------------------- in game constants ----------------------------------
 FIELD_TILES_W = 8
 FIELD_TILES_H = 8
@@ -1185,7 +1169,6 @@ function LetterGrid:selectRandomTile()
     local col = math.random(1, FIELD_TILES_W)
     local row = math.random(1, FIELD_TILES_PER_COL[col])
     local tile = self.cols[col][row]
-    assert(tile, "somehow: cr " .. ToStr(col) .. "," .. ToStr(row) .. "isn't there")
     return tile, Cr(col, row)
 end
 
@@ -1362,6 +1345,27 @@ function TotalXpForLevel(lvl)
     return (lvl - 1) * lvl * 1000
 end
 
+
+---@class StInGame : IAppState
+---@field ndScreen Node
+---@field ndField Node
+---@field ndStatus Node
+---@field grid LetterGrid
+---@field highlight Cr | nil
+---@field strand Strand
+---@field dfaState DfaState
+---@field xp integer
+---@field level integer
+---@field nextLevelTarget integer
+---@field subState StInGame_SubState
+---@field ticks integer
+---@field nLevelWordsSubmitted integer
+---@field levelBestWord string
+---@field levelBestWordScore integer
+StInGame = {}
+StInGame.__index = StInGame
+
+
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
     local ndField = ndScreen:addChildFromTopRight(
@@ -1389,6 +1393,9 @@ function StInGame.new()
         level = 1,
         nextLevelTarget = TotalXpForLevel(2),
         ticks = 0,
+        nLevelWordsSubmitted = 0,
+        levelBestWord = "",
+        levelBestWordScore = 0,
     }
 
     setmetatable(state, StInGame)
@@ -1504,6 +1511,12 @@ function StInGame:submitWord()
     local letters, elems = self.strand:asStringAndElements(self.grid)
     local score = WordScore(letters, elems)
 
+    self.nLevelWordsSubmitted = self.nLevelWordsSubmitted + 1
+    if score > self.levelBestWordScore then
+        self.levelBestWordScore = score
+        self.levelBestWord = letters
+    end
+
     for _, cr in ipairs(self.strand.tiles) do
         self.grid:deleteTile(cr.col, cr.row)
         --self.grid.cols[cr.col][cr.row] = nil
@@ -1535,19 +1548,21 @@ function StInGame:submitWord()
 end
 
 function StInGame:levelUp()
-    
-
     self.level = self.level + 1
     self.nextLevelTarget = TotalXpForLevel(self.level + 1)
     self.subState = StInGame_LevelUp.new {
             newLevel = self.level,
             manaGained = self.xp - TotalXpForLevel(self.level - 1),
             newManaTarget = TotalXpForLevel(self.level + 1),
-            ticksTaken = 0, --TODO add
-            wordsSubmitted = 0, -- TODO add
-            bestWord = "blort", -- TODO add
-            bestWordScore = 1234, -- TODO add
+            ticksTaken = self.ticks, --TODO add
+            wordsSubmitted = self.nLevelWordsSubmitted, -- TODO add
+            bestWord = self.levelBestWord, -- TODO add
+            bestWordScore = self.levelBestWordScore, -- TODO add
     }
+
+    self.nLevelWordsSubmitted = 0
+    self.levelBestWord = ""
+    self.levelBestWordScore = 0
 end
 
 ---make it so that every gap has everything above it fall down
@@ -1610,7 +1625,7 @@ end
 ---@field newManaTarget integer
 ---@field ticksTaken integer
 ---@field wordsSubmitted integer
----@field bestWord integer
+---@field bestWord string
 ---@field bestWordScore integer
 StInGame_LevelUp = {}
 
@@ -1621,7 +1636,7 @@ StInGame_LevelUp = {}
 ---@param table {
 --- manaGained:integer, newManaTarget:integer,
 --- ticksTaken:integer, newLevel:integer, wordsSubmitted:integer,
---- bestWord:integer, bestWordScore:integer,
+--- bestWord:string, bestWordScore:integer,
 --- [any]:any,
 ---}
 ---@return any
@@ -1635,13 +1650,24 @@ end
 function StInGame_LevelUp:draw(node)
     local x, y = node:pos()
     local secsTaken = math.floor(self.ticksTaken / 60)
-    local ticksRemainder = self.ticksTaken % 60
+    local ticksRem = self.ticksTaken % 60
+    local minsTaken = math.floor(secsTaken / 60)
+    local secsRem = secsTaken % 60
     
     print("Welcome to level " .. ToStr(self.newLevel) .. "!", x, y, PALETTE.WHITE)
     print("Mana gained: " .. ToStr(self.manaGained), x + 8, y + 8, PALETTE.BLUE)
     print("New target: " .. ToStr(self.newManaTarget), x + 8, y + 16, PALETTE.BLUE)
-    print("Words made: " .. ToStr(self.wordsSubmitted), x + 8, y + 24, PALETTE.WHITE)
+    print("Words made: " .. ToStr(self.wordsSubmitted), x + 8, y + 24, PALETTE.RED)
+    print("Best word: " .. self.bestWord, x + 8, y + 32, PALETTE.LIME)
+    print("Was worth: " .. ToStr(self.bestWordScore), x + 8, y + 40, PALETTE.LIME)
 
+    if minsTaken <= 99 then
+        local formatStr = "%02d:%02d,%02d"
+        local time = string.format(formatStr, minsTaken, secsRem, ticksRem)
+        print("Time: " .. time, x + 8, y + 64, PALETTE.WHITE)
+    else
+        print("Time: > 99 mins", x + 8, y + 64, PALETTE.WHITE)
+    end
 
     print("Click/tap anywhere", x, y + 104, PALETTE.WHITE)
     print("to continue!", x, y + 112, PALETTE.WHITE)
