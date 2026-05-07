@@ -1345,6 +1345,11 @@ function TotalXpForLevel(lvl)
     return (lvl - 1) * lvl * 1000
 end
 
+---returns the number of words the user is allowed to submit before game over
+---@param lvl any
+function WordsMaxForLevel(lvl)
+    return 6
+end
 
 ---@class StInGame : IAppState
 ---@field ndScreen Node
@@ -1357,11 +1362,13 @@ end
 ---@field xp integer
 ---@field level integer
 ---@field nextLevelTarget integer
----@field subState StInGame_SubState
+---@field subState StInGame_SubState 
 ---@field ticks integer
 ---@field nLevelWordsSubmitted integer
 ---@field levelBestWord string
 ---@field levelBestWordScore integer
+---@field gameBestWord string
+---@field gameBestWordScore integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -1396,6 +1403,8 @@ function StInGame.new()
         nLevelWordsSubmitted = 0,
         levelBestWord = "",
         levelBestWordScore = 0,
+        gameBestWord = "",
+        gameBestWordScore = 0,
     }
 
     setmetatable(state, StInGame)
@@ -1403,6 +1412,10 @@ function StInGame.new()
     state.grid:spawnTiles()
     
     return state
+end
+
+function StInGame:newGame()
+    --TODO
 end
 
 
@@ -1421,6 +1434,12 @@ function StInGame:handleClick(mouse)
 
         -- play a sound?
         return
+    end
+
+    if self.subState and self.subState.id == 'game over' then
+        self.subState = nil
+
+        self:newGame()
     end
 
 
@@ -1515,6 +1534,11 @@ function StInGame:submitWord()
     if score > self.levelBestWordScore then
         self.levelBestWordScore = score
         self.levelBestWord = letters
+
+        if score > self.gameBestWordScore then
+            self.gameBestWordScore = score
+            self.gameBestWord = letters
+        end
     end
 
     for _, cr in ipairs(self.strand.tiles) do
@@ -1541,6 +1565,11 @@ function StInGame:submitWord()
 
     if self.nextLevelTarget < 0 then
         self:levelUp()
+    elseif self:nChancesThisLevel() <= 0 then
+        self.subState = StInGame_GameOver.new(60,
+            self.gameBestWord, self.gameBestWordScore,
+            self.xp, self.ticks, self.level
+        )
     end
 
     self:startFalling()
@@ -1618,7 +1647,7 @@ function StInGame:tick(mouse)
 end
 
 ---@class StInGame_LevelUp
----@field id string
+---@field id 'level up'
 ---@field delayTicks integer
 ---@field newLevel integer
 ---@field manaGained integer
@@ -1630,7 +1659,7 @@ end
 StInGame_LevelUp = {}
 
 
----@alias StInGame_SubState nil|StInGame_LevelUp
+---@alias StInGame_SubState nil|StInGame_LevelUp|StInGame_GameOver
 
 ---comment
 ---@param table {
@@ -1673,6 +1702,44 @@ function StInGame_LevelUp:draw(node)
     print("to continue!", x, y + 112, PALETTE.WHITE)
 end
 
+---@class StInGame_GameOver
+---@field id 'game over'
+---@field delayTicks integer
+---@field gameBestWord string
+---@field gameBestWordScore integer
+---@field totalScore integer
+---@field ticksTaken integer
+---@field levelAchieved integer
+StInGame_GameOver = {}
+
+---@param delay integer
+---@param bestWord string
+---@param bestScore integer
+---@param score integer
+---@param ticks integer
+---@param level integer
+---@return StInGame_GameOver
+function StInGame_GameOver.new(delay, bestWord, bestScore, score, ticks, level)
+    local state = {
+        id = 'game over',
+        delayTicks = delay,
+        gameBestWord = bestWord,
+        gameBestWordScore = bestScore,
+        totalScore = score,
+        ticksTaken = ticks,
+        levelAchieved = level,
+    }
+
+    return setmetatable(state, {__index = StInGame_GameOver})
+end
+
+---@param node Node
+function StInGame_GameOver:draw(node)
+    local x, y = node:pos()
+    print("Game over on level " .. ToStr(self.levelAchieved), x, y, PALETTE.WHITE)
+    
+end
+
 CHEAT_LEVEL_UP_KEY = 12 -- L
 
 
@@ -1691,7 +1758,12 @@ end
 ---@param xp integer
 ---@param level integer
 ---@param next integer
-function DrawStatus(node, letters, isWord, isCharged, wordScore, xp, level, next)
+---@param maxWords integer
+function DrawStatus(
+    node, letters, isWord,
+    isCharged, wordScore, xp, level, next,
+    maxWords
+)
     local x, y = node:pos()
     local score = ToStr(wordScore)
     if letters:sub(-1) == '!' and score ~= nil then score = score .. '!' end
@@ -1708,6 +1780,7 @@ function DrawStatus(node, letters, isWord, isCharged, wordScore, xp, level, next
     print("Xp: " .. ToStr(xp), x, y + 16, PALETTE.WHITE)
     print("Level: " .. ToStr(level), x, y + 24, PALETTE.WHITE)
     print("Target: " .. ToStr(next), x, y + 32, PALETTE.WHITE)
+    print("Chances: " .. ToStr(maxWords), x, y + 40, PALETTE.WHITE)
 end
 
 ---
@@ -1729,6 +1802,11 @@ function WordScore(letters, elements)
     return score * #letters * WORD_SCORE_MULT
 end
 
+---@return integer
+function StInGame:nChancesThisLevel()
+    return WordsMaxForLevel(self.level) - self.nLevelWordsSubmitted
+end
+
 function StInGame:draw()
     assert(wordDfa:matchPrefix('hello', 1).final)
 
@@ -1740,7 +1818,7 @@ function StInGame:draw()
         exclamation and currentWord:sub(1, -2) or currentWord
     local dfaNode = wordDfa:matchPrefix(lookupWord, 1)
     local isAWord = dfaNode and dfaNode.final or false
-    
+
     local isCharged = false
     for i=1, 8 do
         isCharged = isCharged or (currentElems[i] == 'charged')
@@ -1754,7 +1832,8 @@ function StInGame:draw()
         WordScore(currentWord, currentElems),
         self.xp,
         self.level,
-        self.nextLevelTarget
+        self.nextLevelTarget,
+        self:nChancesThisLevel()
     )
 
     if self.subState then
