@@ -18,6 +18,7 @@ TILE_W_px = 8
 TILE_H_px = 8
 MAX_WORD_LEN = 8
 MIN_WORD_LEN = 3
+SUB_STATE_DELAY = 30
 
 IDEAL_VOWEL_PROP = 0.2
 
@@ -1392,30 +1393,46 @@ function StInGame.new()
         ndScreen = ndScreen,
         ndField = ndField,
         ndStatus = ndStatus,
-        grid = grid,
-        strand = Strand.new(),
-        highlight = nil,
-        dfaState = wordDfa.states[DawgStart],
-        xp = 0,
-        level = 1,
-        nextLevelTarget = TotalXpForLevel(2),
-        ticks = 0,
-        nLevelWordsSubmitted = 0,
-        levelBestWord = "",
-        levelBestWordScore = 0,
-        gameBestWord = "",
-        gameBestWordScore = 0,
+--        grid = grid,
+        --strand = Strand.new(),
+        --highlight = nil,
+        --dfaState = wordDfa.states[DawgStart],
+        --xp = 0,
+        --level = 1,
+        --nextLevelTarget = TotalXpForLevel(2),
+        --ticks = 0,
+        --nLevelWordsSubmitted = 0,
+        --levelBestWord = "",
+        --levelBestWordScore = 0,
+        --gameBestWord = "",
+        --gameBestWordScore = 0,
     }
 
     setmetatable(state, StInGame)
 
-    state.grid:spawnTiles()
+    state:newGame()
+
+    -- state.grid:spawnTiles()
     
     return state
 end
 
 function StInGame:newGame()
-    --TODO
+    self.grid = LetterGrid.new(self.ndField)
+    self.strand = Strand.new()
+    self.highlight = nil
+    self.dfaState = wordDfa.states[DawgStart]
+    self.xp = 0
+    self.level = 1
+    self.nextLevelTarget = TotalXpForLevel(2)
+    self.ticks = 0
+    self.nLevelWordsSubmitted = 0
+    self.levelBestWord = ""
+    self.levelBestWordScore = 0
+    self.gameBestWord = ""
+    self.gameBestWordScore = 0
+
+    self.grid:spawnTiles()
 end
 
 
@@ -1594,6 +1611,17 @@ function StInGame:levelUp()
     self.levelBestWordScore = 0
 end
 
+function StInGame:gameOver()
+    self.subState = StInGame_GameOver.new(
+        SUB_STATE_DELAY,
+        self.gameBestWord,
+        self.gameBestWordScore,
+        self.xp,
+        self.ticks,
+        self.level
+    )
+end
+
 ---make it so that every gap has everything above it fall down
 function StInGame:startFalling()
     for col=1, FIELD_TILES_W do
@@ -1675,14 +1703,30 @@ function StInGame_LevelUp.new(table)
     return setmetatable(table, {__index = StInGame_LevelUp})
 end
 
+---Return hours, minutes, seconds, and remainder ticks from given ticks
+---@param ticks integer
+---@return integer, integer, integer, integer
+function HoursMinsSecs(ticks)
+    local secsTaken = math.floor(ticks / 60)
+    local ticksRem = ticks % 60
+    local minsTaken = math.floor(secsTaken / 60)
+    local secsRem = secsTaken % 60
+    local hoursTaken = math.floor(minsTaken / 60)
+    local minsRem = minsTaken % 60
+
+    return hoursTaken, minsRem, secsRem, ticksRem
+end
+
 ---@param node Node
 function StInGame_LevelUp:draw(node)
     local x, y = node:pos()
-    local secsTaken = math.floor(self.ticksTaken / 60)
-    local ticksRem = self.ticksTaken % 60
-    local minsTaken = math.floor(secsTaken / 60)
-    local secsRem = secsTaken % 60
-    
+    -- local secsTaken = math.floor(self.ticksTaken / 60)
+    -- local ticksRem = self.ticksTaken % 60
+    -- local minsTaken = math.floor(secsTaken / 60)
+    -- local secsRem = secsTaken % 60
+    local hours, mins, secs, ticks = HoursMinsSecs(self.ticksTaken)
+
+
     print("Welcome to level " .. ToStr(self.newLevel) .. "!", x, y, PALETTE.WHITE)
     print("Mana gained: " .. ToStr(self.manaGained), x + 8, y + 8, PALETTE.BLUE)
     print("New target: " .. ToStr(self.newManaTarget), x + 8, y + 16, PALETTE.BLUE)
@@ -1690,12 +1734,12 @@ function StInGame_LevelUp:draw(node)
     print("Best word: " .. self.bestWord, x + 8, y + 32, PALETTE.LIME)
     print("Was worth: " .. ToStr(self.bestWordScore), x + 8, y + 40, PALETTE.LIME)
 
-    if minsTaken <= 99 then
+    if hours < 1 then
         local formatStr = "%02d:%02d,%02d"
-        local time = string.format(formatStr, minsTaken, secsRem, ticksRem)
+        local time = string.format(formatStr, mins, secs, ticks)
         print("Time: " .. time, x + 8, y + 64, PALETTE.WHITE)
     else
-        print("Time: > 99 mins", x + 8, y + 64, PALETTE.WHITE)
+        print("Time: > 1 hour", x + 8, y + 64, PALETTE.WHITE)
     end
 
     print("Click/tap anywhere", x, y + 104, PALETTE.WHITE)
@@ -1736,8 +1780,21 @@ end
 ---@param node Node
 function StInGame_GameOver:draw(node)
     local x, y = node:pos()
-    print("Game over on level " .. ToStr(self.levelAchieved), x, y, PALETTE.WHITE)
+    local c = PALETTE.WHITE
+    print("Game over on level " .. ToStr(self.levelAchieved), x, y, c)
+
+    print("Final score: " .. ToStr(self.totalScore), x + 8, y + 16, c)
+    print("Best word: " .. ToStr(self.gameBestWord), x + 8, y + 32, c)
+    print("Worth: " .. ToStr(self.gameBestWordScore), x + 8, y + 40, c)
     
+    local hours, mins, secs, ticks = HoursMinsSecs(self.ticksTaken)
+
+    if hours > 9 then
+        print("Time: >= 10 hours", x + 8, y + 56, c)
+    else
+        local time = string.format("%d:%02d:%02d,%02d", hours, mins, secs, ticks)
+        print("Time: " .. time, x + 8, y + 56, c)
+    end
 end
 
 CHEAT_LEVEL_UP_KEY = 12 -- L
