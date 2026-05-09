@@ -19,6 +19,7 @@ TILE_H_px = 8
 MAX_WORD_LEN = 8
 MIN_WORD_LEN = 3
 SUB_STATE_DELAY = 30
+SUBMIT_DELAY_TICKS = 60
 
 IDEAL_VOWEL_PROP = 0.2
 
@@ -1371,6 +1372,7 @@ end
 ---@field gameBestWord string
 ---@field gameBestWordScore integer
 ---@field statusMsg nil|StatusMessage
+---@field delayTicks integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -1432,6 +1434,7 @@ function StInGame:newGame()
     self.levelBestWordScore = 0
     self.gameBestWord = ""
     self.gameBestWordScore = 0
+    self.delayTicks = 0
 
     self.grid:spawnTiles()
 end
@@ -1595,6 +1598,7 @@ function StInGame:submitWord()
 
     self:startFalling()
     self.grid:spawnTiles()
+    self.delayTicks = SUBMIT_DELAY_TICKS
 end
 
 function StInGame:levelUp()
@@ -1674,7 +1678,12 @@ function StInGame:tick(mouse)
         self.ticks = self.ticks + 1
     end
 
-    self:handleClick(mouse)
+    if self.delayTicks == 0 then
+        self:handleClick(mouse)
+    else
+        self.delayTicks = self.delayTicks - 1
+    end
+
     self:fallTick()
 end
 
@@ -1854,13 +1863,17 @@ function DrawStatus(
         (not isWord and isCharged) and PALETTE.GREEN or
         PALETTE.LT_GRAY
 
-    print(letters, x, y, color)
-    print(score, x, y + 8, color)
+    --if #letters > 0 then 
+    --    print("[CANCEL]", x, y, PALETTE.GREEN)
+    --end
 
-    print("Xp: " .. ToStr(xp), x, y + 16, PALETTE.WHITE)
-    print("Level: " .. ToStr(level), x, y + 24, PALETTE.WHITE)
-    print("Target: " .. ToStr(next), x, y + 32, PALETTE.WHITE)
-    print("Chances: " .. ToStr(maxWords), x, y + 40, PALETTE.WHITE)
+    print(letters, x, y + 8, color)
+    print(score, x, y + 16, color)
+
+    print("Xp: " .. ToStr(xp), x, y + 24, PALETTE.WHITE)
+    print("Level: " .. ToStr(level), x, y + 32, PALETTE.WHITE)
+    print("Target: " .. ToStr(next), x, y + 40, PALETTE.WHITE)
+    print("Chances: " .. ToStr(maxWords), x, y + 48, PALETTE.WHITE)
 
     if message then message(x, y + 64) end
 end
