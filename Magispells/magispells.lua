@@ -1370,6 +1370,7 @@ end
 ---@field levelBestWordScore integer
 ---@field gameBestWord string
 ---@field gameBestWordScore integer
+---@field statusMsg nil|StatusMessage
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -1546,6 +1547,7 @@ end
 function StInGame:submitWord()
     local letters, elems = self.strand:asStringAndElements(self.grid)
     local score = WordScore(letters, elems)
+    self.statusMsg = nil
 
     self.nLevelWordsSubmitted = self.nLevelWordsSubmitted + 1
     if score > self.levelBestWordScore then
@@ -1571,7 +1573,9 @@ function StInGame:submitWord()
         if bestScore > score then
             -- freeze tiles
             self.grid:freeze(bestCrs)
+            self.statusMsg = XWasBetter(bestWord)
         else
+            self.statusMsg = GoodWord()
             -- good job!
         end
     end
@@ -1807,6 +1811,24 @@ function CheatKeyPressed()
     end
 end
 
+--- a function that draws a status message to the specified location when called
+---@alias StatusMessage fun(x: integer, y: integer): nil
+
+---create a StatusMessage that tells us there was a better word to have played.
+---@param word string
+function XWasBetter(word)
+    return function(x, y)
+        local w = print(word, x, y, PALETTE.BLUE)
+        print(" was better!", x + w, y, PALETTE.WHITE)
+    end
+end
+
+function GoodWord()
+    return function(x, y)
+        print("Good word!", x, y, PALETTE.WHITE)
+    end
+end
+
 ---draw the status bar to the left
 ---@param node Node
 ---@param letters string
@@ -1816,10 +1838,11 @@ end
 ---@param level integer
 ---@param next integer
 ---@param maxWords integer
+---@param message nil|StatusMessage
 function DrawStatus(
     node, letters, isWord,
     isCharged, wordScore, xp, level, next,
-    maxWords
+    maxWords, message
 )
     local x, y = node:pos()
     local score = ToStr(wordScore)
@@ -1838,6 +1861,8 @@ function DrawStatus(
     print("Level: " .. ToStr(level), x, y + 24, PALETTE.WHITE)
     print("Target: " .. ToStr(next), x, y + 32, PALETTE.WHITE)
     print("Chances: " .. ToStr(maxWords), x, y + 40, PALETTE.WHITE)
+
+    if message then message(x, y + 64) end
 end
 
 ---
@@ -1890,7 +1915,8 @@ function StInGame:draw()
         self.xp,
         self.level,
         self.nextLevelTarget,
-        self:nChancesThisLevel()
+        self:nChancesThisLevel(),
+        self.statusMsg
     )
 
     if self.subState then
