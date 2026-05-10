@@ -164,6 +164,7 @@ def replace_or_register(register: dict[State, State], state: State) -> None:
         register[child] = child
 
 words = list(map(lambda s: s.strip(), sys.stdin))
+words.sort()
 start = gen_dawg(words)
 
 states = list(start.dfs())
