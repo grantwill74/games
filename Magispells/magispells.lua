@@ -138,6 +138,7 @@ CONSONANT_SPAWN_RATE = {
     y = .026,
 }
 
+CONSONANT_SPAWN_RATE['!'] = .01 -- it's not a consonant, but we want it to spawn
 LETTER_FREQ['!'] = .01
 
 ---@type table<string, boolean>
@@ -1590,20 +1591,26 @@ function StInGame:submitWord()
     end
 
     local startTile, chargedCr = self.grid:selectRandomTile()
+    
+    ---@type nil|'freeze'
+    local submitResult = nil
     if startTile then -- startTile is nil if it's from a submitted word
         local bestWord, bestElems, bestCrs, bestScore =
             self.grid:bestWordStartingAt(chargedCr.col, chargedCr.row)
         
-        if bestScore > score then
+        if bestScore >= score then
             -- freeze tiles
             self.grid:freeze(bestCrs)
             self.statusMsg = XWasBetter(bestWord)
             sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL)
-        else
-            self.statusMsg = GoodWord()
-            sfx(SFX.goodWord, 'C-6', 120, SFX_CHANNEL)
-            -- good job!
+            submitResult = 'freeze'
         end
+    end
+
+    if submitResult ~= 'freeze' then
+        self.statusMsg = GoodWord()
+        sfx(SFX.goodWord, 'C-6', 120, SFX_CHANNEL)
+        -- good job!
     end
 
     self.xp = self.xp + score
