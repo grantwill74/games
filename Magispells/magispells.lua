@@ -75,6 +75,19 @@ LETTER_SPRITES = {
 }
 LETTER_SPRITES['!'] = 484
 
+SFX_CHANNEL = 3
+SFX = {
+    tileSelect = 48,
+    tileDeselect = 49,
+    levelUp = 50,
+    gameOver = 51,
+    badWord = 52,
+    goodWord = 53,
+    bestWord = 53,
+}
+
+
+
 TILE_ELEMENTS = {
     normal = 494,
     charged = 492,
@@ -1350,7 +1363,7 @@ end
 ---returns the number of words the user is allowed to submit before game over
 ---@param lvl any
 function WordsMaxForLevel(lvl)
-    return 6
+    return 10 + 2 * lvl
 end
 
 ---@class StInGame : IAppState
@@ -1435,6 +1448,7 @@ function StInGame:newGame()
     self.gameBestWord = ""
     self.gameBestWordScore = 0
     self.delayTicks = 0
+    self.statusMsg = nil
 
     self.grid:spawnTiles()
 end
@@ -1470,6 +1484,7 @@ function StInGame:handleClick(mouse)
 
     if not highlightedTile then
         self.strand:clear()
+        sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL)
         self.dfaNode = wordDfa.states[DawgStart]
         return
     end
@@ -1482,6 +1497,7 @@ function StInGame:handleClick(mouse)
 
     if self.strand:length() == 0 then
         self.strand:add(col, row)
+        sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL)
         return
     end
 
@@ -1494,6 +1510,7 @@ function StInGame:handleClick(mouse)
         -- if there is only one tile selected and we just clicked it
         if self.strand:length() == 1 then
             self.strand:clear()
+            sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL)
             -- clear.wav
             return
         end
@@ -1510,12 +1527,12 @@ function StInGame:handleClick(mouse)
 
         if tileSubmitted then
             self:submitWord()
-            -- submit.wav
             return
         end
 
         -- otherwise, trim
         self.strand:trimTo(col, row)
+        sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL)
         -- trim.wav
         return
     end
@@ -1543,6 +1560,7 @@ function StInGame:handleClick(mouse)
     end
 
     -- add.wav
+    sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL)
     self.strand:add(col, row)
 end
 
@@ -1577,8 +1595,10 @@ function StInGame:submitWord()
             -- freeze tiles
             self.grid:freeze(bestCrs)
             self.statusMsg = XWasBetter(bestWord)
+            sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL)
         else
             self.statusMsg = GoodWord()
+            sfx(SFX.goodWord, 'C-6', 120, SFX_CHANNEL)
             -- good job!
         end
     end
@@ -1594,6 +1614,7 @@ function StInGame:submitWord()
             self.gameBestWord, self.gameBestWordScore,
             self.xp, self.ticks, self.level
         )
+        sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL)
     end
 
     self:startFalling()
@@ -1613,6 +1634,7 @@ function StInGame:levelUp()
             bestWord = self.levelBestWord, -- TODO add
             bestWordScore = self.levelBestWordScore, -- TODO add
     }
+    sfx(SFX.levelUp, 'C-5', 60, SFX_CHANNEL)
 
     self.nLevelWordsSubmitted = 0
     self.levelBestWord = ""
@@ -2160,6 +2182,12 @@ end
 -- 025:130013002300330043004300530063007300830083009300a300b300d300e300f300f300f300f300f300f300f300f300f300f300f300f300f300f300310000000000
 -- 026:230063007300b300e300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300700000000000
 -- 031:12001200220032003200420052006200620072007200820092009200a200b200b200c200d200d200e200e200e200f200f200f200f200f200f200f200370000000000
+-- 048:0007201730374047605770578057a057b057c057d057e057f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000410000000000
+-- 049:0008201830384048605870588058a058b058c058d058e058f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000490000000000
+-- 050:800080008000800080008000704070407040604060405040404040404070307030702070207020702070107010c010c010c010c020c020c040c050c0300000000000
+-- 051:00c000c000c000c000c000c00090009000900090009010901060106010602060206030604030503060306030803090309030a030a030b030b030b030300000000000
+-- 052:1024104120522052205330253006400650065014604260607060805c802b900ba00ba00bb01bb04cc06dc070d081e073e054e025f015f015f025f043600000000000
+-- 053:11001100110011102110212031404170519061a061c071c081c091c0a1c0a1c0b1c0b1c0c1c0c1c0d1c0d1c0d1c0d1c0d1c0e1c0e1c0e1c0e1c0f1c0600000000000
 -- </SFX>
 
 -- <SFX1>
