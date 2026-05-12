@@ -252,17 +252,40 @@ function Shuffle(array)
     end
 end
 
+---@type integer
+SOUND_STATE_ADDR = 0x13FFC
+SOUND_STATE_FRAME_ADDR = SOUND_STATE_ADDR + 1
+SOUND_STATE_ROW_ADDR = SOUND_STATE_ADDR + 2
+
 ---@class SongFrag
 ---@field trackNo integer
----@field bankNo integer
+---@field bankNo nil|integer
 ---@field frameStart integer
----@field nFrames integer
+---@field frameEnd integer
 ---@field rowStart integer
----@field nRows integer
+---@field rowEnd integer
 ---@field tempo nil|integer
 ---@field speed nil|integer
 SongFrag = {}
 
+function SongFrag.new(
+    bank, track,
+    frameStart, rowStart, frameEnd, rowEnd,
+    tempo, speed
+)
+    local frag = {
+        bankNo = bank,
+        trackNo = track,
+        frameStart = frameStart,
+        frameEnd = frameEnd,
+        rowStart = rowStart,
+        rowEnd = rowEnd,
+        tempo = tempo,
+        speed = speed,
+    }
+
+    return setmetatable(frag, {__index = SongFrag})
+end
 
 ---@class Song
 ---@field frags SongFrag[]
@@ -277,6 +300,41 @@ end
 ---@type Song[]
 Songs = {}
 
+Songs[1] = Song.new {
+    SongFrag.new(1, 0, 0, 0, 7, 63),
+    SongFrag.new(1, 0, 0, 9, 3, 63),
+    SongFrag.new(1, 0, 3, 0, 3, 35)
+
+}
+
+---@class SongState
+---@field curSong Song
+---@field curFrag integer
+SongState = {}
+
+---@param song Song
+function SongState.new(song)
+    local state = {
+        curSong = song,
+        curFrag = 1,
+    }
+
+    return setmetatable(state, {__index = SongState})
+end
+
+---@return boolean
+function SongState:finished()
+    return self.curFrag > #self.curSong.frags
+end
+
+---@return boolean
+function SongState:playing()
+    return not self:finished()
+end
+
+function SongState:tick()
+
+end
 
 
 
