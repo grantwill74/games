@@ -1929,11 +1929,16 @@ function StInGame_GameOver:draw(node)
     end
 end
 
+CHEATS_ENABLED = false
 CHEAT_LEVEL_UP_KEY = 12 -- L
 
 
 ---@alias Cheat nil|'level_up'
 function CheatKeyPressed()
+    if not CHEATS_ENABLED then
+        return
+    end
+
     if keyp(CHEAT_LEVEL_UP_KEY) then
         return 'level_up'
     end
