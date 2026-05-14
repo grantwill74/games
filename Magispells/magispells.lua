@@ -254,6 +254,7 @@ end
 
 ---@type integer
 SOUND_STATE_ADDR = 0x13FFC
+SOUND_STATE_TRACK_ADDR = SOUND_STATE_ADDR
 SOUND_STATE_FRAME_ADDR = SOUND_STATE_ADDR + 1
 SOUND_STATE_ROW_ADDR = SOUND_STATE_ADDR + 2
 
@@ -294,7 +295,11 @@ Song = {}
 ---@param frags SongFrag[]
 ---@return Song
 function Song.new(frags)
-    return setmetatable({frags = frags}, {__index = Song})
+    local song = {
+        frags = frags,
+    }
+
+    return setmetatable(song, {__index = Song})
 end
 
 ---@type Song[]
@@ -304,12 +309,18 @@ Songs[1] = Song.new {
     SongFrag.new(1, 0, 0, 0, 7, 63),
     SongFrag.new(1, 0, 0, 9, 3, 63),
     SongFrag.new(1, 0, 3, 0, 3, 35)
-
 }
+
+---@alias SongLoc {
+--- track: integer,
+--- frame: integer,
+--- row: integer,
+---}
 
 ---@class SongState
 ---@field curSong Song
 ---@field curFrag integer
+---@field lastLoc nil|SongLoc
 SongState = {}
 
 ---@param song Song
@@ -317,9 +328,14 @@ function SongState.new(song)
     local state = {
         curSong = song,
         curFrag = 1,
+        lastLoc = nil,
     }
 
-    return setmetatable(state, {__index = SongState})
+    setmetatable(state, {__index = SongState})
+
+    state.curFrag = 0
+
+    return state
 end
 
 ---@return boolean
@@ -329,11 +345,63 @@ end
 
 ---@return boolean
 function SongState:playing()
-    return not self:finished()
+    return not self:finished() and not self.curFrag == 0
+end
+
+function SongState:play()
+    self:nextFragment()
 end
 
 function SongState:tick()
+    -- peek memory and update the current frag
+    ---@type SongLoc
+    local loc = {
+        track = peek(SOUND_STATE_TRACK_ADDR),
+        frame = peek(SOUND_STATE_FRAME_ADDR),
+        row = peek(SOUND_STATE_ROW_ADDR),
+    }
 
+    self.lastLoc = loc
+
+    -- this happens when no song is playing
+    if loc.track == -1 then
+        self:nextFragment()
+        return
+    end
+
+    if self.curFrag > #self.curSong.frags then
+        return
+    end
+
+    local frag = self.curSong.frags[self.curFrag]
+    assert(loc.track == frag.trackNo, "frames from different tracks: unsupported")
+
+    if loc.frame > frag.frameEnd or
+       loc.frame == frag.frameEnd and loc.row > frag.rowEnd
+    then
+        self:nextFragment()
+    end
+end
+
+---@type integer
+BANK_SFX = 8
+
+---@type integer
+BANK_MUSIC = 16
+
+---start playing the next fragment.
+---calls "music" to modify the currently playing bgm
+---calls "sync" to switch banks
+---(so make sure something else doesn't sync that frame)
+function SongState:nextFragment()
+    self.curFrag = self.curFrag + 1
+
+    if self:finished() then return end
+
+    local frag = self.curSong.frags[self.curFrag]
+    sync(BANK_MUSIC, frag.bankNo, false)
+    music(frag.trackNo, frag.frameStart, frag.rowStart,
+        false, false, frag.tempo, frag.speed)
 end
 
 
@@ -2070,16 +2138,20 @@ local appState = nil
 ---@type MouseState
 Mouse = nil
 
+local songState = SongState.new(Songs[1])
+
 function BOOT()
     cls(0)
     appState = StLoading.new()
     Mouse = MouseState.new()
 
-    sync(16, 1)
-    music(0, 0, 0, true)
+    --sync(16, 1)
+    songState:play()
+    -- music(0, 0, 0, true)
 end
 
 function TIC()
+    songState:tick()
     Mouse:poll()
     local tx = appState:tick(Mouse)
 
