@@ -307,8 +307,13 @@ Songs = {}
 
 Songs[1] = Song.new {
     SongFrag.new(1, 0, 0, 0, 7, 63),
-    SongFrag.new(1, 0, 0, 9, 3, 63),
-    SongFrag.new(1, 0, 3, 0, 3, 35)
+    SongFrag.new(1, 0, 0, 0, 3, 63),
+    -- SongFrag.new(1, 0, 3, 0, 3, 35)
+}
+
+Songs[2] = Song.new {
+    SongFrag.new(1, 1, 0, 0, 15, 31),
+    SongFrag.new(1, 1, 0, 0, 6, 31),
 }
 
 ---@alias SongLoc {
@@ -364,20 +369,23 @@ function SongState:tick()
     self.lastLoc = loc
 
     -- this happens when no song is playing
-    if loc.track == -1 then
+    if loc.track == 255 then
         self:nextFragment()
         return
     end
 
     if self.curFrag > #self.curSong.frags then
+        music(-1)
         return
     end
 
     local frag = self.curSong.frags[self.curFrag]
-    assert(loc.track == frag.trackNo, "frames from different tracks: unsupported")
+    assert(loc.track == frag.trackNo, 
+        "frames from different tracks unsupported. loc.track: " ..
+        ToStr(loc.track) .. ", frag.trackNo: " .. ToStr(frag.trackNo))
 
     if loc.frame > frag.frameEnd or
-       loc.frame == frag.frameEnd and loc.row > frag.rowEnd
+       loc.frame == frag.frameEnd and loc.row >= frag.rowEnd
     then
         self:nextFragment()
     end
@@ -401,7 +409,9 @@ function SongState:nextFragment()
     local frag = self.curSong.frags[self.curFrag]
     sync(BANK_MUSIC, frag.bankNo, false)
     music(frag.trackNo, frag.frameStart, frag.rowStart,
-        false, false, frag.tempo, frag.speed)
+        false, false, frag.tempo or -1, frag.speed or -1)
+    --for testing
+    -- music(frag.trackNo, frag.frameStart, frag.rowStart, false, false, -1, 3)
 end
 
 
@@ -1793,10 +1803,10 @@ function StInGame:levelUp()
             newLevel = self.level,
             manaGained = self.xp - TotalXpForLevel(self.level - 1),
             newManaTarget = TotalXpForLevel(self.level + 1),
-            ticksTaken = self.ticks, --TODO add
-            wordsSubmitted = self.nLevelWordsSubmitted, -- TODO add
-            bestWord = self.levelBestWord, -- TODO add
-            bestWordScore = self.levelBestWordScore, -- TODO add
+            ticksTaken = self.ticks,
+            wordsSubmitted = self.nLevelWordsSubmitted,
+            bestWord = self.levelBestWord,
+            bestWordScore = self.levelBestWordScore,
     }
     sfx(SFX.levelUp, 'C-5', 60, SFX_CHANNEL)
     self.statusMsg = nil
@@ -2138,7 +2148,7 @@ local appState = nil
 ---@type MouseState
 Mouse = nil
 
-local songState = SongState.new(Songs[1])
+local songState = SongState.new(Songs[2])
 
 function BOOT()
     cls(0)
@@ -2148,6 +2158,7 @@ function BOOT()
     --sync(16, 1)
     songState:play()
     -- music(0, 0, 0, true)
+
 end
 
 function TIC()
@@ -2165,10 +2176,6 @@ end
 
 
 
-
--- font loosely inspired by this blackletter typeface: 
--- https://en.wikipedia.org/wiki/File:Old_English_typeface.svg
--- by Darkevil, public domain 
 
 -- <TILES>
 -- 001:eccccccccc888888caaaaaaaca888888cacccccccacc0ccccacc0ccccacc0ccc
@@ -2360,9 +2367,12 @@ end
 -- 017:11001100210031003100410051006100610071007100810091009100a100b100b100c100d100d100e100e100e100f100f100f100f100f100f100f100200000000000
 -- 018:0103110121003100410061007100710091009100b100b100c100d100d100e100f100f100f100f100f100f100f100f100f100f100f100f100f100f100300000000000
 -- 019:0000300050008000a000c000e000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000417000000000
+-- 020:01c001b011a01180117011602140213021303120411051106100810081009100a100a100b100b100c100c100d100d100e100e100f100f100f100f100210000000000
 -- 024:13002300330043005300630073008300a300b300d300e300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300300000000000
 -- 025:130013002300330043004300530063007300830083009300a300b300d300e300f300f300f300f300f300f300f300f300f300f300f300f300f300f300310000000000
 -- 026:230063007300b300e300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300f300700000000000
+-- 027:205060307010b000e000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000100000000000
+-- 030:030003000300030003000300130013001300230023003300430053006300730083009300a300b300b300c300d300d300d300d300e300e300f300f300304000000000
 -- 031:12001200220032003200420052006200620072007200820092009200a200b200b200c200d200d200e200e200e200f200f200f200f200f200f200f200370000000000
 -- 048:0007201730374047605770578057a057b057c057d057e057f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000410000000000
 -- 049:0008201830384048605870588058a058b058c058d058e058f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000490000000000
