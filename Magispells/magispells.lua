@@ -1761,7 +1761,7 @@ function StInGame:submitWord()
         local bestWord, bestElems, bestCrs, bestScore =
             self.grid:bestWordStartingAt(chargedCr.col, chargedCr.row)
         
-        if bestScore >= score then
+        if bestScore > score then
             -- freeze tiles
             self.grid:freeze(bestCrs)
             self.statusMsg = XWasBetter(bestWord)
