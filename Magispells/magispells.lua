@@ -332,13 +332,11 @@ SongState = {}
 function SongState.new(song)
     local state = {
         curSong = song,
-        curFrag = 1,
+        curFrag = 0,
         lastLoc = nil,
     }
 
     setmetatable(state, {__index = SongState})
-
-    state.curFrag = 0
 
     return state
 end
@@ -380,7 +378,8 @@ function SongState:tick()
     end
 
     local frag = self.curSong.frags[self.curFrag]
-    assert(loc.track == frag.trackNo, 
+
+    assert(loc.track == frag.trackNo,
         "frames from different tracks unsupported. loc.track: " ..
         ToStr(loc.track) .. ", frag.trackNo: " .. ToStr(frag.trackNo))
 
@@ -2150,19 +2149,27 @@ Mouse = nil
 
 local songState = SongState.new(Songs[2])
 
+function PlayRandomSong()
+    local songNo = math.random(1, #Songs)
+    songState = SongState.new(Songs[songNo])
+    songState:play()
+end
+
 function BOOT()
     cls(0)
     appState = StLoading.new()
     Mouse = MouseState.new()
 
-    --sync(16, 1)
-    songState:play()
-    -- music(0, 0, 0, true)
-
+    PlayRandomSong()
 end
 
 function TIC()
     songState:tick()
+
+    if songState:finished() then
+        PlayRandomSong()
+    end
+
     Mouse:poll()
     local tx = appState:tick(Mouse)
 
