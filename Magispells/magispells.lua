@@ -83,7 +83,7 @@ SFX = {
     gameOver = 51,
     badWord = 52,
     goodWord = 53,
-    bestWord = 53,
+    bestWord = 54,
 }
 
 
@@ -1156,16 +1156,22 @@ end
 
 ---determine the highest scoring word that could be generated at the col row.
 ---returns the string, its elements, the list of Crs, and the score
+--- @alias BestWordInfo {
+---     word: string,
+---     elems: TileElem[],
+---     crs: Cr[],
+---     score: integer,
+--- }
 ---@param col integer
 ---@param row integer
----@return string, TileElem[], Cr[], integer
+---@return BestWordInfo|nil
 function LetterGrid:bestWordStartingAt(col, row)
     local tile = self.cols[col][row]
 
-    if not tile then return "", {}, {}, 0 end
+    if not tile then return nil end
 
     local start = wordDfa:matchPrefix(tile.letter, 1)
-    if not start then return "", {}, {}, 0 end
+    if not start then return nil end
 
     ---@alias SearchState [DfaState, string, TileElem[], Cr[], Cr]
 
@@ -1254,14 +1260,17 @@ function LetterGrid:bestWordStartingAt(col, row)
         ::continue::
     end
 
-    if not bestState then
-        return "", {}, {}, 0
-    end
+    if not bestState then return nil end
 
     local _, word, elems, crs, lastCr = table.unpack(bestState)
     table.insert(crs, lastCr)
 
-    return word, elems, crs, WordScore(word, elems)
+    return {
+        word = word,
+        elems = elems,
+        crs = crs,
+        score = WordScore(word, elems)
+    }
 end
 
 
@@ -1360,28 +1369,6 @@ function LetterGrid:freeze(crs)
     end
 end
 
----find the best word, or nil if there are no words on the board
----returns the word, its tiles, and score if it exists.
----otherwise "", {}, {}, 0
----@return string, TileElem[], Cr[], integer
-function LetterGrid:bestWord()
-    local bestWord = ""
-    local bestElems = {}
-    local bestCrs = {}
-    local bestScore = 0
-
-    for col=1, FIELD_TILES_W do
-        for row=1, FIELD_TILES_PER_COL[col] do
-            local word, elems, crs, score = self:bestWordStartingAt(col, row)
-            if score > bestScore then
-                bestWord, bestElems, bestCrs, bestScore =
-                    word, elems, crs, score
-            end
-        end
-    end
-
-    return bestWord, bestElems, bestCrs, bestScore
-end
 
 ---the amount of extra displacement to give to a tile based on how many it is 
 ---being spawned over. used to stagger the falling speed.
@@ -1550,6 +1537,7 @@ end
 ---@field gameBestWordScore integer
 ---@field statusMsg nil|StatusMessage
 ---@field delayTicks integer
+---@field bonusChances integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -1612,9 +1600,19 @@ function StInGame:newGame()
     self.gameBestWord = ""
     self.gameBestWordScore = 0
     self.delayTicks = 0
+    self.bonusChances = 0
     self.statusMsg = nil
 
-    self.grid:spawnTiles()
+    for col=1, 8 do
+        for row=1, FIELD_TILES_PER_COL[col] do
+            self.grid.cols[col][row] = GridTile.new('a', 0, 'normal')
+        end
+    end
+    
+    self.grid.cols[1][1] = GridTile.new('b', 0, 'normal')
+    self.grid.cols[2][1] = GridTile.new('t', 0, 'normal')
+
+    -- self.grid:spawnTiles()
 end
 
 
@@ -1715,7 +1713,7 @@ function StInGame:handleClick(mouse)
             isNeighbor = true
         end
     end
-    
+
     if not isNeighbor then
         -- cant.wav
         return
@@ -1729,6 +1727,53 @@ function StInGame:handleClick(mouse)
     -- add.wav
     sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL)
     self.strand:add(col, row)
+end
+
+
+--- returns a table that maps a column and row to a best word, its elements,
+--- its Cr path, and its score.
+
+---@return table<integer, table<integer, BestWordInfo|nil>>
+function LetterGrid:bestWordsFromEachTile()
+    local result = {}
+
+    -- compute all the best words makeable from every tile
+    for col=1, FIELD_TILES_W do
+        result[col] = {}
+
+        for row=1, FIELD_TILES_PER_COL[col] do
+            result[col][row] = self:bestWordStartingAt(col, row)
+        end
+    end
+
+    return result
+end
+
+---Given the best words from each tile, return the best word possible if it
+---exists.
+---@param tileResults table<integer, table<integer, BestWordInfo|nil>>
+---@return BestWordInfo | nil
+function BestWordAvail(tileResults)
+    local best = nil
+
+    for _, row in pairs(tileResults) do
+        for _, result in pairs(row) do
+            if result and (not best or result.score > best.score) then
+                best = result
+            end
+        end
+    end
+
+    return best
+end
+
+---Given the best words from each tile, selects a random one for comparison
+---@param tileResults table<integer, table<integer, BestWordInfo|nil>>
+---@return BestWordInfo | nil
+function RandomComparisonWord(tileResults)
+    local randomCol = math.random(1, FIELD_TILES_W)
+    local randomRow = math.random(1, FIELD_TILES_PER_COL[randomCol])
+    return tileResults[randomCol][randomRow]
 end
 
 
@@ -1748,32 +1793,30 @@ function StInGame:submitWord()
         end
     end
 
+    local bestWords = self.grid:bestWordsFromEachTile()
+    local bestWord = BestWordAvail(bestWords)
+    local randomComparison = RandomComparisonWord(bestWords)
+
+    local comparisonScore = randomComparison and randomComparison.score or 0
+
+    assert(bestWord, "no word exists despite being in submit word.")
+
+    if score < comparisonScore then
+        -- freeze tiles
+        self.grid:freeze(bestWord.crs)
+        self.statusMsg = XWasBetter(bestWord.word)
+        sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL)
+    elseif score == bestWord.score then
+        self.statusMsg = BestWord()
+        self.bonusChances = self.bonusChances + 1
+        sfx(SFX.bestWord, 'E-6', 120, SFX_CHANNEL)
+    else
+        self.statusMsg = GoodWord()
+        sfx(SFX.goodWord, 'C-5', 120, SFX_CHANNEL)
+    end
+
     for _, cr in ipairs(self.strand.tiles) do
         self.grid:deleteTile(cr.col, cr.row)
-        --self.grid.cols[cr.col][cr.row] = nil
-    end
-
-    local startTile, chargedCr = self.grid:selectRandomTile()
-    
-    ---@type nil|'freeze'
-    local submitResult = nil
-    if startTile then -- startTile is nil if it's from a submitted word
-        local bestWord, bestElems, bestCrs, bestScore =
-            self.grid:bestWordStartingAt(chargedCr.col, chargedCr.row)
-        
-        if bestScore > score then
-            -- freeze tiles
-            self.grid:freeze(bestCrs)
-            self.statusMsg = XWasBetter(bestWord)
-            sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL)
-            submitResult = 'freeze'
-        end
-    end
-
-    if submitResult ~= 'freeze' then
-        self.statusMsg = GoodWord()
-        sfx(SFX.goodWord, 'C-6', 120, SFX_CHANNEL)
-        -- good job!
     end
 
     self.xp = self.xp + score
@@ -1792,6 +1835,10 @@ function StInGame:submitWord()
 
     self:startFalling()
     self.grid:spawnTiles()
+
+    -- TODO ensure that there actually is a word
+
+
     self.delayTicks = SUBMIT_DELAY_TICKS
 end
 
@@ -1813,6 +1860,7 @@ function StInGame:levelUp()
     self.nLevelWordsSubmitted = 0
     self.levelBestWord = ""
     self.levelBestWordScore = 0
+    self.bonusChances = 0
 end
 
 function StInGame:gameOver()
@@ -2039,6 +2087,12 @@ function GoodWord()
     end
 end
 
+function BestWord()
+    return function(x, y)
+        print("Best word!", x, y, PALETTE.YELLOW)
+    end
+end
+
 ---draw the status bar to the left
 ---@param node Node
 ---@param letters string
@@ -2100,7 +2154,9 @@ end
 
 ---@return integer
 function StInGame:nChancesThisLevel()
-    return WordsMaxForLevel(self.level) - self.nLevelWordsSubmitted
+    return WordsMaxForLevel(self.level) -
+        self.nLevelWordsSubmitted +
+        self.bonusChances
 end
 
 function StInGame:draw()
@@ -2387,6 +2443,7 @@ end
 -- 051:00c000c000c000c000c000c00090009000900090009010901060106010602060206030604030503060306030803090309030a030a030b030b030b030300000000000
 -- 052:1024104120522052205330253006400650065014604260607060805c802b900ba00ba00bb01bb04cc06dc070d081e073e054e025f015f015f025f043600000000000
 -- 053:11001100110011102110212031404170519061a061c071c081c091c0a1c0a1c0b1c0b1c0c1c0c1c0d1c0d1c0d1c0d1c0d1c0e1c0e1c0e1c0e1c0f1c0600000000000
+-- 054:1010102010601090208020a030c040e050f060006010702080309050a070a080b090b0b0c0f0c0f0d0d0d010d030d060d070e080e0a0e0c0e0e0f0f0500000000000
 -- </SFX>
 
 -- <SFX1>
