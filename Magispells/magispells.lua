@@ -962,6 +962,8 @@ end
 ---@field cols GridTile[][]
 ---@field nVowels integer
 ---@field nTiles integer
+---@field bestWord BestWordInfo|nil
+---@field allBestWords BestWordInfo[]
 LetterGrid = {}
 LetterGrid.__index = LetterGrid
 
@@ -979,6 +981,8 @@ function LetterGrid.new(node)
         node = node,
         nVowels = 0,
         nTiles = 0,
+        bestWord = nil,
+        allBestWords = {}
     }
 
     return setmetatable(val, LetterGrid)
@@ -1377,23 +1381,41 @@ SPAWN_EXTRA_ROW_DISP_PER_HEIGHT_TILES = 1
 ---maximum amount of a random row offset to spawning tiles 
 SPAWN_RANDOM_ROW_OFFSET_MAG = 0.5
 
+---@alias SpawnTilesResult nil|'respawned'
+---@return SpawnTilesResult
 function LetterGrid:spawnTiles()
-    for col=1, FIELD_TILES_W do
-        local height = FIELD_TILES_PER_COL[col]
-        local tilesBelow = 0
-        for row=1, height do
-            if not self.cols[col][row] then
-                local letter, elem = DrawLetter(self.nVowels / (self.nTiles or 1))
-                if VOWEL[letter] then self.nVowels = self.nVowels + 1 end
-                self.nTiles = self.nTiles + 1
-                local rowOff = FIELD_TILES_H +
-                    SPAWN_EXTRA_ROW_DISP_PER_HEIGHT_TILES * tilesBelow +
-                    math.random() * SPAWN_RANDOM_ROW_OFFSET_MAG
-                self.cols[col][row] = GridTile.new(letter, rowOff, elem)
-                tilesBelow = tilesBelow + 1
+    local result = nil
+
+    while true do
+        for col=1, FIELD_TILES_W do
+            local height = FIELD_TILES_PER_COL[col]
+            local tilesBelow = 0
+            for row=1, height do
+                if not self.cols[col][row] then
+                    local letter, elem = DrawLetter(self.nVowels / (self.nTiles or 1))
+                    if VOWEL[letter] then self.nVowels = self.nVowels + 1 end
+                    self.nTiles = self.nTiles + 1
+                    local rowOff = FIELD_TILES_H +
+                        SPAWN_EXTRA_ROW_DISP_PER_HEIGHT_TILES * tilesBelow +
+                        math.random() * SPAWN_RANDOM_ROW_OFFSET_MAG
+                    self.cols[col][row] = GridTile.new(letter, rowOff, elem)
+                    tilesBelow = tilesBelow + 1
+                end
             end
         end
+
+        self.allBestWords = self:bestWordsFromEachTile()
+        self.bestWord = BestWordAvail(self.allBestWords)
+
+        if self.bestWord then
+            break
+        end
+
+        self:clearAllTiles()
+        result = 'respawned'
     end
+
+    return result
 end
 
 function LetterGrid:clearAllTiles()
@@ -1414,6 +1436,7 @@ function LetterGrid:deleteTile(col, row)
     self.nTiles = self.nTiles - 1
     self.cols[col][row] = nil
 end
+
 
 
 ---A list of selected tiles
@@ -1625,13 +1648,13 @@ function StInGame:handleClick(mouse)
     if mouse.leftTrans ~= 'up' then
         return
     end
-    
+
     if self.subState and self.subState.id == 'level up' then
         self.subState = nil
 
         self.grid:clearAllTiles()
         self.grid:spawnTiles()
-        
+
         -- play a sound?
         return
     end
@@ -1834,10 +1857,11 @@ function StInGame:submitWord()
     end
 
     self:startFalling()
-    self.grid:spawnTiles()
+    local spawnResult = self.grid:spawnTiles()
 
-    -- TODO ensure that there actually is a word
-
+    if spawnResult == 'respawned' then
+        self.statusMsg = RespawnedTiles()
+    end
 
     self.delayTicks = SUBMIT_DELAY_TICKS
 end
@@ -1974,6 +1998,8 @@ function HoursMinsSecs(ticks)
     return hoursTaken, minsRem, secsRem, ticksRem
 end
 
+--TODO: ensure respawning works
+
 ---@param node Node
 function StInGame_LevelUp:draw(node)
     local x, y = node:pos()
@@ -2090,6 +2116,12 @@ end
 function BestWord()
     return function(x, y)
         print("Best word!", x, y, PALETTE.YELLOW)
+    end
+end
+
+function RespawnedTiles()
+    return function(x, y)
+        print("No words! Respawned!", x, y, PALETTE.WHITE)
     end
 end
 
