@@ -1201,11 +1201,11 @@ function LetterGrid:bestWordStartingAt(col, row)
             table.unpack(toSearch)
 
         -- check if tile has already been visited
-        for _, cr in ipairs(crs) do
-            if cr.row == searchCr.row and cr.col == searchCr.col then
-                goto continue
-            end
-        end
+        -- for _, cr in ipairs(crs) do
+        --    if cr.row == searchCr.row and cr.col == searchCr.col then
+        --        goto continue
+        --    end
+        -- end
 
         if node.final then
             local currentScore = WordScore(wordSoFar, elems)
@@ -1385,6 +1385,7 @@ SPAWN_RANDOM_ROW_OFFSET_MAG = 0.5
 ---@return SpawnTilesResult
 function LetterGrid:spawnTiles()
     local result = nil
+    local count = 0
 
     while true do
         for col=1, FIELD_TILES_W do
@@ -1578,8 +1579,6 @@ function StInGame.new()
         0, 60, 96, 104
     )
 
-    local grid = LetterGrid.new(ndField)
-
     local state = {
         ndScreen = ndScreen,
         ndField = ndField,
@@ -1626,16 +1625,35 @@ function StInGame:newGame()
     self.bonusChances = 0
     self.statusMsg = nil
 
+    --for col=1, 8 do
+    --    for row=1, FIELD_TILES_PER_COL[col] do
+    --        self.grid.cols[col][row] = GridTile.new('a', 0, 'normal')
+    --    end
+    -- end
+
+--    self.grid.cols[1][1] = GridTile.new('b', 0, 'normal')
+--    self.grid.cols[2][1] = GridTile.new('t', 0, 'normal')
+
+    local letters = {
+        'ntsqnnt',
+        'gsckrsct',
+        'tdddsns',
+        'rthltcsh',
+        'nrpsnrn',
+        'bkdcgncs',
+        --'ratshmp',
+        'rttshmp',
+        'nxdsnpcj',
+    }
+
     for col=1, 8 do
         for row=1, FIELD_TILES_PER_COL[col] do
-            self.grid.cols[col][row] = GridTile.new('a', 0, 'normal')
+            self.grid.cols[col][row] =
+                GridTile.new(letters[col]:sub(row, row), 0, 'normal')
         end
     end
-    
-    self.grid.cols[1][1] = GridTile.new('b', 0, 'normal')
-    self.grid.cols[2][1] = GridTile.new('t', 0, 'normal')
 
-    -- self.grid:spawnTiles()
+    self.grid:spawnTiles()
 end
 
 
@@ -1651,9 +1669,6 @@ function StInGame:handleClick(mouse)
 
     if self.subState and self.subState.id == 'level up' then
         self.subState = nil
-
-        self.grid:clearAllTiles()
-        self.grid:spawnTiles()
 
         -- play a sound?
         return
@@ -1777,11 +1792,13 @@ end
 ---@param tileResults table<integer, table<integer, BestWordInfo|nil>>
 ---@return BestWordInfo | nil
 function BestWordAvail(tileResults)
+    ---@type BestWordInfo|nil
     local best = nil
 
-    for _, row in pairs(tileResults) do
-        for _, result in pairs(row) do
-            if result and (not best or result.score > best.score) then
+    for col=1, FIELD_TILES_W do
+        for row=1, FIELD_TILES_PER_COL[col] do
+            local result = tileResults[col][row]
+            if not best or result and result.score > best.score then
                 best = result
             end
         end
@@ -1816,20 +1833,18 @@ function StInGame:submitWord()
         end
     end
 
-    local bestWords = self.grid:bestWordsFromEachTile()
-    local bestWord = BestWordAvail(bestWords)
-    local randomComparison = RandomComparisonWord(bestWords)
+    local randomComparison = RandomComparisonWord(self.grid.allBestWords)
 
     local comparisonScore = randomComparison and randomComparison.score or 0
 
-    assert(bestWord, "no word exists despite being in submit word.")
+    assert(self.grid.bestWord, "no word exists despite being in submit word.")
 
     if score < comparisonScore then
         -- freeze tiles
-        self.grid:freeze(bestWord.crs)
-        self.statusMsg = XWasBetter(bestWord.word)
+        self.grid:freeze(self.grid.bestWord.crs)
+        self.statusMsg = XWasBetter(self.grid.bestWord.word)
         sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL)
-    elseif score == bestWord.score then
+    elseif score == self.grid.bestWord.score then
         self.statusMsg = BestWord()
         self.bonusChances = self.bonusChances + 1
         sfx(SFX.bestWord, 'E-6', 120, SFX_CHANNEL)
@@ -1885,6 +1900,9 @@ function StInGame:levelUp()
     self.levelBestWord = ""
     self.levelBestWordScore = 0
     self.bonusChances = 0
+
+    self.grid:clearAllTiles()
+    self.grid:spawnTiles()
 end
 
 function StInGame:gameOver()
