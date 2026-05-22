@@ -1602,8 +1602,6 @@ function StInGame.new()
 
     state:newGame()
 
-    -- state.grid:spawnTiles()
-    
     return state
 end
 
@@ -1633,25 +1631,6 @@ function StInGame:newGame()
 
 --    self.grid.cols[1][1] = GridTile.new('b', 0, 'normal')
 --    self.grid.cols[2][1] = GridTile.new('t', 0, 'normal')
-
-    local letters = {
-        'ntsqnnt',
-        'gsckrsct',
-        'tdddsns',
-        'rthltcsh',
-        'nrpsnrn',
-        'bkdcgncs',
-        --'ratshmp',
-        'rttshmp',
-        'nxdsnpcj',
-    }
-
-    for col=1, 8 do
-        for row=1, FIELD_TILES_PER_COL[col] do
-            self.grid.cols[col][row] =
-                GridTile.new(letters[col]:sub(row, row), 0, 'normal')
-        end
-    end
 
     self.grid:spawnTiles()
 end
