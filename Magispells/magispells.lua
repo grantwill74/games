@@ -1541,6 +1541,46 @@ function WordsMaxForLevel(lvl)
     return 10 + 2 * lvl
 end
 
+
+WISPELL_PROFILE_TILES_W = 4
+WISPELL_PROFILE_TILES_H = 4
+WISPELL_EXPRESSION_TILES_W = 2
+WISPELL_EXPRESSION_TILES_H = 2
+WISPELL_EXPRESSION_OFF_X = 8
+WISPELL_EXPRESSION_OFF_Y = 8
+
+---@class Wispell
+---@field profile integer
+---@field expression integer
+---@field node Node
+
+Wispell = {
+    profiles = {
+        neutral = 0,
+    },
+    expressions = {
+        neutral = 20,
+    }
+}
+
+---@param node Node
+---@return Wispell
+function Wispell.new(node)
+    local wispell = {
+        profile =  Wispell.profiles.neutral,
+        expression = Wispell.expressions.neutral,
+        node = node,
+    }
+
+    return setmetatable(wispell, {__index = Wispell})
+end
+
+
+function Wispell:draw()
+
+    
+end
+
 ---@class StInGame : IAppState
 ---@field ndScreen Node
 ---@field ndField Node
