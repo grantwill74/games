@@ -316,6 +316,17 @@ Songs[2] = Song.new {
     SongFrag.new(1, 1, 0, 0, 6, 31),
 }
 
+Songs[3] = Song.new {
+    SongFrag.new(2, 0, 0, 0, 1, 63),
+    SongFrag.new(2, 0, 2, 0, 3, 63),
+    SongFrag.new(2, 0, 2, 0, 3, 63),
+    SongFrag.new(2, 0, 4, 0, 4, 63),
+    SongFrag.new(2, 0, 5, 0, 13, 63),
+    SongFrag.new(2, 0, 14, 0, 15, 63),
+    SongFrag.new(2, 0, 14, 0, 15, 63),
+    -- not sure yet?
+}
+
 ---@alias SongLoc {
 --- track: integer,
 --- frame: integer,
