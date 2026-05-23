@@ -317,15 +317,15 @@ Songs[2] = Song.new {
 }
 
 Songs[3] = Song.new {
-    SongFrag.new(2, 0, 0, 0, 1, 63),
-    SongFrag.new(2, 0, 2, 0, 3, 63),
-    SongFrag.new(2, 0, 2, 0, 3, 63),
-    SongFrag.new(2, 0, 4, 0, 4, 63),
-    SongFrag.new(2, 0, 5, 0, 13, 63),
-    SongFrag.new(2, 0, 14, 0, 15, 63),
-    SongFrag.new(2, 0, 14, 0, 15, 63),
-    SongFrag.new(2, 0, 2, 0, 3, 63),
-    SongFrag.new(2, 0, 4, 0, 4, 63),
+    SongFrag.new(2, 0, 0, 0, 1, 63, 124),
+    SongFrag.new(2, 0, 2, 0, 3, 63, 124),
+    SongFrag.new(2, 0, 2, 0, 3, 63, 124),
+    SongFrag.new(2, 0, 4, 0, 4, 63, 124),
+    SongFrag.new(2, 0, 5, 0, 13, 63, 124),
+    SongFrag.new(2, 0, 14, 0, 15, 63, 124),
+    SongFrag.new(2, 0, 14, 0, 15, 63, 124),
+    SongFrag.new(2, 0, 2, 0, 3, 63, 124),
+    SongFrag.new(2, 0, 4, 0, 4, 63, 124),
 }
 
 ---@alias SongLoc {
@@ -948,6 +948,9 @@ FIELD_H_px = LETTER_TILE_H_px * (FIELD_TILES_H + 1) --+ 1 for column offsets
 FIELD_RIGHT_BUFFER_px = 0
 FIELD_TOP_OFF_px = 4
 
+WISPELL_OFF_X_px = 0
+WISPELL_OFF_Y_px = 0
+
 LETTER_FALL_SPEED_ROWS_PER_TICK = 0.2
 
 ---a tile in the grid, stores the letter and also the (possibly fractional) column
@@ -1558,21 +1561,20 @@ WISPELL_PROFILE_TILES_W = 4
 WISPELL_PROFILE_TILES_H = 4
 WISPELL_EXPRESSION_TILES_W = 2
 WISPELL_EXPRESSION_TILES_H = 2
-WISPELL_EXPRESSION_OFF_X = 8
+WISPELL_EXPRESSION_OFF_X = 10
 WISPELL_EXPRESSION_OFF_Y = 8
 
 ---@class Wispell
 ---@field profile integer
 ---@field expression integer
 ---@field node Node
-
 Wispell = {
     profiles = {
-        neutral = 0,
+        neutral = 64,
     },
     expressions = {
-        neutral = 20,
-    }
+        neutral = 76,
+    },
 }
 
 ---@param node Node
@@ -1584,19 +1586,27 @@ function Wispell.new(node)
         node = node,
     }
 
-    return setmetatable(wispell, {__index = Wispell})
+    setmetatable(wispell, {__index = Wispell})
+
+    return wispell
 end
 
-
 function Wispell:draw()
-
-    
+    local x, y = self.node:pos()
+    spr(self.profile, x, y, 0, 1, 0, 0,
+        WISPELL_PROFILE_TILES_W, WISPELL_PROFILE_TILES_H)
+    spr(self.expression,
+        x + WISPELL_EXPRESSION_OFF_X,
+        y + WISPELL_EXPRESSION_OFF_Y,
+        0, 1, 0, 0, WISPELL_EXPRESSION_TILES_W, WISPELL_EXPRESSION_TILES_H)
 end
 
 ---@class StInGame : IAppState
 ---@field ndScreen Node
 ---@field ndField Node
 ---@field ndStatus Node
+---@field ndWispell Node
+---@field wispell Wispell
 ---@field grid LetterGrid
 ---@field highlight Cr | nil
 ---@field strand Strand
@@ -1630,11 +1640,19 @@ function StInGame.new()
         'status area',
         0, 60, 96, 104
     )
+    local ndWispell = ndScreen:addChild(
+        'wispell',
+        WISPELL_OFF_X_px,
+        WISPELL_OFF_Y_px,
+        WISPELL_PROFILE_TILES_W * TILE_W_px,
+        WISPELL_PROFILE_TILES_H * TILE_H_px
+    )
 
     local state = {
         ndScreen = ndScreen,
         ndField = ndField,
         ndStatus = ndStatus,
+        ndWispell = ndWispell
 --        grid = grid,
         --strand = Strand.new(),
         --highlight = nil,
@@ -1674,6 +1692,7 @@ function StInGame:newGame()
     self.delayTicks = 0
     self.bonusChances = 0
     self.statusMsg = nil
+    self.wispell = Wispell.new(self.ndWispell)
 
     --for col=1, 8 do
     --    for row=1, FIELD_TILES_PER_COL[col] do
@@ -2257,6 +2276,8 @@ function StInGame:draw()
         isCharged = isCharged or (currentElems[i] == 'charged')
     end
 
+    self.wispell:draw()
+
     DrawStatus(
         self.ndStatus,
         currentWord,
@@ -2322,26 +2343,26 @@ end
 
 
 -- <TILES>
--- 000:0000000000000099000009110000911100009111000911910009191100091912
--- 001:0000000090000000199000001119000014429900424421902421111921111999
--- 002:0000000000000000000000000000000000000000000009999999900000000000
--- 003:0000000000000000000000000000000000000000999900000000900000000900
--- 016:0009192200091921000099110000091900000990000009000000900000090000
--- 017:11199000199000009000000000000000000000090000099a00009aaa0009aaaa
--- 018:000000000000000000000000099999009aaaaa90aaaaaaa9aaaaaaaaaaaaaaaa
--- 019:0000009000000090000000900000009000000900000090009099000099000000
--- 020:0000000000000000000000000000000000000000000000c000000cc000000cc0
--- 021:0000000000000000000000000000000000c0000000cc000000ccc00000ccc000
--- 032:0009000000900000009000000900000009000000900000009000000090000000
--- 033:009aaaaa09aaaaaa09aaaaaa09aaaaaa09aaaaaa009aaaaa0099aaaa99009aaa
--- 034:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9aaaaaa90aaaaa909
--- 035:9000000090000000900000009000000090000000000000000990000090090000
--- 036:0000ccc0000cccc0000cccc00000ccc000000000000000000000000b00000000
--- 037:00ccc00000cc000000c00000000000000000000000b00000bb00000000000000
--- 048:9000009990009900099900000000000000000099000009000000900000000900
--- 049:0000099900000900000990900990000990000000090000000090000000090000
--- 050:9999900900000090000000909000990009990000000000000000000000000000
--- 051:0000900000009000000090000000900000009000000090000000900000009000
+-- 064:0000000000000099000009110000911100009111000911910009191100091912
+-- 065:0000000090000000199000001119000014429900424421902421111921111999
+-- 066:0000000000000000000000000000000000000000000009999999900000000000
+-- 067:0000000000000000000000000000000000000000999900000000900000000900
+-- 076:0000000000000000000000000000000000000000000000c000000cc000000cc0
+-- 077:0000000000000000000000000000000000c0000000cc000000ccc00000ccc000
+-- 080:0009192200091921000099110000091900000990000009000000900000090000
+-- 081:11199000199000009000000000000000000000090000099a00009aaa0009aaaa
+-- 082:000000000000000000000000099999009aaaaa90aaaaaaa9aaaaaaaaaaaaaaaa
+-- 083:0000009000000090000000900000009000000900000090009099000099000000
+-- 092:0000ccc0000cccc0000cccc00000ccc000000000000000000000000b00000000
+-- 093:00ccc00000cc000000c00000000000000000000000b00000bb00000000000000
+-- 096:0009000000900000009000000900000009000000900000009000000090000000
+-- 097:009aaaaa09aaaaaa09aaaaaa09aaaaaa09aaaaaa009aaaaa0099aaaa99009aaa
+-- 098:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9aaaaaa90aaaaa909
+-- 099:9000000090000000900000009000000090000000000000000990000090090000
+-- 112:9000009990009900099900000000000000000099000009000000900000000900
+-- 113:0000099900000900000990900990000990000000090000000090000000090000
+-- 114:9999900900000090000000909000990009990000000000000000000000000000
+-- 115:0000900000009000000090000000900000009000000090000000900000009000
 -- </TILES>
 
 -- <SPRITES>
