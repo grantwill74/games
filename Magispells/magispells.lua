@@ -1563,30 +1563,89 @@ WISPELL_EXPRESSION_TILES_W = 4
 WISPELL_EXPRESSION_TILES_H = 4
 WISPELL_EXPRESSION_OFF_X = 16
 WISPELL_EXPRESSION_OFF_Y = 16
+WISPELL_BOOK_W = 4
+WISPELL_BOOK_H = 4
+WISPELL_BOOK_OFF_X = 10
+WISPELL_BOOK_OFF_Y = 10
+WISPELL_RHAND_OFF_X = -16 -- relative to book
+WISPELL_RHAND_OFF_Y = 0
+WISPELL_RHAND_W = 2
+WISPELL_RHAND_H = 2
+WISPELL_LHAND_OFF_X = 16 -- relative to book
+WISPELL_LHAND_OFF_Y = 0
+WISPELL_LHAND_W = 1
+WISPELL_LHAND_H = 2
+
+---An image attached to Wispell's image
+---@class WispellImage
+---@field spriteNo integer
+---@field offX number # Where to draw this relative to parent
+---@field offY number # Where to draw this relative to parent
+---@field tileW integer # number of tiles wide
+---@field tileH integer # number of tiles high
+WispellImage = {}
+
+---@param spriteNo integer
+---@param offX number
+---@param offY number
+---@param tileW integer
+---@param tileH integer
+---@returns WispellImage
+function WispellImage.new(spriteNo, offX, offY, tileW, tileH)
+    return {
+        spriteNo = spriteNo,
+        offX = offX,
+        offY = offY,
+        tileW = tileW,
+        tileH = tileH,
+    }
+end
 
 
 ---@class Wispell
----@field profile integer
----@field expression integer
+---@field profile WispellImage
+---@field expression WispellImage
 ---@field node Node
 Wispell = {
     profiles = {
-        neutral = 128,
+        neutral = WispellImage.new(
+            128, 0, 0,
+            WISPELL_PROFILE_TILES_W,
+            WISPELL_PROFILE_TILES_H),
     },
     expressions = {
-        neutral = 68,
+        neutral = WispellImage.new(
+            68,
+            WISPELL_EXPRESSION_OFF_X,
+            WISPELL_EXPRESSION_OFF_Y,
+            WISPELL_EXPRESSION_TILES_W,
+            WISPELL_EXPRESSION_TILES_H),
     },
     accessories = {
-        book = 200,
+        book = WispellImage.new(
+            200,
+            WISPELL_BOOK_OFF_X,
+            WISPELL_BOOK_OFF_Y,
+            WISPELL_BOOK_W,
+            WISPELL_BOOK_H),
     },
     parts = {
-        rhand = 137,
-        lhand = 140,
+        lhand = WispellImage.new(
+            137,
+            WISPELL_LHAND_OFF_X,
+            WISPELL_LHAND_OFF_Y,
+            WISPELL_LHAND_W,
+            WISPELL_LHAND_H),
+        rhand = WispellImage.new(
+            140,
+            WISPELL_RHAND_OFF_X,
+            WISPELL_RHAND_OFF_Y,
+            WISPELL_RHAND_W,
+            WISPELL_RHAND_H
+        ),
     }
 }
 
-function Wispell.ExpressionNode(profileNode)
-end
 
 ---@param node Node
 ---@return Wispell
@@ -1604,12 +1663,16 @@ end
 
 function Wispell:draw()
     local x, y = self.node:pos()
-    spr(self.profile, x, y, 0, 1, 0, 0,
-        WISPELL_PROFILE_TILES_W, WISPELL_PROFILE_TILES_H)
-    spr(self.expression,
-        x + WISPELL_EXPRESSION_OFF_X,
-        y + WISPELL_EXPRESSION_OFF_Y,
-        0, 1, 0, 0, WISPELL_EXPRESSION_TILES_W, WISPELL_EXPRESSION_TILES_H)
+    spr(self.profile.spriteNo,
+        x + self.profile.offX,
+        y + self.profile.offY, 0, 1, 0, 0,
+        self.profile.tileW, self.profile.tileH)
+    spr(self.expression.spriteNo,
+        x + self.expression.offX,
+        y + self.expression.offY,
+        0, 1, 0, 0,
+        self.expression.tileW,
+        self.expression.tileH)
 end
 
 ---@class StInGame : IAppState
