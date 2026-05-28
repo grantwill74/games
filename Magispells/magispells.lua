@@ -1601,10 +1601,27 @@ function WispellImage.new(spriteNo, offX, offY, tileW, tileH)
     }
 end
 
+---@alias WispellFrameDesc {
+--- frameNo: integer,
+--- howLong: number,
+--- tw: integer,
+--- th: integer, --???
+---}
+---
+---@alias WispellAnim {
+--- frames: WispellFrameDesc[],
+---}
+---
+---@alias WispellState {
+--- anim: WispellAnim,
+--- currentFrame: integer,
+--- currentTimeLeft: number,
+---}
 
 ---@class Wispell
 ---@field profile WispellImage
 ---@field expression WispellImage
+---@field state WispellState
 ---@field node Node
 Wispell = {
     profiles = {
@@ -1645,6 +1662,7 @@ Wispell = {
         ),
     }
 }
+
 
 
 ---@param node Node
