@@ -1605,6 +1605,7 @@ function WispellImage.new(spriteNo, offX, offY, tileW, tileH)
     }
 end
 
+---@alias AnimName 'idle'|'blink'|'huh'|'argh'|'okay'|'great'
 
 ---@alias WispellFrameDesc {
 --- image: WispellImage,
@@ -1612,7 +1613,7 @@ end
 ---}
 ---
 ---@alias WispellAnim {
---- name: string,
+--- name: AnimName,
 --- frames: WispellFrameDesc[],
 ---}
 
@@ -1760,6 +1761,24 @@ function Wispell:draw()
         y + self.profile.offY, 0, 1, 0, 0,
         self.profile.tileW, self.profile.tileH)
     self.expressionAnimState:draw(x, y);
+end
+
+function Wispell:tick()
+    self.expressionAnimState:tick()
+
+    if self.expressionAnimState:finished() then
+        -- reset to idle
+        self.expressionAnimState = WispellAnimState.new()
+    end
+
+    -- roll to see if we blink
+    if self.expressionAnimState.anim.name == 'idle' then
+        local blink = math.random() < WISPELL_BLINK_MTTH
+        if blink then
+            self.expressionAnimState.anim = WispellAnims.blink
+
+        end
+    end
 end
 
 ---@class StInGame : IAppState
