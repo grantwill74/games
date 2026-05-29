@@ -1575,6 +1575,10 @@ WISPELL_LHAND_OFF_X = 16 -- relative to book
 WISPELL_LHAND_OFF_Y = 0
 WISPELL_LHAND_W = 1
 WISPELL_LHAND_H = 2
+WEXP_OX = WISPELL_EXPRESSION_OFF_X
+WEXP_OY = WISPELL_EXPRESSION_OFF_Y
+WEXP_W = WISPELL_EXPRESSION_TILES_W
+WEXP_H = WISPELL_EXPRESSION_TILES_H
 
 ---An image attached to Wispell's image
 ---@class WispellImage
@@ -1603,33 +1607,82 @@ end
 
 
 ---@alias WispellFrameDesc {
---- frameNo: integer,
---- howLong: number,
---- tw: integer,
---- th: integer, --???
+--- image: WispellImage,
+--- howLong: number|nil, -- # in ticks, nil means forever
 ---}
 ---
 ---@alias WispellAnim {
+--- name: string,
 --- frames: WispellFrameDesc[],
 ---}
 
 
+---@type table<string, WispellAnim>
 WispellAnims = {
-    
+    idle = {
+        name = 'idle',
+        frames = {
+            {image = Wispell.expressions.neutral, howLong=nil}
+        }
+    },
+    blink = {
+        name = 'blink',
+        frames = {
+            {image = Wispell.expressions.blink1, howLong=15},
+            {image = Wispell.expressions.blink2, howLong=30},
+            {image = Wispell.expressions.blink1, howLong=15},
+        }
+    }
 }
 
 
----
----@alias WispellState {
---- anim: WispellAnim,
---- currentFrame: integer,
---- currentTimeLeft: number,
----}
+---@class WispellAnimState
+---@field anim WispellAnim
+---@field currentFrame integer
+---@field currentTicksLeft integer|nil
+WispellAnimState = {}
+
+function WispellAnimState.new()
+    local state = {
+        anim = WispellAnims.idle,
+        currentFrame = 0,
+        currentTicksLeft = nil
+    }
+
+    return setmetatable(state, {__index = WispellAnimState});
+end
+
+---@return integer
+function WispellAnimState:nFrames()
+    return #self.anim.frames
+end
+
+---@return boolean
+function WispellAnimState:finished()
+    return self.currentFrame == self:nFrames()
+end
+
+---@return nil
+function WispellAnimState:tick()
+    if self:finished() then return end
+
+    if self.currentTicksLeft <= 0 then
+        -- in case we zero out frames for debugging purposes, 
+        -- handle it correctly to skip ahead and not display a 0 length frame
+        while self.currentTicksLeft <= 0 do
+            self.currentFrame = self.currentFrame + 1
+            self.currentTicksLeft = self.anim.frames[self.currentFrame].howLong
+        end
+    else
+        self.currentTicksLeft = self.currentTicksLeft - 1
+    end
+end
+
 
 ---@class Wispell
 ---@field profile WispellImage
 ---@field expression WispellImage
----@field state WispellState
+---@field animState WispellAnimState
 ---@field node Node
 Wispell = {
     profiles = {
@@ -1639,12 +1692,12 @@ Wispell = {
             WISPELL_PROFILE_TILES_H),
     },
     expressions = {
-        neutral = WispellImage.new(
-            68,
-            WISPELL_EXPRESSION_OFF_X,
-            WISPELL_EXPRESSION_OFF_Y,
-            WISPELL_EXPRESSION_TILES_W,
-            WISPELL_EXPRESSION_TILES_H),
+        neutral = WispellImage.new(68, WEXP_OX, WEXP_OY, WEXP_W, WEXP_H),
+        blink1 = WispellImage.new(8, WEXP_OX, WEXP_OY, WEXP_W, WEXP_H),
+        blink2 = WispellImage.new(12, WEXP_OX, WEXP_OY, WEXP_W, WEXP_H),
+        huh = WispellImage.new(4, WEXP_OX, WEXP_OY, WEXP_W, WEXP_H),
+        huh2 = WispellImage.new(76, WEXP_OX, WEXP_OY, WEXP_W, WEXP_H),
+        wow = WispellImage.new(72, WEXP_OX, WEXP_OY, WEXP_W, WEXP_H),
     },
     accessories = {
         book = WispellImage.new(
@@ -1679,7 +1732,7 @@ function Wispell.new(node)
     local wispell = {
         profile =  Wispell.profiles.neutral,
         expression = Wispell.expressions.neutral,
-        state = 27, -- TODO
+        animState = WispellAnimState.new(),
         node = node,
     }
 
@@ -2556,18 +2609,18 @@ end
 -- 127:a000000080000000000000000000000000000000000000000000000000000000
 -- 129:0000000000000000000000000000000000000000000000000000000000000009
 -- 130:0000000000000000000009990000911100991111091111119111111191111111
--- 131:0000000000000000900000009900000011990000111999001111199011111199
+-- 131:0000000000000000900000009800000011880000111888001111118011111188
 -- 137:00ccc0000cc00c00cc0ccc00c0cccc00c0ccccccc0ccccccc0cc0cccc0ccc0cc
 -- 138:00000000000000000000000000000000ccccccccccccccccccccccccccc00000
 -- 140:0000cccc000cc000000ccccc000ccccc000ccccc0000cccc0000cccc000ccccc
 -- 141:00000000c000000000000000c0000000c0000000c0000000c0000000c0000000
 -- 145:0000009900000091000009910000091100000911000091110000911100009111
 -- 146:1111111111111111111111141111111311111121111112221111222211122222
--- 147:1144222944334222331144224114324234222440134443312333300100000111
--- 148:9000000099000000290000002080000001880009111809901111900011999000
--- 149:0000000000000000000009990099900099000000000000000000000000000000
--- 150:0000000009999900900000990000000000000000000000000000000000000000
--- 151:0000000000000000000000009000000009000000090000000900000009000000
+-- 147:1144222844334222331144224114324234222440134443312333300100000111
+-- 148:8000000088000000280000002080000001880009111809901111900011999000
+-- 149:0000000000000000000008880099900099000000000000000000000000000000
+-- 150:0000000008888800800000880000000000000000000000000000000000000000
+-- 151:0000000000000000000000008000000008000000080000000800000008000000
 -- 153:c0ccccccc0c0cccc0ccc0ccc00cccccc000ccccc0000cccc0000000000000000
 -- 154:ccccccccccccccccccc00000ccccccccccc00cc0cccccc000000000000000000
 -- 156:00cccc0c0cccc0cccccc0cccccc0ccc0cc0ccc0cc0ccc0cc0ccc0cc0000ccc00
@@ -2577,14 +2630,14 @@ end
 -- 163:11111111111111991111990011990000990000000000000000000088000088aa
 -- 164:99000000000000000000000000000000000000000088888888aaaaaaaaaaaaaa
 -- 165:00000000000000000000000000000000000000000000000088000000aa800000
--- 166:0000000000000000000000000000000000000009000000900000090000009000
--- 167:0900000009000000090000009000000000000000000000000000000000000000
+-- 166:0000000000000000000000000000000000000008000000800000080000008000
+-- 167:0800000008000000080000008000000000000000000000000000000000000000
 -- 177:0911111909111990999990090000099000009000000900000090000099000000
 -- 178:9990000090000000000000080000008a000008aa00008aaa0008aaaa008aaaaa
 -- 179:0088aaaa88aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 -- 180:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
--- 181:aa800000aaa80000aaa80009aaa80090aaa89900aaa80000aaa80000aaa80000
--- 182:0099000009000000900000000000000000000000000000000000000000000000
+-- 181:aa800000aaa80000aaa80008aaa80080aaa88800aaa80000aaa80000aaa80000
+-- 182:0088000008000000800000000000000000000000000000000000000000000000
 -- 192:0000000900000090000009000000900000090000009000000900000009000000
 -- 194:08aaaaaa8aaaaaaa8aaaaaaa8aaaaaaa8aaaaaaa8aaaaaaa08aaaaaa08aaaaaa
 -- 195:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -2592,9 +2645,9 @@ end
 -- 197:aaa80000aaa80000aaa80000aaa80000aa800000aa800000aa800000a8000000
 -- 202:0000000000000000000000000000000000000000000000000000000400000444
 -- 203:0000000000000000000000000044000004444400444443304444333044433330
--- 208:9000000090000000900000000900000009000000009900000000999900000000
--- 209:0000000000000000000000000000000900009990999900009000000000000000
--- 210:008aaaaa008aaaaa0098aaaa99008aaa0000088a000000080000000000000000
+-- 208:9000000080000000800000000800000008000000008800000000888800000000
+-- 209:0000000000000000000000000000000800008880888800008000000000000000
+-- 210:008aaaaa008aaaaa0088aaaa88008aaa0000088a000000080000000000000000
 -- 211:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8aaaaaaa0888888896666666
 -- 212:aaaaaaaaaaaaaaaaaaaaaaa8aaaaaa89aaaa8866aa8866668866666666666666
 -- 213:a800000080000000099990009666699066666669666666666666666666666999
