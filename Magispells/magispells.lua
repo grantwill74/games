@@ -1616,73 +1616,9 @@ end
 --- frames: WispellFrameDesc[],
 ---}
 
-
----@type table<string, WispellAnim>
-WispellAnims = {
-    idle = {
-        name = 'idle',
-        frames = {
-            {image = Wispell.expressions.neutral, howLong=nil}
-        }
-    },
-    blink = {
-        name = 'blink',
-        frames = {
-            {image = Wispell.expressions.blink1, howLong=15},
-            {image = Wispell.expressions.blink2, howLong=30},
-            {image = Wispell.expressions.blink1, howLong=15},
-        }
-    }
-}
-
-
----@class WispellAnimState
----@field anim WispellAnim
----@field currentFrame integer
----@field currentTicksLeft integer|nil
-WispellAnimState = {}
-
-function WispellAnimState.new()
-    local state = {
-        anim = WispellAnims.idle,
-        currentFrame = 0,
-        currentTicksLeft = nil
-    }
-
-    return setmetatable(state, {__index = WispellAnimState});
-end
-
----@return integer
-function WispellAnimState:nFrames()
-    return #self.anim.frames
-end
-
----@return boolean
-function WispellAnimState:finished()
-    return self.currentFrame == self:nFrames()
-end
-
----@return nil
-function WispellAnimState:tick()
-    if self:finished() then return end
-
-    if self.currentTicksLeft <= 0 then
-        -- in case we zero out frames for debugging purposes, 
-        -- handle it correctly to skip ahead and not display a 0 length frame
-        while self.currentTicksLeft <= 0 do
-            self.currentFrame = self.currentFrame + 1
-            self.currentTicksLeft = self.anim.frames[self.currentFrame].howLong
-        end
-    else
-        self.currentTicksLeft = self.currentTicksLeft - 1
-    end
-end
-
-
 ---@class Wispell
 ---@field profile WispellImage
----@field expression WispellImage
----@field animState WispellAnimState
+---@field expressionAnimState WispellAnimState
 ---@field node Node
 Wispell = {
     profiles = {
@@ -1724,6 +1660,82 @@ Wispell = {
     }
 }
 
+---@type table<string, WispellAnim>
+WispellAnims = {
+    idle = {
+        name = 'idle',
+        frames = {
+            {image = Wispell.expressions.neutral, howLong=nil}
+        }
+    },
+    blink = {
+        name = 'blink',
+        frames = {
+            {image = Wispell.expressions.blink1, howLong=15},
+            {image = Wispell.expressions.blink2, howLong=30},
+            {image = Wispell.expressions.blink1, howLong=15},
+        }
+    }
+}
+
+--- average number of ticks between blinks
+WISPELL_BLINK_MTTH = 4 * 60
+
+
+---@class WispellAnimState
+---@field anim WispellAnim
+---@field currentFrame integer
+---@field currentTicksLeft integer|nil
+WispellAnimState = {}
+
+function WispellAnimState.new()
+    local state = {
+        anim = WispellAnims.idle,
+        currentFrame = 1,
+        currentTicksLeft = nil
+    }
+
+    return setmetatable(state, {__index = WispellAnimState});
+end
+
+---@return integer
+function WispellAnimState:nFrames()
+    return #self.anim.frames
+end
+
+---@return boolean
+function WispellAnimState:finished()
+    return self.currentFrame == self:nFrames()
+end
+
+---@return nil
+function WispellAnimState:tick()
+    if self:finished() then return end
+
+    if self.currentTicksLeft <= 0 then
+        -- in case we zero out frames for debugging purposes, 
+        -- handle it correctly to skip ahead and not display a 0 length frame
+        while self.currentTicksLeft <= 0 do
+            self.currentFrame = self.currentFrame + 1
+            self.currentTicksLeft = self.anim.frames[self.currentFrame].howLong
+        end
+    else
+        self.currentTicksLeft = self.currentTicksLeft - 1
+    end
+end
+
+---comment
+---@param x number
+---@param y number
+function WispellAnimState:draw(x, y)
+    local frame =
+        self.anim.frames[self.currentFrame] or
+        self.anim.frames[#self.anim.frames]
+    local image = frame.image
+    
+    spr(image.spriteNo, x + image.offX, y + image.offY,
+        0, 1, 0, 0, image.tileW, image.tileH)
+end
 
 
 ---@param node Node
@@ -1731,8 +1743,8 @@ Wispell = {
 function Wispell.new(node)
     local wispell = {
         profile =  Wispell.profiles.neutral,
-        expression = Wispell.expressions.neutral,
-        animState = WispellAnimState.new(),
+        -- expression = Wispell.expressions.neutral,
+        expressionAnimState = WispellAnimState.new(),
         node = node,
     }
 
@@ -1747,12 +1759,7 @@ function Wispell:draw()
         x + self.profile.offX,
         y + self.profile.offY, 0, 1, 0, 0,
         self.profile.tileW, self.profile.tileH)
-    spr(self.expression.spriteNo,
-        x + self.expression.offX,
-        y + self.expression.offY,
-        0, 1, 0, 0,
-        self.expression.tileW,
-        self.expression.tileH)
+    self.expressionAnimState:draw(x, y);
 end
 
 ---@class StInGame : IAppState
