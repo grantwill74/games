@@ -1672,15 +1672,15 @@ WispellAnims = {
     blink = {
         name = 'blink',
         frames = {
-            {image = Wispell.expressions.blink1, howLong=15},
-            {image = Wispell.expressions.blink2, howLong=30},
-            {image = Wispell.expressions.blink1, howLong=15},
+            {image = Wispell.expressions.blink1, howLong=5},
+            {image = Wispell.expressions.blink2, howLong=10},
+            {image = Wispell.expressions.blink1, howLong=5},
         }
     }
 }
 
 --- average number of ticks between blinks
-WISPELL_BLINK_MTTH = 4 * 60
+WISPELL_BLINK_MTTH = 8 * 60
 
 
 ---@class WispellAnimState
@@ -1693,10 +1693,17 @@ function WispellAnimState.new()
     local state = {
         anim = WispellAnims.idle,
         currentFrame = 1,
-        currentTicksLeft = nil
+        currentTicksLeft = WispellAnims.idle.frames[1].howLong
     }
 
     return setmetatable(state, {__index = WispellAnimState});
+end
+
+---@param anim WispellAnim
+function WispellAnimState:switch(anim)
+    self.anim = anim
+    self.currentFrame = 1
+    self.currentTicksLeft = anim.frames[1].howLong
 end
 
 ---@return integer
@@ -1706,7 +1713,23 @@ end
 
 ---@return boolean
 function WispellAnimState:finished()
-    return self.currentFrame == self:nFrames()
+    return type(self.currentTicksLeft) == 'nil' or
+        self.currentFrame > self:nFrames()
+end
+
+function WispellAnimState:advance()
+    if self:finished() then
+        return
+    end
+
+    self.currentFrame = self.currentFrame + 1
+
+    if self:finished() then
+        self.currentTicksLeft = nil
+        return
+    end
+
+    self.currentTicksLeft = self.anim.frames[self.currentFrame].howLong
 end
 
 ---@return nil
@@ -1716,9 +1739,8 @@ function WispellAnimState:tick()
     if self.currentTicksLeft <= 0 then
         -- in case we zero out frames for debugging purposes, 
         -- handle it correctly to skip ahead and not display a 0 length frame
-        while self.currentTicksLeft <= 0 do
-            self.currentFrame = self.currentFrame + 1
-            self.currentTicksLeft = self.anim.frames[self.currentFrame].howLong
+        while not self:finished() and self.currentTicksLeft <= 0 do
+            self:advance()
         end
     else
         self.currentTicksLeft = self.currentTicksLeft - 1
@@ -1731,7 +1753,7 @@ end
 function WispellAnimState:draw(x, y)
     local frame =
         self.anim.frames[self.currentFrame] or
-        self.anim.frames[#self.anim.frames]
+        self.anim.frames[1]
     local image = frame.image
     
     spr(image.spriteNo, x + image.offX, y + image.offY,
@@ -1766,18 +1788,19 @@ end
 function Wispell:tick()
     self.expressionAnimState:tick()
 
-    if self.expressionAnimState:finished() then
-        -- reset to idle
-        self.expressionAnimState = WispellAnimState.new()
-    end
-
     -- roll to see if we blink
     if self.expressionAnimState.anim.name == 'idle' then
-        local blink = math.random() < WISPELL_BLINK_MTTH
+        local blink = math.random() < 1.0 / WISPELL_BLINK_MTTH
         if blink then
-            self.expressionAnimState.anim = WispellAnims.blink
-
+            -- trace('BLINK')
+            self.expressionAnimState:switch(WispellAnims.blink)
         end
+    end
+
+    if self.expressionAnimState.anim.name ~= 'idle' and
+        self.expressionAnimState:finished()
+    then
+        self.expressionAnimState:switch(WispellAnims.idle)
     end
 end
 
@@ -2201,6 +2224,8 @@ function StInGame:tick(mouse)
     end
 
     self:fallTick()
+
+    self.wispell:tick()
 end
 
 ---@class StInGame_LevelUp
