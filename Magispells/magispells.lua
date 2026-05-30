@@ -1547,13 +1547,13 @@ end
 function TotalXpForLevel(lvl)
     assert(lvl > 0)
 
-    return (lvl - 1) * lvl * 1000
+    return (lvl - 1) * lvl * 500
 end
 
 ---returns the number of words the user is allowed to submit before game over
 ---@param lvl any
 function WordsMaxForLevel(lvl)
-    return 10 + 2 * lvl
+    return 5 + 2 * lvl
 end
 
 
@@ -1949,6 +1949,7 @@ function StInGame:handleClick(mouse)
 
     if self.subState and self.subState.id == 'level up' then
         self.subState = nil
+        self:reFall()
 
         -- play a sound?
         return
@@ -2219,6 +2220,17 @@ function StInGame:startFalling()
                         break
                     end
                 end
+            end
+        end
+    end
+end
+
+---make the same tiles fall back down again. useful when leaving a substate.
+function StInGame:reFall()
+    for col=1, FIELD_TILES_W do
+        for row=1, FIELD_COL_HEIGHTS[col] do
+            if self.grid.cols[col][row] then
+                self.grid.cols[col][row].rowOff = FIELD_TILES_H + row
             end
         end
     end
