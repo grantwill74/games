@@ -1587,6 +1587,7 @@ WEXP_H = WISPELL_EXPRESSION_TILES_H
 ---@field offY number # Where to draw this relative to parent
 ---@field tileW integer # number of tiles wide
 ---@field tileH integer # number of tiles high
+---@field colorKey integer
 WispellImage = {}
 
 ---@param spriteNo integer
@@ -1594,14 +1595,16 @@ WispellImage = {}
 ---@param offY number
 ---@param tileW integer
 ---@param tileH integer
+---@param colorKey integer|nil
 ---@returns WispellImage
-function WispellImage.new(spriteNo, offX, offY, tileW, tileH)
+function WispellImage.new(spriteNo, offX, offY, tileW, tileH, colorKey)
     return {
         spriteNo = spriteNo,
         offX = offX,
         offY = offY,
         tileW = tileW,
         tileH = tileH,
+        colorKey = colorKey or 0
     }
 end
 
@@ -1757,7 +1760,7 @@ function WispellAnimState:draw(x, y)
     local image = frame.image
     
     spr(image.spriteNo, x + image.offX, y + image.offY,
-        0, 1, 0, 0, image.tileW, image.tileH)
+        image.colorKey, 1, 0, 0, image.tileW, image.tileH)
 end
 
 
@@ -2559,11 +2562,11 @@ end
 -- 015:00000000000000000000000000000000000000000000000088000000aa800000
 -- 020:0000000000000000000000080000008a000008a900008aa90008aaaa008aaaaa
 -- 021:0088aaaa88aaaaaaaaaaaaaaaa99aaaa99aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
--- 022:aaaa99aaaaaaaaaaaaaccaaaaaaccccaaaacccccaaacccccaaacc66caaac6606
+-- 022:aaaa99aaaaaaaaaaaaaccaaaaaaccccaaaacccccaaacccccaaacc66caaac66f6
 -- 023:aa800000aaa80000aaa80000aaa80000aaa80000caa80000caa80000caa80000
 -- 024:0000000000000000000000080000008a000008a900008aa90008aaaa008aaaaa
 -- 025:0088aaaa88aaaaaaaaaaaaaaaa99aaaa99aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
--- 026:aaaa99aaaa99aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9aaaaa99caaa99606
+-- 026:aaaa99aaaa99aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9aaaaa99caaa996f6
 -- 027:aa800000aaa80000aaa80000aaa800009aa80000caa80000caa80000caa80000
 -- 028:0000000000000000000000080000008a000008a900008aa90008aaaa008aaaaa
 -- 029:0088aaaa88aaaaaaaaaaaaaaaa99aaaa99aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -2572,12 +2575,12 @@ end
 -- 032:0000000000000000000000000000000000000000000000c000000cc000000cc0
 -- 033:0000000000000000000000000000000000c0000000cc000000ccc00000ccc000
 -- 036:08aaaaaa8aaaaaaa8aaaaaa98aaaaaac8aaaaaac8aaaaaaa08aaaaaa08aaaaaa
--- 037:aaaaaaaaaaaaaa9aaaaa996a9999606accc6006accc6666aaccccccaaaaaaaaa
--- 038:aaac6606aaac6606aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
+-- 037:aaaaaaaaaaaaaa9aaaaa996a99996f6accc6ff6accc6666aaccccccaaaaaaaaa
+-- 038:aaac66f6aaac66f6aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
 -- 039:caa80000caa80000aaa80000aaa80000aa800000aa800000aa800000a8000000
 -- 040:08aaaaaa8aaaaaaa8aaaaaa98aaaaaac8aaaaaac8aaaaaaa08aaaaaa08aaaaaa
--- 041:aaaaaa9aaaaa996aaa99606a99c6006accc6006accc6666aaccccccaaaaaaaaa
--- 042:aaac6606aaac6606aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
+-- 041:aaaaaa9aaaaa996aaa996f6a99c6ff6accc6ff6accc6666aaccccccaaaaaaaaa
+-- 042:aaac66f6aaac66f6aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
 -- 043:caa80000caa80000aaa80000aaa80000aa800000aa800000aa800000a8000000
 -- 044:08aaaaaa8aaaaaaa8aaaaaaa8aaaaaaa8aaaaaa98aaaaaaa08aaaaaa08aaaaaa
 -- 045:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9aaaaaaaa999999aaaaaaaaa
@@ -2616,31 +2619,31 @@ end
 -- 083:0000009000000090000000900000009000000900000090009099000099000000
 -- 084:0000000000000000000000080000008a000008a900008aa90008aaaa008aaaaa
 -- 085:0088aaaa88aaaaaaaaaaaaaaaa99aaaa99aaaaaaaaaaaaaaaacccccaacccccca
--- 086:aaaa99aaaa99aaaaaaaaaaaaaaaaaccaaaacccccaaacccccaaacc66caaac6606
+-- 086:aaaa99aaaa99aaaaaaaaaaaaaaaaaccaaaacccccaaacccccaaacc66caaac66f6
 -- 087:aa800000aaa80000aaa80000aaa80000aaa80000caa80000caa80000caa80000
 -- 088:0000000000000000000000080000008a000008aa00008aaa0008aaaa008aaaaa
 -- 089:0088aaaa88a9aaaaaa9aaaaaa9aaaccaaaaacccaaaaccccaaacccccaacccccca
--- 090:aaaaa9aaaaaccaaaaaacccaaaaaccccaaaacccccaaacccccaaacc66caaac6606
+-- 090:aaaaa9aaaaaccaaaaaacccaaaaaccccaaaacccccaaacccccaaacc66caaac66f6
 -- 091:aa800000aaa80000aaa80000aaa80000aaa80000caa80000caa80000caa80000
 -- 092:0000000000000000000000080000008a0000089900008aaa0008aaaa008aaaaa
 -- 093:0088aaaa88aaaaaaaaaaaaaaaaaaaaaaaaaaaaa99999aa9aaaaa99aaaaaaaaaa
--- 094:aaaaa9aaaa9aa9aaaaaa9aaaaaa9aaaaaaaaacccaaaaccccaaacc66caaac6606
+-- 094:aaaaa9aaaa9aa9aaaaaa9aaaaaa9aaaaaaaaacccaaaaccccaaacc66caaac66f6
 -- 095:aa800000aaa80000aaa80000aaa80000aaa80000caa80000caa80000caa80000
 -- 096:0009000000900000009000000900000009000000900000009000000090000000
 -- 097:009aaaaa09aaaaaa09aaaaaa09aaaaaa09aaaaaa009aaaaa0099aaaa99009aaa
 -- 098:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9aaaaaa90aaaaa909
 -- 099:9000000090000000900000009000000090000000000000000990000090090000
 -- 100:08aaaaaa8aaaaaac8aaaaaac8aaaaaac8aaaaaac8aaaaaaa08aaaaaa08aaaaaa
--- 101:cccccccacccc666accc6606accc6006accc6006accc6666aaccccccaaaaaaaaa
--- 102:aaac6606aaac6606aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
+-- 101:cccccccacccc666accc66f6accc6ff6accc6ff6accc6666aaccccccaaaaaaaaa
+-- 102:aaac66f6aaac66f6aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
 -- 103:caa80000caa80000aaa80000aaa80000aa800000aa800000aa800000a8000000
 -- 104:08aaaaaa8aaaaaac8aaaaaac8aaaaaac8aaaaaac8aaaaaaa08aaaaaa08aaaaaa
--- 105:cccccccacccc666accc6606accc6006accc6006accc6666aaccccccaaaaaaaaa
--- 106:aaac6606aaac6606aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
+-- 105:cccccccacccc666accc66f6accc6ff6accc6ff6accc6666aaccccccaaaaaaaaa
+-- 106:aaac66f6aaac66f6aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
 -- 107:caa80000caa80000aaa80000aaa80000aa800000aa800000aa800000a8000000
 -- 108:08aaaaaa8aaaaaaa8aaaaaa98aaaaaac8aaaaaac8aaaaaaa08aaaaaa08aaaaaa
--- 109:aaaaaaaaaaaaaa9aaaaa996a9999606accc6006accc6666aaccccccaaaaaaaaa
--- 110:aaac6606aaac6606aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
+-- 109:aaaaaaaaaaaaaa9aaaaa996a99996f6accc6ff6accc6666aaccccccaaaaaaaaa
+-- 110:aaac66f6aaac66f6aaacc66caaa9accaaaaa9aaaaaaa9aaaaa99aaaaaaaaaaaa
 -- 111:caa80000caa80000aaa80000aaa80000aa800000aa800000aa800000a8000000
 -- 112:9000009990009900099900000000000000000099000009000000900000000900
 -- 113:0000099900000900000990900990000990000000090000000090000000090000
