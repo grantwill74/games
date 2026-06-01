@@ -53,15 +53,51 @@ CYCLE_COLORS = {
     PALETTE.LIME,
     PALETTE.GREEN,
     PALETTE.CYAN,
-    PALETTE.BLUE,
+    PALETTE.SKY,
 }
 
----the color at which this palette entry is dimmest
-CYCLE_LOW_COLOR = {}
-CYCLE_LOW_COLOR[5] = 0x81BE5D
+---@alias Rgb {r: integer, g: integer, b: integer}
 
----map a vbank 1 palette entry to how long it takes to complete a cycle
-CYCLE_COLOR_CYCLE_TIME = {}
+---the color at which this palette entry is dimmest
+---@type table<integer, Rgb>
+CYCLE_LOW_COLOR = {}
+CYCLE_LOW_COLOR[5] = {r = 0x81, g = 0xBE, b = 0x5D}
+CYCLE_LOW_COLOR[6] = {r = 0x1C, g = 0x7D, b = 0x2C}
+CYCLE_LOW_COLOR[10] = {r = 0x30, g = 0x61, b = 0x95}
+CYCLE_LOW_COLOR[11] = {r = 0x4C, g = 0xDA, b = 0xDA}
+
+---the color at which this palette entry is brightest
+---@type table<integer, Rgb>
+CYCLE_HIGH_COLOR = {}
+CYCLE_HIGH_COLOR[5] = {r = 0xA7, g = 0xF0, b = 0x70}
+CYCLE_HIGH_COLOR[6] = {r = 0x38, g = 0xB7, b = 0x64}
+CYCLE_HIGH_COLOR[10] = {r = 0x41, g = 0xBA, b = 0xF6}
+CYCLE_HIGH_COLOR[11] = {r = 0x73, g = 0xEF, b = 0xF7}
+
+---how long it takes to complete a color cycle in tics
+CYCLE_COLOR_TICS = 60 * 4 -- 4 seconds
+
+---@type integer
+ColorCyclePhase = 0
+
+TAU = 2 * math.pi
+
+---@param lo Rgb
+---@param hi Rgb
+---@param phase number
+---@return Rgb
+function CycleCurColor(lo, hi, phase)
+    local t = phase / CYCLE_COLOR_TICS * TAU
+    local cos = math.cos(t)
+    local alpha = (cos + 1) / 2
+    local result = {
+        r = math.floor(0.5 + lo.r + (hi.r - lo.r) * alpha),
+        g = math.floor(0.5 + lo.g + (hi.g - lo.g) * alpha),
+        b = math.floor(0.5 + lo.b + (hi.b - hi.b) * alpha),
+    }
+
+    return result
+end
 
 
 CHANCE_TO_DRAW_CHARGED = 0.15
@@ -1103,9 +1139,29 @@ function LetterGrid:pointOverTile(mouseOffx, mouseOffy)
     return {col = col, row = row}
 end
 
+PALETTE_ADDR = 0x3FC0
+OVR_TRANS_ADDR = 0x3FF8
+
 ---@param highlight Cr | nil # tile to highlight for mouseover
 ---@param strand Strand
 function LetterGrid:draw(highlight, strand)
+    vbank(1)
+    -- update palette in vbank 1
+    
+    for _, palIndex in ipairs(CYCLE_COLORS) do
+        local lo = CYCLE_LOW_COLOR[palIndex]
+        local hi = CYCLE_HIGH_COLOR[palIndex]
+        local cur = CycleCurColor(lo, hi, ColorCyclePhase)
+
+        local indAddr = PALETTE_ADDR + 3 * palIndex
+
+        -- poke r, then g, then b
+        poke(indAddr, cur.r)
+        poke(indAddr + 1, cur.g)
+        poke(indAddr + 2, cur.b)
+    end
+
+
     local x, y = self.node:pos()
     for col=1, FIELD_TILES_W do
         local colHeight = FIELD_COL_HEIGHTS[col]
@@ -1123,6 +1179,8 @@ function LetterGrid:draw(highlight, strand)
             highlightRow, strand
         )
     end
+
+    vbank(0)
 end
 
 ---whether the given col and row refer to an actual tile
@@ -2597,7 +2655,13 @@ function TIC()
     end
 
     cls(PALETTE.BLACK)
+    vbank(1)
+    cls(PALETTE.BLACK)
+    vbank(0)
+    
     appState:draw()
+
+    ColorCyclePhase = (ColorCyclePhase + 1) % CYCLE_COLOR_TICS
 end
 
 
