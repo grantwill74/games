@@ -63,19 +63,19 @@ CYCLE_COLORS = {
 CYCLE_LOW_COLOR = {}
 CYCLE_LOW_COLOR[5] = {r = 0x81, g = 0xBE, b = 0x5D}
 CYCLE_LOW_COLOR[6] = {r = 0x1C, g = 0x7D, b = 0x2C}
-CYCLE_LOW_COLOR[10] = {r = 0x30, g = 0x61, b = 0x95}
-CYCLE_LOW_COLOR[11] = {r = 0x4C, g = 0xDA, b = 0xDA}
+CYCLE_LOW_COLOR[10] = {r = 0x30, g = 0x51, b = 0x95}
+CYCLE_LOW_COLOR[11] = {r = 0x3C, g = 0xcA, b = 0xDA}
 
 ---the color at which this palette entry is brightest
 ---@type table<integer, Rgb>
 CYCLE_HIGH_COLOR = {}
-CYCLE_HIGH_COLOR[5] = {r = 0xA7, g = 0xF0, b = 0x70}
+CYCLE_HIGH_COLOR[5] = {r = 0xB7, g = 0xFF, b = 0x80}
 CYCLE_HIGH_COLOR[6] = {r = 0x38, g = 0xB7, b = 0x64}
-CYCLE_HIGH_COLOR[10] = {r = 0x41, g = 0xBA, b = 0xF6}
-CYCLE_HIGH_COLOR[11] = {r = 0x73, g = 0xEF, b = 0xF7}
+CYCLE_HIGH_COLOR[10] = {r = 0x41, g = 0xBA, b = 0xFF}
+CYCLE_HIGH_COLOR[11] = {r = 0x73, g = 0xEF, b = 0xFF}
 
 ---how long it takes to complete a color cycle in tics
-CYCLE_COLOR_TICS = 60 * 4 -- 4 seconds
+CYCLE_COLOR_TICS = 60 * 2 -- 4 seconds
 
 ---@type integer
 ColorCyclePhase = 0
@@ -2658,7 +2658,7 @@ function TIC()
     vbank(1)
     cls(PALETTE.BLACK)
     vbank(0)
-    
+
     appState:draw()
 
     ColorCyclePhase = (ColorCyclePhase + 1) % CYCLE_COLOR_TICS
