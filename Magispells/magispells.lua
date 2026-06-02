@@ -1009,13 +1009,62 @@ CONNECTING_ARROW_SW_SPRITE = 383
 CONNECTING_ARROW_N_OFF_X = 6
 CONNECTING_ARROW_N_OFF_Y = -1
 CONNECTING_ARROW_NW_OFF_X = -1
-CONNECTING_ARROW_NW_OFF_Y = -1
+CONNECTING_ARROW_NW_OFF_Y =  CONNECTING_ARROW_N_OFF_Y
 CONNECTING_ARROW_NE_OFF_X = 15
-CONNECTING_ARROW_NE_OFF_Y = -1
+CONNECTING_ARROW_NE_OFF_Y = CONNECTING_ARROW_N_OFF_Y
 CONNECTING_ARROW_S_OFF_X = CONNECTING_ARROW_N_OFF_X
-CONNECTING_ARROW_S_OFF_Y = 15
+CONNECTING_ARROW_S_OFF_Y = CONNECTING_ARROW_NE_OFF_X
 CONNECTING_ARROW_SE_OFF_X = CONNECTING_ARROW_NE_OFF_X
 CONNECTING_ARROW_SE_OFF_Y = CONNECTING_ARROW_S_OFF_Y
+CONNECTING_ARROW_SW_OFF_X = CONNECTING_ARROW_NW_OFF_X
+CONNECTING_ARROW_SW_OFF_Y = CONNECTING_ARROW_S_OFF_Y
+
+---@alias ConnectingArrowDir 'n'|'ne'|'nw'|'se'|'s'|'sw'
+
+---@type table<ConnectingArrowDir, integer>
+DIR_TO_SPRITE = {
+    n = CONNECTING_ARROW_N_SPRITE,
+    ne = CONNECTING_ARROW_NE_SPRITE,
+    nw = CONNECTING_ARROW_NW_SPRITE,
+    se = CONNECTING_ARROW_SE_SPRITE,
+    s = CONNECTING_ARROW_S_SPRITE,
+    sw = CONNECTING_ARROW_SW_SPRITE,
+}
+
+---@alias ConnectingArrowInfo {cr: Cr, dir: ConnectingArrowDir} 
+
+---compute the direction connecting two tiles
+---@param a Cr
+---@param b Cr
+---@return ConnectingArrowDir
+function DirectionBetween(a, b)
+    local arow, brow = a.row, b.row
+
+    -- if a is in a short column, 
+
+    return
+        (a.col == b.col and a.row < b.row and 's') or
+        (a.col == b.col and b.row > b.row and 'n') or
+        nil --- TODO
+end
+
+---@param crs Cr[]
+---@return ConnectingArrowInfo[]
+function CalcConnectingArrowInfo(crs)
+    local result = {}
+
+    for i=2, #crs do
+        local prev = crs[i - 1]
+        local cur = crs[i]
+        local shortCol = FIELD_TILES_PER_COL[cur.col] == 7
+        local dir =
+            
+    end
+
+    return result
+end
+
+
 -- TODO finish
 
 ---a tile in the grid, stores the letter and also the (possibly fractional) column
