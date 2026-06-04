@@ -1033,20 +1033,40 @@ DIR_TO_SPRITE = {
 
 ---@alias ConnectingArrowInfo {cr: Cr, dir: ConnectingArrowDir} 
 
----compute the direction connecting two tiles
----@param a Cr
----@param b Cr
+---@type integer
+SHORT_COLUMN_LEN = 7
+
+---compute the direction connecting two tiles, from a to b
+---@param a Cr # source Cr
+---@param b Cr # dest Cr
 ---@return ConnectingArrowDir
 function DirectionBetween(a, b)
-    local arow, brow = a.row, b.row
+    -- convert and copy integers to numbers
+    local arow, brow = a.row * 1.0, b.row * 1.0 
 
-    -- if a is in a short column, 
+    -- for shortcolumns, offset the rows by 0.5 to normalize for their
+    -- actual offsets on screen
+    if FIELD_TILES_PER_COL[a.col] == SHORT_COLUMN_LEN then
+        arow = arow + .5
+    end
+
+    if FIELD_TILES_PER_COL[b.col] == SHORT_COLUMN_LEN then
+        brow = brow + .5
+    end
 
     return
-        (a.col == b.col and a.row < b.row and 's') or
-        (a.col == b.col and b.row > b.row and 'n') or
-        nil --- TODO
+        (a.col == b.col) and (arow < brow and 'n' or 's') or
+        (a.col < b.col) and (arow < brow and 'ne' or 'se') or
+        (arow < brow) and 'nw' or 'sw'
 end
+
+assert(DirectionBetween({col = 1, row = 1}, {col = 2, row = 1}) == 'se')
+assert(DirectionBetween({col = 2, row = 1}, {col = 1, row = 1}) == 'nw')
+assert(DirectionBetween({col = 1, row = 2}, {col = 2, row = 3}) == 'ne')
+assert(DirectionBetween({col = 2, row = 3}, {col = 1, row = 2}) == 'sw')
+assert(DirectionBetween({col = 1, row = 1}, {col = 1, row = 2}) == 'n')
+assert(DirectionBetween({col = 1, row = 2}, {col = 1, row = 1}) == 's')
+
 
 ---@param crs Cr[]
 ---@return ConnectingArrowInfo[]
@@ -1057,7 +1077,7 @@ function CalcConnectingArrowInfo(crs)
         local prev = crs[i - 1]
         local cur = crs[i]
         local shortCol = FIELD_TILES_PER_COL[cur.col] == 7
-        local dir =
+        
             
     end
 
