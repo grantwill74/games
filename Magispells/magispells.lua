@@ -2721,8 +2721,7 @@ Mouse = nil
 local songState = SongState.new(Songs[2])
 
 function PlayRandomSong()
-    local songNo = 4 -- DEBUG BGM 4
-    -- local songNo = math.random(1, #Songs)
+    local songNo = math.random(1, #Songs)
     songState = SongState.new(Songs[songNo])
     songState:play()
 end
