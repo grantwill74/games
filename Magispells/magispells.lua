@@ -1037,6 +1037,24 @@ DIR_TO_SPRITE = {
     sw = CONNECTING_ARROW_SW_SPRITE,
 }
 
+DIR_TO_OFFX = {
+    n = CONNECTING_ARROW_N_OFF_X,
+    ne = CONNECTING_ARROW_NE_OFF_X,
+    nw = CONNECTING_ARROW_NW_OFF_X,
+    se = CONNECTING_ARROW_SE_OFF_X,
+    s = CONNECTING_ARROW_S_OFF_X,
+    sw = CONNECTING_ARROW_SW_OFF_X,
+}
+
+DIR_TO_OFFY = {
+    n = CONNECTING_ARROW_N_OFF_Y,
+    ne = CONNECTING_ARROW_NE_OFF_Y,
+    nw = CONNECTING_ARROW_NW_OFF_Y,
+    se = CONNECTING_ARROW_SE_OFF_Y,
+    s = CONNECTING_ARROW_S_OFF_Y,
+    sw = CONNECTING_ARROW_SW_OFF_Y,
+}
+
 ---@alias ConnectingArrowInfo {cr: Cr, dir: ConnectingArrowDir} 
 
 ---@type integer
@@ -1073,25 +1091,6 @@ assert(DirectionBetween({col = 2, row = 3}, {col = 1, row = 2}) == 'sw')
 assert(DirectionBetween({col = 1, row = 1}, {col = 1, row = 2}) == 'n')
 assert(DirectionBetween({col = 1, row = 2}, {col = 1, row = 1}) == 's')
 
-
----@param crs Cr[]
----@return ConnectingArrowInfo[]
-function CalcConnectingArrowInfo(crs)
-    local result = {}
-
-    for i=2, #crs do
-        local prev = crs[i - 1]
-        local cur = crs[i]
-        local shortCol = FIELD_TILES_PER_COL[cur.col] == 7
-        
-            
-    end
-
-    return result
-end
-
-
--- TODO finish
 
 ---a tile in the grid, stores the letter and also the (possibly fractional) column
 ---for when the tile is smoothly falling down.
@@ -1233,6 +1232,30 @@ function LetterGrid:pointOverTile(mouseOffx, mouseOffy)
     return {col = col, row = row}
 end
 
+---@param crs Cr[]
+function LetterGrid:drawBetweenArrows(crs)
+    for i=2, #crs do
+        local prev = crs[i - 1]
+        local cur = crs[i]
+        local dir = DirectionBetween(prev, cur)
+        local spriteId = DIR_TO_SPRITE[dir]
+        local rowOff =
+            FIELD_TILES_PER_COL[prev.col] == SHORT_COLUMN_LEN
+            and 0.5 or 0
+        local row = cur.row + rowOff
+        local offPy =
+            FIELD_COL_HEIGHTS[prev.col] - row * TILE_H_px +
+            DIR_TO_OFFY[dir]
+        local offPx = prev.col * TILE_W_px + DIR_TO_OFFX[dir]
+        local baseX, baseY = self.node:pos()
+        local x = baseX + offPx
+        local y = baseY + offPy
+        -- TODO, fix
+        trace(string.format("x, y = %f, %f", x, y))
+        spr(spriteId, baseX + offPx, baseY + offPy, 0)
+    end
+end
+
 PALETTE_ADDR = 0x3FC0
 OVR_TRANS_ADDR = 0x3FF8
 
@@ -1275,6 +1298,8 @@ function LetterGrid:draw(highlight, strand)
     end
 
     vbank(0)
+
+    self:drawBetweenArrows(strand.tiles)
 end
 
 ---whether the given col and row refer to an actual tile
