@@ -1242,17 +1242,17 @@ function LetterGrid:drawBetweenArrows(crs)
         local rowOff =
             FIELD_TILES_PER_COL[prev.col] == SHORT_COLUMN_LEN
             and 0.5 or 0
-        local row = cur.row + rowOff
+        local row = prev.row + rowOff
         local offPy =
-            FIELD_COL_HEIGHTS[prev.col] - row * TILE_H_px +
+            FIELD_COL_HEIGHTS[prev.col] - row * LETTER_TILE_H_px +
             DIR_TO_OFFY[dir]
-        local offPx = prev.col * TILE_W_px + DIR_TO_OFFX[dir]
+        local offPx = prev.col * LETTER_TILE_W_px + DIR_TO_OFFX[dir]
         local baseX, baseY = self.node:pos()
         local x = baseX + offPx
         local y = baseY + offPy
         -- TODO, fix
         trace(string.format("x, y = %f, %f", x, y))
-        spr(spriteId, baseX + offPx, baseY + offPy, 0)
+        spr(spriteId, 200, y, 0)
     end
 end
 
