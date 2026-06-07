@@ -1241,7 +1241,7 @@ function LetterGrid:drawBetweenArrows(crs)
         local spriteId = DIR_TO_SPRITE[dir]
         local rowOff =
             FIELD_TILES_PER_COL[prev.col] == SHORT_COLUMN_LEN
-            and 0.5 or 0
+            and -0.5 or 0
         local row = prev.row + rowOff
         local offPy =
             FIELD_COL_HEIGHTS[prev.col] - row * LETTER_TILE_H_px +
@@ -1250,10 +1250,7 @@ function LetterGrid:drawBetweenArrows(crs)
         local baseX, baseY = self.node:pos()
         local x = baseX + offPx
         local y = baseY + offPy
-        -- TODO, fix
-        trace(string.format("off y: %f", offPy))
         spr(spriteId, x, y, 0)
-        -- rect(x, y, LETTER_TILE_H_px, LETTER_TILE_W_px, 12)
     end
 end
 
