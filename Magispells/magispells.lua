@@ -1023,7 +1023,7 @@ CONNECTING_ARROW_S_OFF_Y = -2 + LETTER_TILE_H_px
 CONNECTING_ARROW_SE_OFF_X = CONNECTING_ARROW_NE_OFF_X - 1
 CONNECTING_ARROW_SE_OFF_Y = -5 + LETTER_TILE_H_px
 CONNECTING_ARROW_SW_OFF_X = CONNECTING_ARROW_NW_OFF_X
-CONNECTING_ARROW_SW_OFF_Y = CONNECTING_ARROW_S_OFF_Y
+CONNECTING_ARROW_SW_OFF_Y = CONNECTING_ARROW_SE_OFF_Y
 -- todo, tune SW
 
 ---@alias ConnectingArrowDir 'n'|'ne'|'nw'|'se'|'s'|'sw'
@@ -1251,7 +1251,8 @@ function LetterGrid:drawBetweenArrows(crs)
         local baseX, baseY = self.node:pos()
         local x = baseX + offPx
         local y = baseY + offPy
-        spr(spriteId, x, y, 0)
+        spr(spriteId, x, y, 12)
+
     end
 end
 
@@ -2971,14 +2972,14 @@ end
 -- 031:2222222322222223222222232222222322222223222222232222223333333330
 -- 096:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 097:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
--- 109:0002200000222200022222202222222200000000000000000000000000000000
--- 110:2222200022220000222000002200000020000000000000000000000000000000
--- 111:2222200002222000002220000002200000002000000000000000000000000000
+-- 109:ccc22ccccc2222ccc222222cc000000ccccccccccccccccccccccccccccccccc
+-- 110:22222ccc22220ccc2220cccc220ccccc20cccccc0ccccccccccccccccccccccc
+-- 111:22222ccc02222cccc0222ccccc022cccccc02ccccccc0ccccccccccccccccccc
 -- 112:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 113:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
--- 125:2222222202222220002222000002200000000000000000000000000000000000
--- 126:0000200000022000002220000222200022222000000000000000000000000000
--- 127:2000000022000000222000002222000022222000000000000000000000000000
+-- 125:c222222cc022220ccc0220ccccc00ccccccccccccccccccccccccccccccccccc
+-- 126:cccc2cccccc22ccccc222cccc2222ccc22222ccc00000ccccccccccccccccccc
+-- 127:2ccccccc22cccccc222ccccc2222cccc22222ccc00000ccccccccccccccccccc
 -- 128:ccccccccccccccc1cccccc11cccccc11ccccc111ccccc11ccccc111ccccc11cc
 -- 129:cccccccccccccccc1ccccccc1ccccccc11cccccc11cccccc111cccccc11ccccc
 -- 130:cccccccccc111111cc111111cc111ccccc11cccccc11cccccc11cc11cc11cc11
