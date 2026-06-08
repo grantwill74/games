@@ -3,7 +3,7 @@
 -- desc:    A word-spelling puzzle game. Inspired by Bookworm.
 -- site:    grantwilliams.info/games
 -- license: AGPL-3.0-or-later
--- version: 0.1
+-- version: 0.2
 -- script:  lua
 -- input: mouse
 
