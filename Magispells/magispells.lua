@@ -2230,6 +2230,11 @@ function StInGame:handleClick(mouse)
         return
     end
 
+    if self.strand:length() >= MAX_WORD_LEN then
+        -- cant.wav
+        return
+    end
+
     -- add.wav
     sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL)
     self.strand:add(col, row)
