@@ -2306,6 +2306,7 @@ function StInGame:submitWord()
         end
     end
 
+    -- TODO change to only compare with starting tile of word
     local randomComparison = RandomComparisonWord(self.grid.allBestWords)
 
     local comparisonScore = randomComparison and randomComparison.score or 0
@@ -2443,12 +2444,20 @@ function StInGame:fallTick()
     end
 end
 
+---right now just spoil the best word. This is a cheat. Later we can 
+---have it cycle if we need to.
+function StInGame:bestWordHint()
+    
+end
 
 ---
 ---@param mouse MouseState
 function StInGame:tick(mouse)
-    if CheatKeyPressed() == 'level_up' then
+    local cheat = CheatKeyPressed()
+    if cheat == 'level_up' then
         self:levelUp()
+    elseif cheat == 'cycle_best_word' then
+        self:bestWordHint()
     end
 
     if not self.subState then
@@ -2591,18 +2600,22 @@ function StInGame_GameOver:draw(node)
     end
 end
 
-CHEATS_ENABLED = false
-CHEAT_LEVEL_UP_KEY = 12 -- L
+CHEATS_ENABLED = true
 
+CHEAT_KEYMAP = {}
+CHEAT_KEYMAP[12] = 'level_up' -- L
+CHEAT_KEYMAP[2] = 'cycle_best_word' -- B
 
----@alias Cheat nil|'level_up'
+---@alias Cheat nil|'level_up'|'cycle_best_word'
 function CheatKeyPressed()
     if not CHEATS_ENABLED then
         return
     end
 
-    if keyp(CHEAT_LEVEL_UP_KEY) then
-        return 'level_up'
+    for key, message in pairs(CHEAT_KEYMAP) do
+        if keyp(key) then
+            return message
+        end
     end
 end
 
@@ -2615,6 +2628,14 @@ function XWasBetter(word)
     return function(x, y)
         local w = print(word, x, y, PALETTE.BLUE)
         print(" was better!", x + w, y, PALETTE.WHITE)
+    end
+end
+
+function CheatBestWord(word, c, r)
+    return function(x, y)
+        local w = print("Best: ", x, y, PALETTE.YELLOW)
+        w = w + print(word, x + w, y, PALETTE.YELLOW)
+        print(string.format('@%d,%d', c, r), x + w, y, PALETTE.YELLOW)
     end
 end
 
