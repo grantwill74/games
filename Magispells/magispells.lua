@@ -2289,6 +2289,16 @@ function RandomComparisonWord(tileResults)
     return tileResults[randomCol][randomRow]
 end
 
+PAR_PROP_LVL20 = 0.5
+PAR_PROP_LVL1 = 0.1
+PAR_PROP_STEP_PER_LVL = 0.04
+
+--- what percent of the points for the highest word is needed for no
+--- freezing tiles? depends on the level.
+--- @param level integer
+function ParValuePercentage(level)
+
+end
 
 function StInGame:submitWord()
     local letters, elems = self.strand:asStringAndElements(self.grid)
