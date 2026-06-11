@@ -1118,7 +1118,7 @@ end
 ---@field nVowels integer
 ---@field nTiles integer
 ---@field bestWord BestWordInfo|nil
----@field allBestWords BestWordInfo[]
+---@field allBestWords table<integer, table<integer, BestWordInfo|nil>>
 LetterGrid = {}
 LetterGrid.__index = LetterGrid
 
@@ -2444,10 +2444,33 @@ function StInGame:fallTick()
     end
 end
 
----right now just spoil the best word. This is a cheat. Later we can 
----have it cycle if we need to.
-function StInGame:bestWordHint()
-    
+---get the tile the mouse cursor is over and report the best word there
+---@param mouseX number
+---@param mouseY number
+---@return nil
+function StInGame:bestWordHint(mouseX, mouseY)
+    local mouseOffX, mouseOffY = self.grid.node:offsetOf(mouseX, mouseY)
+
+    local cr = self.grid:pointOverTile(mouseOffX, mouseOffY)
+
+    if not cr then
+        local best = self.grid.bestWord
+        if not best then
+            self.statusMsg = CheatBestWord("no words!", 0, 0);
+            return
+        end
+
+        local bwCr = self.grid.bestWord.crs[1]
+        self.statusMsg = CheatBestWord(best.word, bwCr.col, bwCr.row)
+        return
+    end
+
+    local best = self.grid.allBestWords[cr.col][cr.row]
+    if not best then
+        self.statusMsg = CheatBestWord("no word", cr.col, cr.row);
+    else
+        self.statusMsg = CheatBestWord(best.word, cr.col, cr.row);
+    end
 end
 
 ---
@@ -2457,7 +2480,7 @@ function StInGame:tick(mouse)
     if cheat == 'level_up' then
         self:levelUp()
     elseif cheat == 'cycle_best_word' then
-        self:bestWordHint()
+        self:bestWordHint(mouse.x, mouse.y)
     end
 
     if not self.subState then
