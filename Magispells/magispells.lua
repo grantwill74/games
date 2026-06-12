@@ -1587,7 +1587,6 @@ SPAWN_RANDOM_ROW_OFFSET_MAG = 0.5
 ---@return SpawnTilesResult
 function LetterGrid:spawnTiles()
     local result = nil
-    local count = 0
 
     while true do
         for col=1, FIELD_TILES_W do
@@ -2040,7 +2039,8 @@ end
 ---@field gameBestWordScore integer
 ---@field statusMsg nil|StatusMessage
 ---@field delayTicks integer
----@field bonusChances integer
+---@field nChances integer
+---@field currentPar number
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -2107,9 +2107,10 @@ function StInGame:newGame()
     self.gameBestWord = ""
     self.gameBestWordScore = 0
     self.delayTicks = 0
-    self.bonusChances = 0
+    self.nChances = N_STARTING_CHANCES
     self.statusMsg = nil
     self.wispell = Wispell.new(self.ndWispell)
+    self.currentPar = 0
 
     --for col=1, 8 do
     --    for row=1, FIELD_TILES_PER_COL[col] do
@@ -2119,10 +2120,18 @@ function StInGame:newGame()
 
 --    self.grid.cols[1][1] = GridTile.new('b', 0, 'normal')
 --    self.grid.cols[2][1] = GridTile.new('t', 0, 'normal')
-
-    self.grid:spawnTiles()
+    self:spawnTiles()
 end
 
+---@return SpawnTilesResult
+function StInGame:spawnTiles()
+    local result = self.grid:spawnTiles()
+
+    self.currentPar = 
+        math.ceil(ParValuePercentage(self.level) * self.grid.bestWord.score)
+
+    return result
+end
 
 ---
 ---@param mouse MouseState
@@ -2289,15 +2298,22 @@ function RandomComparisonWord(tileResults)
     return tileResults[randomCol][randomRow]
 end
 
-PAR_PROP_LVL20 = 0.5
+N_STARTING_CHANCES = 3
+MAX_LEVEL = 20
+PAR_PROP_MAX = 0.5
 PAR_PROP_LVL1 = 0.1
-PAR_PROP_STEP_PER_LVL = 0.04
+PAR_PROP_STEP_PER_LVL = (PAR_PROP_MAX - PAR_PROP_LVL1) / MAX_LEVEL
 
 --- what percent of the points for the highest word is needed for no
 --- freezing tiles? depends on the level.
 --- @param level integer
+--- @return number
 function ParValuePercentage(level)
+    if level >= MAX_LEVEL then
+        return PAR_PROP_MAX
+    end
 
+    return PAR_PROP_LVL1 + (level - 1) * PAR_PROP_STEP_PER_LVL
 end
 
 function StInGame:submitWord()
@@ -2317,9 +2333,11 @@ function StInGame:submitWord()
     end
 
     -- TODO change to only compare with starting tile of word
-    local randomComparison = RandomComparisonWord(self.grid.allBestWords)
+    -- local randomComparison = RandomComparisonWord(self.grid.allBestWords)
 
-    local comparisonScore = randomComparison and randomComparison.score or 0
+    -- Changed: now we just use par value
+    local comparisonScore = self.currentPar
+    -- randomComparison and randomComparison.score or 0
 
     assert(self.grid.bestWord, "no word exists despite being in submit word.")
 
@@ -2333,6 +2351,9 @@ function StInGame:submitWord()
         local huhs = {WispellAnims.huh, WispellAnims.argh}
         local whichHuh = math.random(1, 2)
         self.wispell.expressionAnimState:switch(huhs[whichHuh])
+
+        -- deduct a chance
+        self.nChances = self.nChances - 1
     elseif score == self.grid.bestWord.score then
         self.statusMsg = BestWord()
         self.bonusChances = self.bonusChances + 1
@@ -2354,7 +2375,7 @@ function StInGame:submitWord()
 
     if self.nextLevelTarget < 0 then
         self:levelUp()
-    elseif self:nChancesThisLevel() <= 0 then
+    elseif self.nChances <= 0 then
         self.subState = StInGame_GameOver.new(60,
             self.gameBestWord, self.gameBestWordScore,
             self.xp, self.ticks, self.level
@@ -2363,7 +2384,7 @@ function StInGame:submitWord()
     end
 
     self:startFalling()
-    local spawnResult = self.grid:spawnTiles()
+    local spawnResult = self:spawnTiles();
 
     if spawnResult == 'respawned' then
         self.statusMsg = RespawnedTiles()
@@ -2371,6 +2392,7 @@ function StInGame:submitWord()
 
     self.delayTicks = SUBMIT_DELAY_TICKS
 end
+
 
 function StInGame:levelUp()
     self.level = self.level + 1
@@ -2390,10 +2412,10 @@ function StInGame:levelUp()
     self.nLevelWordsSubmitted = 0
     self.levelBestWord = ""
     self.levelBestWordScore = 0
-    self.bonusChances = 0
+    self.nChances = math.max(self.nChances, N_STARTING_CHANCES)
 
     self.grid:clearAllTiles()
-    self.grid:spawnTiles()
+    self:spawnTiles()
 end
 
 function StInGame:gameOver()
@@ -2699,11 +2721,13 @@ end
 ---@param level integer
 ---@param next integer
 ---@param maxWords integer
+---@param par number
 ---@param message nil|StatusMessage
 function DrawStatus(
     node, letters, isWord,
     isCharged, wordScore, xp, level, next,
-    maxWords, message
+    maxWords, par,
+    message
 )
     local x, y = node:pos()
     local score = ToStr(wordScore)
@@ -2726,6 +2750,7 @@ function DrawStatus(
     print("Level: " .. ToStr(level), x, y + 32, PALETTE.WHITE)
     print("Target: " .. ToStr(next), x, y + 40, PALETTE.WHITE)
     print("Chances: " .. ToStr(maxWords), x, y + 48, PALETTE.WHITE)
+    print("Par: " .. ToStr(par), x, y + 56, PALETTE.WHITE)
 
     if message then message(x, y + 64) end
 end
@@ -2747,13 +2772,6 @@ function WordScore(letters, elements)
     end
 
     return score * #letters * WORD_SCORE_MULT
-end
-
----@return integer
-function StInGame:nChancesThisLevel()
-    return WordsMaxForLevel(self.level) -
-        self.nLevelWordsSubmitted +
-        self.bonusChances
 end
 
 function StInGame:draw()
@@ -2784,7 +2802,8 @@ function StInGame:draw()
         self.xp,
         self.level,
         self.nextLevelTarget,
-        self:nChancesThisLevel(),
+        self.nChances,
+        self.currentPar,
         self.statusMsg
     )
 
