@@ -2239,7 +2239,11 @@ function StInGame:handleClick(mouse)
         return
     end
 
-    if self.strand:length() >= MAX_WORD_LEN then
+    local next_letter_is_exclamation = self.grid.cols[col][row].letter == '!'
+
+    if (next_letter_is_exclamation and self.strand:length() > MAX_WORD_LEN) or
+        (not next_letter_is_exclamation and self.strand:length() >= MAX_WORD_LEN)
+    then
         -- cant.wav
         return
     end
