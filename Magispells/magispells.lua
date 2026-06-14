@@ -130,6 +130,7 @@ SFX = {
     badWord = 52,
     goodWord = 53,
     bestWord = 54,
+    cant = 55,
 }
 
 
@@ -2005,7 +2006,6 @@ function Wispell:tick()
     if self.expressionAnimState.anim.name == 'idle' then
         local blink = math.random() < 1.0 / WISPELL_BLINK_MTTH
         if blink then
-            -- trace('BLINK')
             self.expressionAnimState:switch(WispellAnims.blink)
         end
     end
@@ -2038,6 +2038,7 @@ end
 ---@field gameBestWord string
 ---@field gameBestWordScore integer
 ---@field statusMsg nil|StatusMessage
+---@field statusTicksLeft integer
 ---@field delayTicks integer
 ---@field nChances integer
 ---@field currentPar number
@@ -2109,6 +2110,7 @@ function StInGame:newGame()
     self.delayTicks = 0
     self.nChances = N_STARTING_CHANCES
     self.statusMsg = nil
+    self.statusTicksLeft = 0
     self.wispell = Wispell.new(self.ndWispell)
     self.currentPar = 0
 
@@ -2230,12 +2232,15 @@ function StInGame:handleClick(mouse)
     end
 
     if not isNeighbor then
-        -- cant.wav
+        self:setStatus(MustNeighborLastLetter())
+        sfx(SFX.cant, 'C-3', 120, SFX_CHANNEL)
         return
     end
 
     if exclamation then
         -- exclamation point must end the word
+        self:setStatus(BangMustBeAtEnd())
+        sfx(SFX.cant, 'C-4', 120, SFX_CHANNEL)
         return
     end
 
@@ -2244,7 +2249,8 @@ function StInGame:handleClick(mouse)
     if (next_letter_is_exclamation and self.strand:length() > MAX_WORD_LEN) or
         (not next_letter_is_exclamation and self.strand:length() >= MAX_WORD_LEN)
     then
-        -- cant.wav
+        self:setStatus(WordTooLong())
+        sfx(SFX.cant, 'C-3', 120, SFX_CHANNEL)
         return
     end
 
@@ -2348,7 +2354,7 @@ function StInGame:submitWord()
     if score < comparisonScore then
         -- freeze tiles
         self.grid:freeze(self.grid.bestWord.crs)
-        self.statusMsg = XWasBetter(self.grid.bestWord.word)
+        self:setStatus(XWasBetter(self.grid.bestWord.word))
         sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL)
 
         -- two "huh" animations
@@ -2359,12 +2365,12 @@ function StInGame:submitWord()
         -- deduct a chance
         self.nChances = self.nChances - 1
     elseif score == self.grid.bestWord.score then
-        self.statusMsg = BestWord()
+        self:setStatus(BestWord())
         self.bonusChances = self.bonusChances + 1
         sfx(SFX.bestWord, 'E-6', 120, SFX_CHANNEL)
         self.wispell.expressionAnimState:switch(WispellAnims.great)
     else
-        self.statusMsg = GoodWord()
+        self:setStatus(GoodWord())
         sfx(SFX.goodWord, 'C-5', 120, SFX_CHANNEL)
         self.wispell.expressionAnimState:switch(WispellAnims.okay)
     end
@@ -2391,7 +2397,7 @@ function StInGame:submitWord()
     local spawnResult = self:spawnTiles();
 
     if spawnResult == 'respawned' then
-        self.statusMsg = RespawnedTiles()
+        self:setStatus(RespawnedTiles())
     end
 
     self.delayTicks = SUBMIT_DELAY_TICKS
@@ -2411,7 +2417,7 @@ function StInGame:levelUp()
             bestWordScore = self.levelBestWordScore,
     }
     sfx(SFX.levelUp, 'C-5', 60, SFX_CHANNEL)
-    self.statusMsg = nil
+    self:setStatus(HeyLevelUp())
 
     self.nLevelWordsSubmitted = 0
     self.levelBestWord = ""
@@ -2528,6 +2534,11 @@ function StInGame:tick(mouse)
     else
         self.delayTicks = self.delayTicks - 1
     end
+
+    if self.statusTicksLeft == 1 then
+        self.statusMsg = nil
+    end
+    self.statusTicksLeft = math.max(self.statusTicksLeft - 1, 0)
 
     self:fallTick()
 
@@ -2681,6 +2692,15 @@ end
 --- a function that draws a status message to the specified location when called
 ---@alias StatusMessage fun(x: integer, y: integer): nil
 
+STATUS_MSG_TICKS = 3 * 60
+
+---set the current status message and time
+---@param msg any
+function StInGame:setStatus(msg)
+    self.statusMsg = msg
+    self.statusTicksLeft = STATUS_MSG_TICKS
+end
+
 ---create a StatusMessage that tells us there was a better word to have played.
 ---@param word string
 function XWasBetter(word)
@@ -2690,6 +2710,9 @@ function XWasBetter(word)
     end
 end
 
+---@param word string
+---@param c integer
+---@param r integer
 function CheatBestWord(word, c, r)
     return function(x, y)
         local w = print("Best: ", x, y, PALETTE.YELLOW)
@@ -2713,6 +2736,30 @@ end
 function RespawnedTiles()
     return function(x, y)
         print("No words! Respawned!", x, y, PALETTE.WHITE)
+    end
+end
+
+function BangMustBeAtEnd()
+    return function(x, y)
+        print("! must be last!", x, y, PALETTE.YELLOW);
+    end
+end
+
+function MustNeighborLastLetter()
+    return function(x, y)
+        print("Not a neighbor!", x, y, PALETTE.YELLOW)
+    end
+end
+
+function WordTooLong()
+    return function(x, y)
+        print("Word too long!", x, y, PALETTE.YELLOW)
+    end
+end
+
+function HeyLevelUp()
+    return function(x, y)
+        print("Level Up!", x, y, PALETTE.GREEN)
     end
 end
 
@@ -3256,6 +3303,7 @@ end
 -- 052:1024104120522052205330253006400650065014604260607060805c802b900ba00ba00bb01bb04cc06dc070d081e073e054e025f015f015f025f043600000000000
 -- 053:11001100110011102110212031404170519061a061c071c081c091c0a1c0a1c0b1c0b1c0c1c0c1c0d1c0d1c0d1c0d1c0d1c0e1c0e1c0e1c0e1c0f1c0600000000000
 -- 054:1010102010601090208020a030c040e050f060006010702080309050a070a080b090b0b0c0f0c0f0d0d0d010d030d060d070e080e0a0e0c0e0e0f0f0500000000000
+-- 055:01e021d331c541b641b651a76196619681859173a172a160b17fc16dc15cd14ce14ce13cf13bf12bf12bf11af11af11bf10df100f102f105f106f107310000000000
 -- </SFX>
 
 -- <SFX1>
