@@ -2342,14 +2342,14 @@ function StInGame:submitWord()
         end
     end
 
-    -- TODO change to only compare with starting tile of word
+    -- ?TODO? change to only compare with starting tile of word?
     -- local randomComparison = RandomComparisonWord(self.grid.allBestWords)
 
     -- Changed: now we just use par value
     local comparisonScore = self.currentPar
     -- randomComparison and randomComparison.score or 0
 
-    assert(self.grid.bestWord, "no word exists despite being in submit word.")
+    -- assert(self.grid.bestWord, "no word exists despite being in submit word.")
 
     if score < comparisonScore then
         -- freeze tiles
@@ -2364,9 +2364,9 @@ function StInGame:submitWord()
 
         -- deduct a chance
         self.nChances = self.nChances - 1
-    elseif score == self.grid.bestWord.score then
+    elseif score >= self.grid.bestWord.score then
         self:setStatus(BestWord())
-        self.bonusChances = self.bonusChances + 1
+        self.nChances = self.nChances + 1
         sfx(SFX.bestWord, 'E-6', 120, SFX_CHANNEL)
         self.wispell.expressionAnimState:switch(WispellAnims.great)
     else
