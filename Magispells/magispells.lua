@@ -1748,16 +1748,10 @@ end
 
 ---compute what the score needs to be for the level
 ---@param lvl integer
-function TotalXpForLevel(lvl)
+function XpToReachLevel(lvl)
     assert(lvl > 0)
 
-    return (lvl - 1) * lvl * 500
-end
-
----returns the number of words the user is allowed to submit before game over
----@param lvl any
-function WordsMaxForLevel(lvl)
-    return 5 + 2 * lvl
+    return lvl * 1000
 end
 
 
@@ -2117,7 +2111,7 @@ function StInGame:newGame()
     self.dfaState = wordDfa.states[DawgStart]
     self.xp = 0
     self.level = 1
-    self.nextLevelTarget = TotalXpForLevel(2)
+    self.nextLevelTarget = XpToReachLevel(2)
     self.ticks = 0
     self.nLevelWordsSubmitted = 0
     self.levelBestWord = ""
@@ -2326,7 +2320,7 @@ function RandomComparisonWord(tileResults)
 end
 
 N_STARTING_CHANCES = 3
-MAX_LEVEL = 20
+MAX_LEVEL = 15 
 PAR_PROP_MAX = 0.5
 PAR_PROP_LVL1 = 0.1
 PAR_PROP_STEP_PER_LVL = (PAR_PROP_MAX - PAR_PROP_LVL1) / MAX_LEVEL
@@ -2423,11 +2417,11 @@ end
 
 function StInGame:levelUp()
     self.level = self.level + 1
-    self.nextLevelTarget = TotalXpForLevel(self.level + 1)
+    self.nextLevelTarget = XpToReachLevel(self.level + 1)
     self.subState = StInGame_LevelUp.new {
             newLevel = self.level,
-            manaGained = self.xp - TotalXpForLevel(self.level - 1),
-            newManaTarget = TotalXpForLevel(self.level + 1),
+            manaGained = self.xp - XpToReachLevel(self.level - 1),
+            newManaTarget = XpToReachLevel(self.level + 1),
             ticksTaken = self.ticks,
             wordsSubmitted = self.nLevelWordsSubmitted,
             bestWord = self.levelBestWord,
