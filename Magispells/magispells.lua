@@ -2038,9 +2038,10 @@ end
 ---@field highlight Cr | nil
 ---@field strand Strand
 ---@field dfaState DfaState
----@field xp integer
+---@field mana integer
 ---@field level integer
 ---@field nextLevelTarget integer
+---@field levelStartMana integer
 ---@field subState StInGame_SubState 
 ---@field ticks integer
 ---@field nLevelWordsSubmitted integer
@@ -2109,7 +2110,7 @@ function StInGame:newGame()
     self.strand = Strand.new()
     self.highlight = nil
     self.dfaState = wordDfa.states[DawgStart]
-    self.xp = 0
+    self.mana = 0
     self.level = 1
     self.nextLevelTarget = XpToReachLevel(2)
     self.ticks = 0
@@ -2124,6 +2125,7 @@ function StInGame:newGame()
     self.statusTicksLeft = 0
     self.wispell = Wispell.new(self.ndWispell)
     self.currentPar = 0
+    self.levelStartMana = 0
 
     --for col=1, 8 do
     --    for row=1, FIELD_TILES_PER_COL[col] do
@@ -2390,7 +2392,7 @@ function StInGame:submitWord()
         self.grid:deleteTile(cr.col, cr.row)
     end
 
-    self.xp = self.xp + score
+    self.mana = self.mana + score
     self.strand:clear()
     self.nextLevelTarget = self.nextLevelTarget - score
 
@@ -2399,7 +2401,7 @@ function StInGame:submitWord()
     elseif self.nChances <= 0 then
         self.subState = StInGame_GameOver.new(60,
             self.gameBestWord, self.gameBestWordScore,
-            self.xp, self.ticks, self.level
+            self.mana, self.ticks, self.level
         )
         sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL)
     end
@@ -2420,7 +2422,7 @@ function StInGame:levelUp()
     self.nextLevelTarget = XpToReachLevel(self.level + 1)
     self.subState = StInGame_LevelUp.new {
             newLevel = self.level,
-            manaGained = self.xp - XpToReachLevel(self.level - 1),
+            manaGained = self.mana - self.levelStartMana,
             newManaTarget = XpToReachLevel(self.level + 1),
             ticksTaken = self.ticks,
             wordsSubmitted = self.nLevelWordsSubmitted,
@@ -2434,6 +2436,7 @@ function StInGame:levelUp()
     self.levelBestWord = ""
     self.levelBestWordScore = 0
     self.nChances = math.max(self.nChances, N_STARTING_CHANCES)
+    self.levelStartMana = self.mana
 
     self.grid:clearAllTiles()
     self:spawnTiles()
@@ -2444,7 +2447,7 @@ function StInGame:gameOver()
         SUB_STATE_DELAY,
         self.gameBestWord,
         self.gameBestWordScore,
-        self.xp,
+        self.mana,
         self.ticks,
         self.level
     )
@@ -2779,7 +2782,7 @@ end
 ---@param letters string
 ---@param isWord boolean
 ---@param wordScore integer | nil
----@param xp integer
+---@param mana integer
 ---@param level integer
 ---@param next integer
 ---@param maxWords integer
@@ -2787,7 +2790,7 @@ end
 ---@param message nil|StatusMessage
 function DrawStatus(
     node, letters, isWord,
-    isCharged, wordScore, xp, level, next,
+    isCharged, wordScore, mana, level, next,
     maxWords, par,
     message
 )
@@ -2808,9 +2811,9 @@ function DrawStatus(
     print(letters, x, y + 8, color)
     print(score, x, y + 16, color)
 
-    print("Xp: " .. ToStr(xp), x, y + 24, PALETTE.WHITE)
+    print("Mana: " .. ToStr(mana), x, y + 24, PALETTE.WHITE)
     print("Level: " .. ToStr(level), x, y + 32, PALETTE.WHITE)
-    print("Target: " .. ToStr(next), x, y + 40, PALETTE.WHITE)
+    print("Next: " .. ToStr(next), x, y + 40, PALETTE.WHITE)
     print("Chances: " .. ToStr(maxWords), x, y + 48, PALETTE.WHITE)
     print("Par: " .. ToStr(par), x, y + 56, PALETTE.WHITE)
 
@@ -2861,7 +2864,7 @@ function StInGame:draw()
         isAWord,
         isCharged,
         WordScore(currentWord, currentElems),
-        self.xp,
+        self.mana,
         self.level,
         self.nextLevelTarget,
         self.nChances,
