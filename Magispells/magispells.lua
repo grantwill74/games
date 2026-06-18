@@ -2028,6 +2028,38 @@ function Wispell:tick()
     end
 end
 
+---@class ParticleState
+---@field x number # x position in pixels
+---@field y number # y position in pixels
+---@field dx number # x velocity in pixels/tic
+---@field dy number # y velocity in pixels/tic
+ParticleState = {}
+
+---@alias DrawFun fun(x, y): nil
+
+---@param drawFun DrawFun
+---@param x number # x position in pixels
+---@param y number # y position in pixels
+---@param dx number # x velocity in pixels per second
+---@param dy number # y velocity in pixels per second
+function ParticleState.new(drawFun, x, y, dx, dy)
+    local state = {
+        drawFun = drawFun,
+        x = x,
+        y = y,
+        dx = dx / 60,
+        dy = dy / 60,
+    }
+
+    return setmetatable(state, {__index = ParticleState});
+end
+
+function ParticleState:update()
+    self.x = self.x + self.dx
+    self.y = self.y + self.dy
+end
+
+
 ---@class StInGame : IAppState
 ---@field ndScreen Node
 ---@field ndField Node
