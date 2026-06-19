@@ -2028,27 +2028,35 @@ function Wispell:tick()
     end
 end
 
+---@alias DrawFun fun(x, y): nil
+
+
+PTL_BASE_TILE_CHROMA = PALETTE.BLACK
+PTL_LETTER_TILE_CHROMA = PALETTE.WHITE
+
 ---@class ParticleState
 ---@field x number # x position in pixels
 ---@field y number # y position in pixels
 ---@field dx number # x velocity in pixels/tic
 ---@field dy number # y velocity in pixels/tic
+---@field baseTile integer # sprite of base tile
+---@field letterTile integer # sprite of letter tile to draw on top
 ParticleState = {}
 
----@alias DrawFun fun(x, y): nil
-
----@param drawFun DrawFun
 ---@param x number # x position in pixels
 ---@param y number # y position in pixels
----@param dx number # x velocity in pixels per second
----@param dy number # y velocity in pixels per second
-function ParticleState.new(drawFun, x, y, dx, dy)
+---@param dx number # x velocity in pixels per tic
+---@param dy number # y velocity in pixels per tic
+---@param baseTile integer
+---@param letterTile integer
+function ParticleState.new(x, y, dx, dy, baseTile, letterTile)
     local state = {
-        drawFun = drawFun,
         x = x,
         y = y,
-        dx = dx / 60,
-        dy = dy / 60,
+        dx = dx,
+        dy = dy,
+        baseTile = baseTile,
+        letterTile = letterTile,
     }
 
     return setmetatable(state, {__index = ParticleState});
@@ -2058,6 +2066,72 @@ function ParticleState:update()
     self.x = self.x + self.dx
     self.y = self.y + self.dy
 end
+
+function ParticleState:alive()
+    return self.y < SCREEN_H_px
+end
+
+PTL_GRAVITY = .05 -- in pixels/tic^2
+PTL_DX_INIT = .2  -- in pixels/tic, initial x speed
+PTL_DY_INIT = .2  -- in pixels/tic, initial y speed
+PTL_SPRITE_ROW_OFF = 16 -- how many tiles to add to get the sprite below
+
+---@class LetterParticleEmitter
+---@field particles ParticleState[]
+LetterParticleEmitter = {}
+
+function LetterParticleEmitter.new()
+    local emitter = {
+        particles = {}
+    }
+
+    return setmetatable(emitter, {__index = LetterParticleEmitter})
+end
+
+---add a letter's 4 particles to the alive set, with top left x,y pixel location
+---given. 
+---@param letter string
+---@param element TileElem
+---@param x number
+---@param y number
+function LetterParticleEmitter:spawnLetter(letter, element, x, y)
+    local ltr_nw = LETTER_SPRITES[letter]
+    local ltr_ne = ltr_nw + 1
+    local ltr_sw = ltr_nw + PTL_SPRITE_ROW_OFF
+    local ltr_se = ltr_sw + 1
+
+    local base_nw = TILE_ELEMENTS[element]
+    local base_ne = base_nw + 1
+    local base_sw = base_nw + PTL_SPRITE_ROW_OFF
+    local base_se = base_sw + 1
+
+
+    local part_nw =
+        ParticleState.new(x, y, -PTL_DX_INIT, -PTL_DY_INIT, base_nw, ltr_nw)
+    local part_ne =
+        ParticleState.new(x + TILE_W_px, y,
+            PTL_DX_INIT, -PTL_DY_INIT, base_ne, ltr_ne)
+    local part_sw =
+        ParticleState.new(x, y + TILE_H_px,
+            -PTL_DX_INIT, PTL_DY_INIT, base_sw, ltr_sw)
+    local part_se =
+        ParticleState.new(x + TILE_W_px, y + TILE_H_px,
+            PTL_DX_INIT, PTL_DY_INIT, base_se, ltr_se)
+    
+    table.insert(self.particles, part_nw)
+    table.insert(self.particles, part_ne)
+    table.insert(self.particles, part_sw)
+    table.insert(self.particles, part_se)
+end
+
+function LetterParticleEmitter.draw()
+    --TODO
+end
+
+function LetterParticleEmitter.tick()
+    --TODO
+end
+
 
 
 ---@class StInGame : IAppState
