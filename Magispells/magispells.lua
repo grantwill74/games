@@ -2117,19 +2117,32 @@ function LetterParticleEmitter:spawnLetter(letter, element, x, y)
     local part_se =
         ParticleState.new(x + TILE_W_px, y + TILE_H_px,
             PTL_DX_INIT, PTL_DY_INIT, base_se, ltr_se)
-    
+
     table.insert(self.particles, part_nw)
     table.insert(self.particles, part_ne)
     table.insert(self.particles, part_sw)
     table.insert(self.particles, part_se)
 end
 
-function LetterParticleEmitter.draw()
-    --TODO
+function LetterParticleEmitter:draw()
+    for _, part in ipairs(self.particles) do
+        spr(part.baseTile, part.x, part.y, PTL_BASE_TILE_CHROMA)
+        spr(part.letterTile, part.x, part.y, PTL_LETTER_TILE_CHROMA)
+    end
 end
 
-function LetterParticleEmitter.tick()
-    --TODO
+function LetterParticleEmitter:tick()
+    local alive = {}
+    for _, part in ipairs(self.particles) do
+        part:update()
+
+        if not part.alive then
+            goto continue
+        end
+        table.insert(alive, part)
+        ::continue::
+    end
+    self.particles = alive
 end
 
 
@@ -2160,6 +2173,7 @@ end
 ---@field delayTicks integer
 ---@field nChances integer
 ---@field currentPar number
+---@field letterPartEmitter LetterParticleEmitter
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -2188,7 +2202,8 @@ function StInGame.new()
         ndScreen = ndScreen,
         ndField = ndField,
         ndStatus = ndStatus,
-        ndWispell = ndWispell
+        ndWispell = ndWispell,
+        letterPartEmitter = LetterParticleEmitter.new(),
 --        grid = grid,
         --strand = Strand.new(),
         --highlight = nil,
@@ -2428,7 +2443,7 @@ function RandomComparisonWord(tileResults)
 end
 
 N_STARTING_CHANCES = 3
-MAX_LEVEL = 15 
+MAX_LEVEL = 15
 PAR_PROP_MAX = 0.5
 PAR_PROP_LVL1 = 0.1
 PAR_PROP_STEP_PER_LVL = (PAR_PROP_MAX - PAR_PROP_LVL1) / MAX_LEVEL
@@ -2495,10 +2510,20 @@ function StInGame:submitWord()
     end
 
     for _, cr in ipairs(self.strand.tiles) do
+        local tile = self.grid.cols[cr.col][cr.row]
+        local px, py = self.ndField:pos()
+        px = px + cr.col * LETTER_TILE_W_px
+        local height = FIELD_COL_HEIGHTS[cr.col]
+        py = py + height - cr.row * LETTER_TILE_H_px
+        self.letterPartEmitter:spawnLetter(tile.letter, tile.elem, px, py)
+    end
+
+    for _, cr in ipairs(self.strand.tiles) do
         self.grid:deleteTile(cr.col, cr.row)
     end
 
     self.mana = self.mana + score
+
     self.strand:clear()
     self.nextLevelTarget = self.nextLevelTarget - score
 
@@ -2661,7 +2686,7 @@ function StInGame:tick(mouse)
     self.statusTicksLeft = math.max(self.statusTicksLeft - 1, 0)
 
     self:fallTick()
-
+    self.letterPartEmitter:tick()
     self.wispell:tick()
 end
 
@@ -2680,7 +2705,6 @@ StInGame_LevelUp = {}
 
 ---@alias StInGame_SubState nil|StInGame_LevelUp|StInGame_GameOver
 
----comment
 ---@param table {
 --- manaGained:integer, newManaTarget:integer,
 --- ticksTaken:integer, newLevel:integer, wordsSubmitted:integer,
@@ -2984,6 +3008,10 @@ function StInGame:draw()
     end
 
     self.grid:draw(self.highlight, self.strand)
+    
+    vbank(1)
+    self.letterPartEmitter:draw()
+    vbank(0)
 end
 
 ---@type IAppState
