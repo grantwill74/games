@@ -2147,7 +2147,20 @@ function LetterParticleEmitter:tick()
     self.particles = alive
 end
 
+---@alias ActionFun fun(self: StInGame): nil
+---@class DelayAction
+---@field ticsLeft integer
+---@field action ActionFun
+DelayAction = {}
 
+---@param ticsLeft integer
+---@param action ActionFun
+function DelayAction.new(ticsLeft, action)
+    return {
+        ticsLeft = ticsLeft,
+        action = action
+    }
+end
 
 ---@class StInGame : IAppState
 ---@field ndScreen Node
@@ -2172,10 +2185,10 @@ end
 ---@field gameBestWordScore integer
 ---@field statusMsg nil|StatusMessage
 ---@field statusTicksLeft integer
----@field delayTicks integer
 ---@field nChances integer
 ---@field currentPar number
 ---@field letterPartEmitter LetterParticleEmitter
+---@field delayActions DelayAction[]
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -2249,6 +2262,7 @@ function StInGame:newGame()
     self.wispell = Wispell.new(self.ndWispell)
     self.currentPar = 0
     self.levelStartMana = 0
+    self.delayActions = {}
 
     --for col=1, 8 do
     --    for row=1, FIELD_TILES_PER_COL[col] do
@@ -2511,44 +2525,66 @@ function StInGame:submitWord()
         self.wispell.expressionAnimState:switch(WispellAnims.okay)
     end
 
-    for _, cr in ipairs(self.strand.tiles) do
-        local tile = self.grid.cols[cr.col][cr.row]
-        local px, py = self.ndField:pos()
-        px = px + (cr.col - 1) * LETTER_TILE_W_px
-        local height = FIELD_COL_HEIGHTS[cr.col]
-        py = py + height - cr.row * LETTER_TILE_H_px
-        self.letterPartEmitter:spawnLetter(tile.letter, tile.elem, px, py)
+    local function clearSubmittedWord()
+        for _, cr in ipairs(self.strand.tiles) do
+            local tile = self.grid.cols[cr.col][cr.row]
+            local px, py = self.ndField:pos()
+            px = px + (cr.col - 1) * LETTER_TILE_W_px
+            local height = FIELD_COL_HEIGHTS[cr.col]
+            py = py + height - cr.row * LETTER_TILE_H_px
+            self.letterPartEmitter:spawnLetter(tile.letter, tile.elem, px, py)
+        end
+
+        for _, cr in ipairs(self.strand.tiles) do
+            self.grid:deleteTile(cr.col, cr.row)
+        end
+
+        self.mana = self.mana + score
+
+        self.strand:clear()
+        self.nextLevelTarget = self.nextLevelTarget - score
+
+        if self.nextLevelTarget < 0 then
+            self:levelUp()
+        elseif self.nChances <= 0 then
+            self.subState = StInGame_GameOver.new(60,
+                self.gameBestWord, self.gameBestWordScore,
+                self.mana, self.ticks, self.level
+            )
+            sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL)
+        end
+
+        self:startFalling()
+        local spawnResult = self:spawnTiles();
+
+        if spawnResult == 'respawned' then
+            self:setStatus(RespawnedTiles())
+        end
     end
 
-    for _, cr in ipairs(self.strand.tiles) do
-        self.grid:deleteTile(cr.col, cr.row)
-    end
-
-    self.mana = self.mana + score
-
-    self.strand:clear()
-    self.nextLevelTarget = self.nextLevelTarget - score
-
-    if self.nextLevelTarget < 0 then
-        self:levelUp()
-    elseif self.nChances <= 0 then
-        self.subState = StInGame_GameOver.new(60,
-            self.gameBestWord, self.gameBestWordScore,
-            self.mana, self.ticks, self.level
-        )
-        sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL)
-    end
-
-    self:startFalling()
-    local spawnResult = self:spawnTiles();
-
-    if spawnResult == 'respawned' then
-        self:setStatus(RespawnedTiles())
-    end
+    self:delayAction(SUBMIT_DELAY_TICKS, clearSubmittedWord)
 
     self.delayTicks = SUBMIT_DELAY_TICKS
 end
 
+function StInGame:delayAction(tics, action)
+    table.insert(self.delayActions, DelayAction.new(tics, action))
+end
+
+function StInGame:tickDelayActions()
+    local keep = {}
+    -- this might generate a lot of garbage.
+    -- keep an eye on memory usage.
+    for _, action in ipairs(self.delayActions) do
+        if action.ticsLeft == 0 then
+            action.action(self)
+        else
+            action.ticsLeft = action.ticsLeft - 1
+            table.insert(keep, action)
+        end
+    end
+    self.delayActions = keep
+end
 
 function StInGame:levelUp()
     self.level = self.level + 1
@@ -2570,6 +2606,7 @@ function StInGame:levelUp()
     self.levelBestWordScore = 0
     self.nChances = math.max(self.nChances, N_STARTING_CHANCES)
     self.levelStartMana = self.mana
+    self.delayActions = {}
 
     self.grid:clearAllTiles()
     self:spawnTiles()
@@ -2676,10 +2713,10 @@ function StInGame:tick(mouse)
         self.ticks = self.ticks + 1
     end
 
-    if self.delayTicks == 0 then
+    self:tickDelayActions()
+    if #self.delayActions == 0 then
         self:handleClick(mouse)
     else
-        self.delayTicks = self.delayTicks - 1
     end
 
     if self.statusTicksLeft == 1 then
