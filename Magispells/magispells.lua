@@ -2072,7 +2072,8 @@ function ParticleState:alive()
     return self.y < SCREEN_H_px
 end
 
-PTL_GRAVITY = .1 -- in pixels/tic^2
+PTL_GRAVITY = .15 -- in pixels/tic^2
+-- TODO INIT DY VARIANCE
 PTL_DX_INIT = .3  -- in pixels/tic, initial x speed
 PTL_DY_INIT = .3  -- in pixels/tic, initial y speed
 PTL_SPRITE_ROW_OFF = 16 -- how many tiles to add to get the sprite below
@@ -2513,7 +2514,7 @@ function StInGame:submitWord()
     for _, cr in ipairs(self.strand.tiles) do
         local tile = self.grid.cols[cr.col][cr.row]
         local px, py = self.ndField:pos()
-        px = px + cr.col * LETTER_TILE_W_px
+        px = px + (cr.col - 1) * LETTER_TILE_W_px
         local height = FIELD_COL_HEIGHTS[cr.col]
         py = py + height - cr.row * LETTER_TILE_H_px
         self.letterPartEmitter:spawnLetter(tile.letter, tile.elem, px, py)
