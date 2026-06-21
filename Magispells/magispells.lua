@@ -2065,15 +2065,16 @@ end
 function ParticleState:update()
     self.x = self.x + self.dx
     self.y = self.y + self.dy
+    self.dy = self.dy + PTL_GRAVITY
 end
 
 function ParticleState:alive()
     return self.y < SCREEN_H_px
 end
 
-PTL_GRAVITY = .05 -- in pixels/tic^2
-PTL_DX_INIT = .2  -- in pixels/tic, initial x speed
-PTL_DY_INIT = .2  -- in pixels/tic, initial y speed
+PTL_GRAVITY = .1 -- in pixels/tic^2
+PTL_DX_INIT = .3  -- in pixels/tic, initial x speed
+PTL_DY_INIT = .3  -- in pixels/tic, initial y speed
 PTL_SPRITE_ROW_OFF = 16 -- how many tiles to add to get the sprite below
 
 ---@class LetterParticleEmitter
@@ -3008,7 +3009,7 @@ function StInGame:draw()
     end
 
     self.grid:draw(self.highlight, self.strand)
-    
+
     vbank(1)
     self.letterPartEmitter:draw()
     vbank(0)
