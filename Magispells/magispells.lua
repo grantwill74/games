@@ -496,6 +496,12 @@ function SongState:nextFragment()
     -- music(frag.trackNo, frag.frameStart, frag.rowStart, false, false, -1, 3)
 end
 
+---@class Button
+Button = {}
+
+function Button.new()
+    -- TODO
+end
 
 
 ---@return TileElem
@@ -2578,6 +2584,9 @@ function StInGame:tickDelayActions()
     local keep = {}
     -- this might generate a lot of garbage.
     -- keep an eye on memory usage.
+    -- in fact, it does generate a lot of garbage, but the GC seems to 
+    -- have it under control. 
+    -- It bugs me though, so TODO, go ahead and do this in place
     for _, action in ipairs(self.delayActions) do
         if action.ticsLeft == 0 then
             action.action(self)
@@ -2702,6 +2711,10 @@ function StInGame:bestWordHint(mouseX, mouseY)
     end
 end
 
+function StInGame:memProfile()
+    self.statusMsg = CheatMemProfile()
+end
+
 ---
 ---@param mouse MouseState
 function StInGame:tick(mouse)
@@ -2710,6 +2723,8 @@ function StInGame:tick(mouse)
         self:levelUp()
     elseif cheat == 'cycle_best_word' then
         self:bestWordHint(mouse.x, mouse.y)
+    elseif cheat == 'mem_profile' then
+        self:memProfile()
     end
 
     if not self.subState then
@@ -2773,8 +2788,6 @@ function HoursMinsSecs(ticks)
 
     return hoursTaken, minsRem, secsRem, ticksRem
 end
-
---TODO: ensure respawning works
 
 ---@param node Node
 function StInGame_LevelUp:draw(node)
@@ -2859,10 +2872,11 @@ end
 CHEATS_ENABLED = true
 
 CHEAT_KEYMAP = {}
+CHEAT_KEYMAP[13] = 'mem_profile' -- M
 CHEAT_KEYMAP[12] = 'level_up' -- L
 CHEAT_KEYMAP[2] = 'cycle_best_word' -- B
 
----@alias Cheat nil|'level_up'|'cycle_best_word'
+---@alias Cheat nil|'level_up'|'cycle_best_word'|'mem_profile'
 function CheatKeyPressed()
     if not CHEATS_ENABLED then
         return
@@ -2893,6 +2907,13 @@ function XWasBetter(word)
     return function(x, y)
         local w = print(word, x, y, PALETTE.BLUE)
         print(" was better!", x + w, y, PALETTE.WHITE)
+    end
+end
+
+function CheatMemProfile()
+    return function(x, y)
+        local usedMem = collectgarbage("count")
+        print(string.format("Mem used: %.0fkb", usedMem), x, y, PALETTE.GREEN);
     end
 end
 
