@@ -497,10 +497,26 @@ function SongState:nextFragment()
 end
 
 ---@class Button
+---@field node Node
+---@field spriteIdx integer
 Button = {}
 
-function Button.new()
-    -- TODO
+---@param node Node
+---@param sprite integer
+function Button.new(node, sprite)
+    local button = {
+        node = node,
+        spriteIdx = sprite,
+    }
+    return setmetatable(button, {__index=Button})
+end
+
+function Button:draw()
+
+end
+
+function Button:isMouseOver(mousex, mousey)
+
 end
 
 
