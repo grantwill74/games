@@ -2581,12 +2581,28 @@ function StInGame:delayAction(tics, action)
 end
 
 function StInGame:tickDelayActions()
-    local keep = {}
+    --    local keep = {}
     -- this might generate a lot of garbage.
     -- keep an eye on memory usage.
     -- in fact, it does generate a lot of garbage, but the GC seems to 
     -- have it under control. 
     -- It bugs me though, so TODO, go ahead and do this in place
+    -- (in retrospect, there are tons of sources of garbage and the GC keeps
+    -- up just fine, not sure why this particular one bothered me.)
+    local i = 1
+    while i <= #self.delayActions do
+        local action = self.delayActions[i]
+        if action.ticsLeft == 0 then
+            action.action(self)
+
+            -- delete and shift down. there will not be many of these.
+            table.remove(self.delayActions, i)
+        else
+            action.ticsLeft = action.ticsLeft - 1
+            i = i + 1
+        end
+    end
+--[[
     for _, action in ipairs(self.delayActions) do
         if action.ticsLeft == 0 then
             action.action(self)
@@ -2595,7 +2611,7 @@ function StInGame:tickDelayActions()
             table.insert(keep, action)
         end
     end
-    self.delayActions = keep
+    self.delayActions = keep --]]
 end
 
 function StInGame:levelUp()
