@@ -496,27 +496,48 @@ function SongState:nextFragment()
     -- music(frag.trackNo, frag.frameStart, frag.rowStart, false, false, -1, 3)
 end
 
+---@alias ButtonStatus 'up'|'hover'|'down'
+---@alias ButtonAction nil|'downed'|'hovered'|'clicked'
+---@alias ButtonDrawFun fun(self: Button, status: ButtonStatus): nil
 ---@class Button
 ---@field node Node
----@field spriteIdx integer
+---@field name string
+---@field drawFun ButtonDrawFun
+---@field down boolean
+---@field hint string
 Button = {}
 
 ---@param node Node
----@param sprite integer
-function Button.new(node, sprite)
+---@param name string
+---@param hint string
+---@param drawFun ButtonDrawFun
+function Button.new(node, name, hint, drawFun)
     local button = {
         node = node,
-        spriteIdx = sprite,
+        name = name,
+        drawFun = drawFun,
+        down = false,
+        hint = hint,
     }
     return setmetatable(button, {__index=Button})
 end
 
-function Button:draw()
-
-end
-
-function Button:isMouseOver(mousex, mousey)
-
+---@param mousex number
+---@param mousey number
+---@param mouseDown boolean
+---@return ButtonAction
+function Button:update(mousex, mousey, mouseDown)
+    local mouseInside = self.node:isPointInside(mousex, mousey)
+    -- if button is up, the mouse is inside, and then the mouse goes down
+    if self.state == 'up' and mouseInside and not self.down and mouseDown then
+        self.state = 'down'
+        return 'downed'
+    end
+    -- if button is up, the mouse is inside, and not down, and the button was
+    -- already clicked previously
+    if self.state == 'up' and mouseInside and self.down then
+        
+    end
 end
 
 
@@ -927,6 +948,19 @@ end
 function Node:offsetOf(x, y)
     local px, py = self:pos()
     return x - px, y - py
+end
+
+---determine if the given x y screen coordinates are inside the node
+---@param x number
+---@param y number
+function Node:isPointInside(x, y)
+    local nx, ny = self:pos()
+
+    return
+        x >= nx and
+        y >= ny and
+        x < nx + self.wpx and
+        y < ny + self.wpx
 end
 
 
