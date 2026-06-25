@@ -496,6 +496,12 @@ function SongState:nextFragment()
     -- music(frag.trackNo, frag.frameStart, frag.rowStart, false, false, -1, 3)
 end
 
+BTN_UP_COLOR = PALETTE.BLACK
+BTN_HOVER_COLOR = PALETTE.BLUE
+BTN_DOWN_COLOR = PALETTE.LT_GRAY
+BTN_SPR_MUSIC_ON = 354
+BTN_SPR_MUSIC_OFF = 370
+
 ---@alias ButtonStatus 'up'|'hover'|'down'
 ---@alias ButtonAction nil|'downed'|'hovered'|'clicked'
 ---@alias ButtonDrawFun fun(self: Button, status: ButtonStatus): nil
@@ -505,6 +511,7 @@ end
 ---@field drawFun ButtonDrawFun
 ---@field down boolean
 ---@field hint string
+---@field data any
 Button = {}
 
 ---@param node Node
@@ -518,6 +525,7 @@ function Button.new(node, name, hint, drawFun)
         drawFun = drawFun,
         down = false,
         hint = hint,
+        data = nil,
     }
     return setmetatable(button, {__index=Button})
 end
@@ -528,16 +536,60 @@ end
 ---@return ButtonAction
 function Button:update(mousex, mousey, mouseDown)
     local mouseInside = self.node:isPointInside(mousex, mousey)
+
+    if not mouseInside then return nil end
+
     -- if button is up, the mouse is inside, and then the mouse goes down
-    if self.state == 'up' and mouseInside and not self.down and mouseDown then
-        self.state = 'down'
+    if not self.down and mouseDown then
+        self.down = true
         return 'downed'
     end
     -- if button is up, the mouse is inside, and not down, and the button was
     -- already clicked previously
-    if self.state == 'up' and mouseInside and self.down then
-        
+    if self.down and not mouseDown then
+        self.down = false
+        return 'clicked'
     end
+
+    if not self.down and not mouseDown then
+        return 'hovered'
+    end
+
+    return nil
+end
+
+---@param x number
+---@param y number
+---@param w number
+---@param h number
+---@param status ButtonStatus
+function BtnDrawBack(x, y, w, h, status)
+    if status == 'up' then
+        rect(x, y, w, h, BTN_UP_COLOR)
+    elseif status == 'hover' then
+        rect(x, y, w, h, BTN_HOVER_COLOR)
+    elseif status == 'down' then
+        rect(x, y, w, h, BTN_DOWN_COLOR)
+    end
+end
+
+---Create a closure that draws the music button. Either on or off depending
+---on the passed state.
+---@param self Button
+---@param on boolean
+function BtnDrawMusic_Gen(self, on)
+    local x, y = self.node:pos()
+    local w, h = self.node.wpx, self.node.hpx
+    assert(w and h, "button nodes had no width or height value")
+    local sprIdx = on and BTN_SPR_MUSIC_ON or BTN_SPR_MUSIC_OFF
+
+    ---@param status ButtonStatus
+    function DrawBtn(_, status)
+        BtnDrawBack(x, y, w, h, status)
+        spr(sprIdx, x, y, PALETTE.BLACK)
+    end
+
+    return DrawBtn
 end
 
 
@@ -2224,6 +2276,7 @@ end
 ---@field ndField Node
 ---@field ndStatus Node
 ---@field ndWispell Node
+---@field buttons Button[]
 ---@field wispell Wispell
 ---@field grid LetterGrid
 ---@field highlight Cr | nil
@@ -2270,11 +2323,25 @@ function StInGame.new()
         WISPELL_PROFILE_TILES_H * TILE_H_px
     )
 
+    --[[
+    local ndBtnMusic = ndScreen:addChild(
+        'btn music',
+        0, 0, BTN_MUSIC_W, BTN_MUSIC_H,
+    )
+    local btnMusic = 
+
+    local buttons = {
+        Button.new(ndBtnMusic, 'btn music', 'Music On/Off', BtnDrawMusic_Gen())
+    }
+    --]]
+    local buttons = {}
+
     local state = {
         ndScreen = ndScreen,
         ndField = ndField,
         ndStatus = ndStatus,
         ndWispell = ndWispell,
+        buttons = buttons,
         letterPartEmitter = LetterParticleEmitter.new(),
 --        grid = grid,
         --strand = Strand.new(),
@@ -3380,11 +3447,13 @@ end
 -- 031:2222222322222223222222232222222322222223222222232222223333333330
 -- 096:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 097:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+-- 098:0000000000999990009000900090009000900090099009900990099000000000
 -- 109:ccc22ccccc2222ccc222222cc000000ccccccccccccccccccccccccccccccccc
 -- 110:22222ccc22220ccc2220cccc220ccccc20cccccc0ccccccccccccccccccccccc
 -- 111:22222ccc02222cccc0222ccccc022cccccc02ccccccc0ccccccccccccccccccc
 -- 112:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 113:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+-- 114:2000000202999920002002900090209000920090092002900290092020000002
 -- 125:c222222cc022220ccc0220ccccc00ccccccccccccccccccccccccccccccccccc
 -- 126:cccc2cccccc22ccccc222cccc2222ccc22222ccc00000ccccccccccccccccccc
 -- 127:2ccccccc22cccccc222ccccc2222cccc22222ccc00000ccccccccccccccccccc
