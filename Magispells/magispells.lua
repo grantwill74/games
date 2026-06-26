@@ -496,6 +496,8 @@ function SongState:nextFragment()
     -- music(frag.trackNo, frag.frameStart, frag.rowStart, false, false, -1, 3)
 end
 
+BTN_SIMPLE_W = TILE_W_px
+BTN_SIMPLE_H = TILE_H_px
 BTN_UP_COLOR = PALETTE.BLACK
 BTN_HOVER_COLOR = PALETTE.BLUE
 BTN_DOWN_COLOR = PALETTE.LT_GRAY
@@ -510,6 +512,7 @@ BTN_SPR_MUSIC_OFF = 370
 ---@field name string
 ---@field drawFun ButtonDrawFun
 ---@field down boolean
+---@field hover boolean
 ---@field hint string
 ---@field data any
 Button = {}
@@ -524,10 +527,18 @@ function Button.new(node, name, hint, drawFun)
         name = name,
         drawFun = drawFun,
         down = false,
+        hover = false,
         hint = hint,
         data = nil,
     }
     return setmetatable(button, {__index=Button})
+end
+
+---@return ButtonStatus
+function Button:status()
+    if self.down then return 'down' end
+    if self.hover then return 'hover' end
+    return 'up'
 end
 
 ---@param mousex number
@@ -575,11 +586,11 @@ end
 
 ---Create a closure that draws the music button. Either on or off depending
 ---on the passed state.
----@param self Button
+---@param node Node
 ---@param on boolean
-function BtnDrawMusic_Gen(self, on)
-    local x, y = self.node:pos()
-    local w, h = self.node.wpx, self.node.hpx
+function BtnDrawMusic_Gen(node, on)
+    local x, y = node:pos()
+    local w, h = node.wpx, node.hpx
     assert(w and h, "button nodes had no width or height value")
     local sprIdx = on and BTN_SPR_MUSIC_ON or BTN_SPR_MUSIC_OFF
 
@@ -2302,6 +2313,7 @@ end
 StInGame = {}
 StInGame.__index = StInGame
 
+IN_GAME_BTN_MUSIC_OFF = {x = 0, y = 0}
 
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
@@ -2323,18 +2335,22 @@ function StInGame.new()
         WISPELL_PROFILE_TILES_H * TILE_H_px
     )
 
-    --[[
+    
     local ndBtnMusic = ndScreen:addChild(
         'btn music',
-        0, 0, BTN_MUSIC_W, BTN_MUSIC_H,
+        IN_GAME_BTN_MUSIC_OFF.x,
+        IN_GAME_BTN_MUSIC_OFF.y,
+        BTN_SIMPLE_W,
+        BTN_SIMPLE_H
     )
-    local btnMusic = 
+    local drawMusic = BtnDrawMusic_Gen(ndBtnMusic, true)
+
+    local btnMusic =
+        Button.new(ndBtnMusic, 'btn music', 'Music On/Off', drawMusic)
 
     local buttons = {
-        Button.new(ndBtnMusic, 'btn music', 'Music On/Off', BtnDrawMusic_Gen())
+        btnMusic,
     }
-    --]]
-    local buttons = {}
 
     local state = {
         ndScreen = ndScreen,
@@ -3165,9 +3181,14 @@ function WordScore(letters, elements)
     return score * #letters * WORD_SCORE_MULT
 end
 
-function StInGame:draw()
-    assert(wordDfa:matchPrefix('hello', 1).final)
+---@return nil
+function StInGame:drawButtons()
+    for _, button in ipairs(self.buttons) do
+        button:drawFun(button:status())
+    end
+end
 
+function StInGame:draw()
     cls(0)
 
     local currentWord, currentElems = self.strand:asStringAndElements(self.grid)
@@ -3183,6 +3204,7 @@ function StInGame:draw()
     end
 
     self.wispell:draw()
+    self:drawButtons()
 
     DrawStatus(
         self.ndStatus,
