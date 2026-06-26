@@ -534,6 +534,28 @@ function Button.new(node, name, hint, drawFun)
     return setmetatable(button, {__index=Button})
 end
 
+---@param buttons Button[]
+---@param mousex number
+---@param mousey number
+---@return Button|nil
+function Button.whichOver(buttons, mousex, mousey)
+    for _, button in ipairs(buttons) do
+        if button.node:isPointInside(mousex, mousey) then
+            return button
+        end
+    end
+
+    return nil
+end
+
+---Removes the hover state from the list of buttons
+---@param buttons Button[]
+function Button.clearHovers(buttons)
+    for _, button in ipairs(buttons) do
+        button.hover = false
+    end
+end
+
 ---@return ButtonStatus
 function Button:status()
     if self.down then return 'down' end
@@ -583,6 +605,11 @@ function BtnDrawBack(x, y, w, h, status)
         rect(x, y, w, h, BTN_DOWN_COLOR)
     end
 end
+
+-- TODO, be smarter about this 
+-- I should have a generic draw function for sprite buttons
+-- 
+
 
 ---Create a closure that draws the music button. Either on or off depending
 ---on the passed state.
@@ -2894,6 +2921,13 @@ function StInGame:tick(mouse)
     self:fallTick()
     self.letterPartEmitter:tick()
     self.wispell:tick()
+    local hoverButton = Button.whichOver(self.buttons, mouse.x, mouse.y)
+
+    if hoverButton then
+        hoverButton.hover = true
+    else
+        Button.clearHovers(self.buttons)
+    end
 end
 
 ---@class StInGame_LevelUp
@@ -3469,13 +3503,13 @@ end
 -- 031:2222222322222223222222232222222322222223222222232222223333333330
 -- 096:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 097:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
--- 098:0000000000999990009000900090009000900090099009900990099000000000
+-- 098:0000000000aaaaa000a000a000a000a000a000a00aa00aa00aa00aa000000000
 -- 109:ccc22ccccc2222ccc222222cc000000ccccccccccccccccccccccccccccccccc
 -- 110:22222ccc22220ccc2220cccc220ccccc20cccccc0ccccccccccccccccccccccc
 -- 111:22222ccc02222cccc0222ccccc022cccccc02ccccccc0ccccccccccccccccccc
 -- 112:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 113:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
--- 114:2000000202999920002002900090209000920090092002900290092020000002
+-- 114:2000000202aaaa20002002a000a020a000a200a00a2002a002a00a2020000002
 -- 125:c222222cc022220ccc0220ccccc00ccccccccccccccccccccccccccccccccccc
 -- 126:cccc2cccccc22ccccc222cccc2222ccc22222ccc00000ccccccccccccccccccc
 -- 127:2ccccccc22cccccc222ccccc2222cccc22222ccc00000ccccccccccccccccccc
