@@ -506,30 +506,26 @@ BTN_SPR_MUSIC_OFF = 370
 
 ---@alias ButtonStatus 'up'|'hover'|'down'
 ---@alias ButtonAction nil|'downed'|'hovered'|'clicked'
----@alias ButtonDrawFun fun(self: Button, status: ButtonStatus): nil
 ---@class Button
 ---@field node Node
+---@field draw fun(self: Button)
 ---@field name string
----@field drawFun ButtonDrawFun
 ---@field down boolean
 ---@field hover boolean
 ---@field hint string
----@field data any
 Button = {}
 
 ---@param node Node
 ---@param name string
 ---@param hint string
----@param drawFun ButtonDrawFun
-function Button.new(node, name, hint, drawFun)
+---@return Button
+function Button.new(node, name, hint)
     local button = {
         node = node,
         name = name,
-        drawFun = drawFun,
         down = false,
         hover = false,
         hint = hint,
-        data = nil,
     }
     return setmetatable(button, {__index=Button})
 end
@@ -591,12 +587,20 @@ function Button:update(mousex, mousey, mouseDown)
     return nil
 end
 
----@param x number
----@param y number
----@param w number
----@param h number
----@param status ButtonStatus
-function BtnDrawBack(x, y, w, h, status)
+---returns x, y, w, h
+---returns number, number, number, number
+function Button:posAndDims()
+    local n = self.node
+    local x, y = n:pos()
+    local w, h = n.wpx, n.hpx
+    assert(w and h, "button node missing dimensions")
+    return x, y, w, h
+end
+
+function Button:drawBack()
+    local status = self:status()
+    local x, y, w, h = self:posAndDims()
+
     if status == 'up' then
         rect(x, y, w, h, BTN_UP_COLOR)
     elseif status == 'hover' then
@@ -606,30 +610,36 @@ function BtnDrawBack(x, y, w, h, status)
     end
 end
 
--- TODO, be smarter about this 
--- I should have a generic draw function for sprite buttons
--- 
+---@class SpriteToggleButton : Button
+---@field toggleState integer
+---@field toggleSprites integer[]
+---@field chroma integer
+SpriteToggleButton = {}
+setmetatable(SpriteToggleButton, {__index = Button})
 
-
----Create a closure that draws the music button. Either on or off depending
----on the passed state.
 ---@param node Node
----@param on boolean
-function BtnDrawMusic_Gen(node, on)
-    local x, y = node:pos()
-    local w, h = node.wpx, node.hpx
-    assert(w and h, "button nodes had no width or height value")
-    local sprIdx = on and BTN_SPR_MUSIC_ON or BTN_SPR_MUSIC_OFF
+---@param name string
+---@param hint string
+---@param toggleSprites integer[]
+---@param chroma integer
+---@return SpriteToggleButton
+function SpriteToggleButton.new(node, name, hint, toggleSprites, chroma)
+    local button = Button.new(node, name, hint)
+    setmetatable(button, {__index = SpriteToggleButton})
+    local button = button --[[@as SpriteToggleButton]]
+    button.toggleState = 1
+    button.toggleSprites = toggleSprites
+    button.chroma = chroma
 
-    ---@param status ButtonStatus
-    function DrawBtn(_, status)
-        BtnDrawBack(x, y, w, h, status)
-        spr(sprIdx, x, y, PALETTE.BLACK)
-    end
-
-    return DrawBtn
+    return button
 end
 
+function SpriteToggleButton:draw()
+    self:drawBack()
+    local spriteId = self.toggleSprites[self.toggleState]
+    local x, y, _, _ = self:posAndDims()
+    spr(spriteId, x, y, self.chroma)
+end
 
 ---@return TileElem
 function DrawElement()
@@ -2361,8 +2371,6 @@ function StInGame.new()
         WISPELL_PROFILE_TILES_W * TILE_W_px,
         WISPELL_PROFILE_TILES_H * TILE_H_px
     )
-
-    
     local ndBtnMusic = ndScreen:addChild(
         'btn music',
         IN_GAME_BTN_MUSIC_OFF.x,
@@ -2370,10 +2378,14 @@ function StInGame.new()
         BTN_SIMPLE_W,
         BTN_SIMPLE_H
     )
-    local drawMusic = BtnDrawMusic_Gen(ndBtnMusic, true)
-
+    
     local btnMusic =
-        Button.new(ndBtnMusic, 'btn music', 'Music On/Off', drawMusic)
+        SpriteToggleButton.new(
+            ndBtnMusic,
+            'btn music', 'Music On/Off',
+            {BTN_SPR_MUSIC_ON, BTN_SPR_MUSIC_OFF},
+            PALETTE.BLACK
+        )
 
     local buttons = {
         btnMusic,
@@ -3218,7 +3230,7 @@ end
 ---@return nil
 function StInGame:drawButtons()
     for _, button in ipairs(self.buttons) do
-        button:drawFun(button:status())
+        button:draw()
     end
 end
 
