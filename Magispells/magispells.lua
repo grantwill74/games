@@ -555,7 +555,9 @@ function Button.updateButtonsAndDetectClick(buttons, mousex, mousey, mousedown)
     local which = nil
     for _, button in ipairs(buttons) do
         local result = button:update(mousex, mousey, mousedown)
-        which = which or result and button
+        if result then
+            which = button
+        end
     end
 
     return which
@@ -2374,6 +2376,11 @@ StInGame.__index = StInGame
 
 IN_GAME_BTN_MUSIC_OFF = {x = 0, y = 0}
 
+BTN_MUSIC_NAME = 'btn music'
+BTN_MUSIC_HINT = 'Music on/off'
+BTN_MUSIC_STATE_ON = 1
+BTN_MUSIC_STATE_OFF = 2
+
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
     local ndField = ndScreen:addChildFromTopRight(
@@ -2404,7 +2411,7 @@ function StInGame.new()
     local btnMusic =
         SpriteToggleButton.new(
             ndBtnMusic,
-            'btn music', 'Music On/Off',
+            BTN_MUSIC_NAME, BTN_MUSIC_HINT,
             {BTN_SPR_MUSIC_ON, BTN_SPR_MUSIC_OFF},
             PALETTE.BLACK
         )
@@ -2958,6 +2965,18 @@ function StInGame:tick(mouse)
 
     local clicked = Button.updateButtonsAndDetectClick(
         self.buttons, mouse.x, mouse.y, mouse.left)
+
+    if clicked then
+        if clicked.name == BTN_MUSIC_NAME then
+            local btnMusic = clicked --[[ @as SpriteToggleButton ]]
+            if btnMusic.toggleState == BTN_MUSIC_STATE_OFF then
+                MusicOff()
+            elseif btnMusic.toggleState == BTN_MUSIC_STATE_ON then
+                MusicOn()
+            end
+        else
+        end
+    end
 end
 
 ---@class StInGame_LevelUp
@@ -3304,6 +3323,18 @@ Mouse = nil
 
 local songState = SongState.new(Songs[2])
 
+MusicEnabled = false
+
+function MusicOff()
+    MusicEnabled = false
+    music()
+end
+
+function MusicOn()
+    MusicEnabled = true
+    PlayRandomSong()
+end
+
 function PlayRandomSong()
     local songNo = math.random(1, #Songs)
     songState = SongState.new(Songs[songNo])
@@ -3317,7 +3348,8 @@ function BOOT()
 
     -- songState = SongState.new(Songs[5])
     -- songState:play()
-    PlayRandomSong()
+    -- PlayRandomSong()
+    MusicOn()
 end
 
 function TIC()
