@@ -555,7 +555,7 @@ function Button.updateButtonsAndDetectClick(buttons, mousex, mousey, mousedown)
     local which = nil
     for _, button in ipairs(buttons) do
         local result = button:update(mousex, mousey, mousedown)
-        if result then
+        if result == 'clicked' then
             which = button
         end
     end
@@ -2787,7 +2787,7 @@ function StInGame:tickDelayActions()
     -- keep an eye on memory usage.
     -- in fact, it does generate a lot of garbage, but the GC seems to 
     -- have it under control. 
-    -- It bugs me though, so TODO, go ahead and do this in place
+    -- It bugs me though, so go ahead and do this in place
     -- (in retrospect, there are tons of sources of garbage and the GC keeps
     -- up just fine, not sure why this particular one bothered me.)
     local i = 1
@@ -2970,10 +2970,11 @@ function StInGame:tick(mouse)
         if clicked.name == BTN_MUSIC_NAME then
             local btnMusic = clicked --[[ @as SpriteToggleButton ]]
             if btnMusic.toggleState == BTN_MUSIC_STATE_OFF then
-                MusicOff()
-            elseif btnMusic.toggleState == BTN_MUSIC_STATE_ON then
                 MusicOn()
+            elseif btnMusic.toggleState == BTN_MUSIC_STATE_ON then
+                MusicOff()
             end
+            btnMusic.toggleState = 2 - btnMusic.toggleState + 1
         else
         end
     end
@@ -3353,10 +3354,12 @@ function BOOT()
 end
 
 function TIC()
-    songState:tick()
+    if MusicEnabled then
+        songState:tick()
 
-    if songState:finished() then
-        PlayRandomSong()
+        if songState:finished() then
+            PlayRandomSong()
+        end
     end
 
     Mouse:poll()
