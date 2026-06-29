@@ -503,6 +503,9 @@ BTN_HOVER_COLOR = PALETTE.BLUE
 BTN_DOWN_COLOR = PALETTE.LT_GRAY
 BTN_SPR_MUSIC_ON = 354
 BTN_SPR_MUSIC_OFF = 370
+BTN_SPR_SFX_ON = 355
+BTN_SPR_SFX_OFF = 371
+
 
 ---@alias ButtonStatus 'up'|'hover'|'down'
 ---@alias ButtonAction nil|'downed'|'hovered'|'clicked'
@@ -2378,8 +2381,13 @@ IN_GAME_BTN_MUSIC_OFF = {x = 0, y = 0}
 
 BTN_MUSIC_NAME = 'btn music'
 BTN_MUSIC_HINT = 'Music on/off'
-BTN_MUSIC_STATE_ON = 1
-BTN_MUSIC_STATE_OFF = 2
+BTN_TOGGLE_STATE_ON = 1
+BTN_TOGGLE_STATE_OFF = 2
+
+IN_GAME_BTN_SFX_OFF = {x = 0, y = 8}
+BTN_SFX_NAME = 'btn sfx'
+BTN_SFX_HINT = 'SFX on/off'
+
 
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
@@ -2401,9 +2409,16 @@ function StInGame.new()
         WISPELL_PROFILE_TILES_H * TILE_H_px
     )
     local ndBtnMusic = ndScreen:addChild(
-        'btn music',
+        'nd btn music',
         IN_GAME_BTN_MUSIC_OFF.x,
         IN_GAME_BTN_MUSIC_OFF.y,
+        BTN_SIMPLE_W,
+        BTN_SIMPLE_H
+    )
+    local ndBtnSfx = ndScreen:addChild(
+        'nd btn sfx',
+        IN_GAME_BTN_SFX_OFF.x,
+        IN_GAME_BTN_SFX_OFF.y,
         BTN_SIMPLE_W,
         BTN_SIMPLE_H
     )
@@ -2415,9 +2430,18 @@ function StInGame.new()
             {BTN_SPR_MUSIC_ON, BTN_SPR_MUSIC_OFF},
             PALETTE.BLACK
         )
+    local btnSfx = 
+        SpriteToggleButton.new(
+            ndBtnSfx,
+            BTN_SFX_NAME, BTN_SFX_HINT,
+            {BTN_SPR_SFX_ON, BTN_SPR_SFX_OFF},
+            PALETTE.BLACK
+        )
+    
 
     local buttons = {
         btnMusic,
+        btnSfx,
     }
 
     local state = {
@@ -2524,7 +2548,7 @@ function StInGame:handleClick(mouse)
 
     if not highlightedTile then
         self.strand:clear()
-        sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL)
+        sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL, SfxVol)
         self.dfaNode = wordDfa.states[DawgStart]
         return
     end
@@ -2537,7 +2561,7 @@ function StInGame:handleClick(mouse)
 
     if self.strand:length() == 0 then
         self.strand:add(col, row)
-        sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL)
+        sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL, SfxVol)
         return
     end
 
@@ -2550,7 +2574,7 @@ function StInGame:handleClick(mouse)
         -- if there is only one tile selected and we just clicked it
         if self.strand:length() == 1 then
             self.strand:clear()
-            sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL)
+            sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL, SfxVol)
             -- clear.wav
             return
         end
@@ -2572,7 +2596,7 @@ function StInGame:handleClick(mouse)
 
         -- otherwise, trim
         self.strand:trimTo(col, row)
-        sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL)
+        sfx(SFX.tileDeselect, 'C-5', 120, SFX_CHANNEL, SfxVol)
         -- trim.wav
         return
     end
@@ -2591,14 +2615,14 @@ function StInGame:handleClick(mouse)
 
     if not isNeighbor then
         self:setStatus(MustNeighborLastLetter())
-        sfx(SFX.cant, 'C-3', 120, SFX_CHANNEL)
+        sfx(SFX.cant, 'C-3', 120, SFX_CHANNEL, SfxVol)
         return
     end
 
     if exclamation then
         -- exclamation point must end the word
         self:setStatus(BangMustBeAtEnd())
-        sfx(SFX.cant, 'C-4', 120, SFX_CHANNEL)
+        sfx(SFX.cant, 'C-4', 120, SFX_CHANNEL, SfxVol)
         return
     end
 
@@ -2608,12 +2632,12 @@ function StInGame:handleClick(mouse)
         (not next_letter_is_exclamation and self.strand:length() >= MAX_WORD_LEN)
     then
         self:setStatus(WordTooLong())
-        sfx(SFX.cant, 'C-3', 120, SFX_CHANNEL)
+        sfx(SFX.cant, 'C-3', 120, SFX_CHANNEL, SfxVol)
         return
     end
 
     -- add.wav
-    sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL)
+    sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL, SfxVol)
     self.strand:add(col, row)
 end
 
@@ -2713,7 +2737,7 @@ function StInGame:submitWord()
         -- freeze tiles
         self.grid:freeze(self.grid.bestWord.crs)
         self:setStatus(XWasBetter(self.grid.bestWord.word))
-        sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL)
+        sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL, SfxVol)
 
         -- two "huh" animations
         local huhs = {WispellAnims.huh, WispellAnims.argh}
@@ -2725,11 +2749,11 @@ function StInGame:submitWord()
     elseif score >= self.grid.bestWord.score then
         self:setStatus(BestWord())
         self.nChances = self.nChances + 1
-        sfx(SFX.bestWord, 'E-6', 120, SFX_CHANNEL)
+        sfx(SFX.bestWord, 'E-6', 120, SFX_CHANNEL, SfxVol)
         self.wispell.expressionAnimState:switch(WispellAnims.great)
     else
         self:setStatus(GoodWord())
-        sfx(SFX.goodWord, 'C-5', 120, SFX_CHANNEL)
+        sfx(SFX.goodWord, 'C-5', 120, SFX_CHANNEL, SfxVol)
         self.wispell.expressionAnimState:switch(WispellAnims.okay)
     end
 
@@ -2759,9 +2783,9 @@ function StInGame:submitWord()
                 self.gameBestWord, self.gameBestWordScore,
                 self.score, self.ticks, self.level
             )
-            sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL)
+            sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL, SfxVol)
         else
-            sfx(SFX.blockBreak, 'C-4', 60, SFX_CHANNEL)
+            sfx(SFX.blockBreak, 'C-4', 60, SFX_CHANNEL, SfxVol)
         end
 
         self:startFalling()
@@ -2827,7 +2851,7 @@ function StInGame:levelUp()
             bestWord = self.levelBestWord,
             bestWordScore = self.levelBestWordScore,
     }
-    sfx(SFX.levelUp, 'C-5', 60, SFX_CHANNEL)
+    sfx(SFX.levelUp, 'C-5', 60, SFX_CHANNEL, SfxVol)
     self:setStatus(HeyLevelUp())
 
     self.nLevelWordsSubmitted = 0
@@ -2969,13 +2993,17 @@ function StInGame:tick(mouse)
     if clicked then
         if clicked.name == BTN_MUSIC_NAME then
             local btnMusic = clicked --[[ @as SpriteToggleButton ]]
-            if btnMusic.toggleState == BTN_MUSIC_STATE_OFF then
+            if btnMusic.toggleState == BTN_TOGGLE_STATE_OFF then
                 MusicOn()
-            elseif btnMusic.toggleState == BTN_MUSIC_STATE_ON then
+            elseif btnMusic.toggleState == BTN_TOGGLE_STATE_ON then
                 MusicOff()
             end
             btnMusic.toggleState = 2 - btnMusic.toggleState + 1
-        else
+        elseif clicked.name == BTN_SFX_NAME then
+            local btnSfx = clicked --[[ @as SpriteToggleButton ]]
+            btnSfx.toggleState = 2 - btnSfx.toggleState + 1
+            local onOff = 1 - (btnSfx.toggleState - 1)
+            SfxVol = onOff * SFX_VOL_ORIG
         end
     end
 end
@@ -3326,6 +3354,10 @@ local songState = SongState.new(Songs[2])
 
 MusicEnabled = false
 
+SFX_VOL_ORIG = 15
+SfxVol = SFX_VOL_ORIG
+
+
 function MusicOff()
     MusicEnabled = false
     music()
@@ -3569,12 +3601,14 @@ end
 -- 096:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 097:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 098:0000000000aaaaa000a000a000a000a000a000a00aa00aa00aa00aa000000000
+-- 099:0000000000000a00000a00a00aaa00a00aaa00a0000a00a000000a0000000000
 -- 109:ccc22ccccc2222ccc222222cc000000ccccccccccccccccccccccccccccccccc
 -- 110:22222ccc22220ccc2220cccc220ccccc20cccccc0ccccccccccccccccccccccc
 -- 111:22222ccc02222cccc0222ccccc022cccccc02ccccccc0ccccccccccccccccccc
 -- 112:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 113:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 114:2000000202aaaa20002002a000a020a000a200a00a2002a002a00a2020000002
+-- 115:2000000202000a20002a02a00aaa20a00aa200a0002a02a002000a2020000002
 -- 125:c222222cc022220ccc0220ccccc00ccccccccccccccccccccccccccccccccccc
 -- 126:cccc2cccccc22ccccc222cccc2222ccc22222ccc00000ccccccccccccccccccc
 -- 127:2ccccccc22cccccc222ccccc2222cccc22222ccc00000ccccccccccccccccccc
