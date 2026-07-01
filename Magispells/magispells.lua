@@ -3374,9 +3374,9 @@ local appState = nil
 ---@type MouseState
 Mouse = nil
 
-local songIdx = 1
-local playList = {1, 2, 3, 4, 5}
-local songState = SongState.new(Songs[playList[songIdx]])
+SongIdx = 1
+PlayList = {1, 2, 3, 4, 5}
+CurrentSongState = SongState.new(Songs[PlayList[SongIdx]])
 
 MusicEnabled = false
 
@@ -3395,22 +3395,27 @@ end
 
 ---@param number integer
 function PlaySongIdx(number)
-    trace('play index ' .. number)
-    songIdx = number
-    local chosen = Songs[playList[songIdx]]
-    songState = SongState.new(chosen)
-    songState:play()
+    music()
+    SongIdx = number
+    local chosen = Songs[PlayList[SongIdx]]
+    CurrentSongState = SongState.new(chosen)
+    CurrentSongState:play()
 end
 
 function PlayRandomSong()
-    local iplaylist = math.random(1, #playList)
+    local iplaylist = math.random(1, #PlayList)
     PlaySongIdx(iplaylist)
 end
--- TODO: why is it playing a random song instead of index 1 on boot?
+-- DONE: why is it playing a random song instead of index 1 on boot?
+-- Because songState:play() calls songState:nextFragment(), which 
+-- calls sync. 
+-- sync can only be called once per TIC, so after the first sync, I'm
+-- guessing the others were dropped. the result was that the correct song state
+-- was loaded but the fragment data was playing out of the wrong bank.
 
 function PlayNextSong()
-    local next = songIdx + 1
-    if next > #playList then
+    local next = SongIdx + 1
+    if next > #PlayList then
         next = 1
     end
     PlaySongIdx(next)
@@ -3422,17 +3427,13 @@ function BOOT()
     Mouse = MouseState.new()
 
     MusicOn()
-    PlaySongIdx(1)
-    PlaySongIdx(1)
-    PlaySongIdx(1)
-    PlaySongIdx(1)
 end
 
 function TIC()
     if MusicEnabled then
-        songState:tick()
+        CurrentSongState:tick()
 
-        if songState:finished() then
+        if CurrentSongState:finished() then
             PlayNextSong()
         end
     end
