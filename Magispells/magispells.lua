@@ -506,6 +506,7 @@ BTN_SPR_MUSIC_OFF = 370
 BTN_SPR_SFX_ON = 355
 BTN_SPR_SFX_OFF = 371
 BTN_SPR_NEXT_BGM = 356
+BTN_SPR_NO_IDEA = 372
 
 ---@alias ButtonStatus 'up'|'hover'|'down'
 ---@alias ButtonAction nil|'downed'|'hovered'|'clicked'
@@ -3011,17 +3012,22 @@ function StInGame:tick(mouse)
     if clicked then
         if clicked.name == BTN_MUSIC_NAME then
             local btnMusic = clicked --[[ @as SpriteToggleButton ]]
-            if btnMusic.toggleState == BTN_TOGGLE_STATE_OFF then
+            if not MusicEnabled then
                 MusicOn()
-            elseif btnMusic.toggleState == BTN_TOGGLE_STATE_ON then
+                btnMusic.toggleState = 1
+            else
                 MusicOff()
+                btnMusic.toggleState = 2
             end
-            btnMusic.toggleState = 2 - btnMusic.toggleState + 1
         elseif clicked.name == BTN_SFX_NAME then
             local btnSfx = clicked --[[ @as SpriteToggleButton ]]
-            btnSfx.toggleState = 2 - btnSfx.toggleState + 1
-            local onOff = 1 - (btnSfx.toggleState - 1)
-            SfxVol = onOff * SFX_VOL_ORIG
+            if SfxVol == 0 then
+                SfxVol = SFX_VOL_ORIG
+                btnSfx.toggleState = 1
+            else
+                SfxVol = 0
+                btnSfx.toggleState = 2
+            end
         elseif clicked.name == BTN_NEXTBGM_NAME then 
             if not MusicEnabled then
                 MusicOn()
@@ -3654,6 +3660,7 @@ end
 -- 113:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 114:2000000202aaaa20002002a000a020a000a200a00a2002a002a00a2020000002
 -- 115:2000000202000a20002a02a00aaa20a00aa200a0002a02a002000a2020000002
+-- 116:0000000000a0aa0000a000a000a00a0000a0a0000000000000a0a00000000000
 -- 125:c222222cc022220ccc0220ccccc00ccccccccccccccccccccccccccccccccccc
 -- 126:cccc2cccccc22ccccc222cccc2222ccc22222ccc00000ccccccccccccccccccc
 -- 127:2ccccccc22cccccc222ccccc2222cccc22222ccc00000ccccccccccccccccccc
