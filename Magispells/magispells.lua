@@ -505,7 +505,7 @@ BTN_SPR_MUSIC_ON = 354
 BTN_SPR_MUSIC_OFF = 370
 BTN_SPR_SFX_ON = 355
 BTN_SPR_SFX_OFF = 371
-
+BTN_SPR_NEXT_BGM = 356
 
 ---@alias ButtonStatus 'up'|'hover'|'down'
 ---@alias ButtonAction nil|'downed'|'hovered'|'clicked'
@@ -2388,6 +2388,9 @@ IN_GAME_BTN_SFX_OFF = {x = 0, y = 8}
 BTN_SFX_NAME = 'btn sfx'
 BTN_SFX_HINT = 'SFX on/off'
 
+IN_GAME_BTN_NEXTBGM_OFF = {x = 8, y = 0}
+BTN_NEXTBGM_NAME = 'btn nextbgm'
+BTN_NEXTBGM_HINT = 'Next Song'
 
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
@@ -2422,7 +2425,14 @@ function StInGame.new()
         BTN_SIMPLE_W,
         BTN_SIMPLE_H
     )
-    
+    local ndBtnNextBgm = ndScreen:addChild(
+        'nd btn nextbgm',
+        IN_GAME_BTN_NEXTBGM_OFF.x,
+        IN_GAME_BTN_NEXTBGM_OFF.y,
+        BTN_SIMPLE_W,
+        BTN_SIMPLE_H
+    )
+
     local btnMusic =
         SpriteToggleButton.new(
             ndBtnMusic,
@@ -2437,11 +2447,19 @@ function StInGame.new()
             {BTN_SPR_SFX_ON, BTN_SPR_SFX_OFF},
             PALETTE.BLACK
         )
-    
+    -- it's not actually a toggle button, but it has a sprite...
+    local btnNextBgm =
+        SpriteToggleButton.new(
+            ndBtnNextBgm,
+            BTN_NEXTBGM_NAME, BTN_NEXTBGM_HINT,
+            {BTN_SPR_NEXT_BGM},
+            PALETTE.BLACK
+        )
 
     local buttons = {
         btnMusic,
         btnSfx,
+        btnNextBgm
     }
 
     local state = {
@@ -3004,6 +3022,12 @@ function StInGame:tick(mouse)
             btnSfx.toggleState = 2 - btnSfx.toggleState + 1
             local onOff = 1 - (btnSfx.toggleState - 1)
             SfxVol = onOff * SFX_VOL_ORIG
+        elseif clicked.name == BTN_NEXTBGM_NAME then 
+            if not MusicEnabled then
+                MusicOn()
+            else
+                PlayNextSong()
+            end
         end
     end
 end
@@ -3350,13 +3374,14 @@ local appState = nil
 ---@type MouseState
 Mouse = nil
 
-local songState = SongState.new(Songs[2])
+local songIdx = 1
+local playList = {1, 2, 3, 4, 5}
+local songState = SongState.new(Songs[playList[songIdx]])
 
 MusicEnabled = false
 
 SFX_VOL_ORIG = 15
 SfxVol = SFX_VOL_ORIG
-
 
 function MusicOff()
     MusicEnabled = false
@@ -3368,10 +3393,27 @@ function MusicOn()
     PlayRandomSong()
 end
 
-function PlayRandomSong()
-    local songNo = math.random(1, #Songs)
-    songState = SongState.new(Songs[songNo])
+---@param number integer
+function PlaySongIdx(number)
+    music(-1)
+    songIdx = number
+    local chosen = Songs[playList[songIdx]]
+    songState = SongState.new(chosen)
     songState:play()
+end
+
+function PlayRandomSong()
+    local iplaylist = math.random(1, #playList)
+    PlaySongIdx(iplaylist)
+end
+-- TODO: why is it playing a random song instead of index 1 on boot?
+
+function PlayNextSong()
+    local next = songIdx + 1
+    if next > #playList then
+        next = 1
+    end
+    PlaySongIdx(next)
 end
 
 function BOOT()
@@ -3379,10 +3421,8 @@ function BOOT()
     appState = StLoading.new()
     Mouse = MouseState.new()
 
-    -- songState = SongState.new(Songs[5])
-    -- songState:play()
-    -- PlayRandomSong()
     MusicOn()
+    PlaySongIdx(1)
 end
 
 function TIC()
@@ -3390,7 +3430,7 @@ function TIC()
         songState:tick()
 
         if songState:finished() then
-            PlayRandomSong()
+            PlayNextSong()
         end
     end
 
@@ -3602,6 +3642,7 @@ end
 -- 097:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 098:0000000000aaaaa000a000a000a000a000a000a00aa00aa00aa00aa000000000
 -- 099:0000000000000a00000a00a00aaa00a00aaa00a0000a00a000000a0000000000
+-- 100:0000000000a0a00000a0aa0000a0aaa000a0aaa000a0aa0000a0a00000000000
 -- 109:ccc22ccccc2222ccc222222cc000000ccccccccccccccccccccccccccccccccc
 -- 110:22222ccc22220ccc2220cccc220ccccc20cccccc0ccccccccccccccccccccccc
 -- 111:22222ccc02222cccc0222ccccc022cccccc02ccccccc0ccccccccccccccccccc
