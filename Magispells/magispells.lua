@@ -1786,6 +1786,12 @@ SPAWN_EXTRA_ROW_DISP_PER_HEIGHT_TILES = 1
 ---maximum amount of a random row offset to spawning tiles 
 SPAWN_RANDOM_ROW_OFFSET_MAG = 0.5
 
+---@return nil
+function LetterGrid:updateBestWords()
+    self.allBestWords = self:bestWordsFromEachTile()
+    self.bestWord = BestWordAvail(self.allBestWords)
+end
+
 ---@alias SpawnTilesResult nil|'respawned'
 ---@return SpawnTilesResult
 function LetterGrid:spawnTiles()
@@ -1809,8 +1815,7 @@ function LetterGrid:spawnTiles()
             end
         end
 
-        self.allBestWords = self:bestWordsFromEachTile()
-        self.bestWord = BestWordAvail(self.allBestWords)
+        self:updateBestWords()
 
         if self.bestWord then
             break
@@ -2393,6 +2398,10 @@ IN_GAME_BTN_NEXTBGM_OFF = {x = 8, y = 0}
 BTN_NEXTBGM_NAME = 'btn nextbgm'
 BTN_NEXTBGM_HINT = 'Next Song'
 
+IN_GAME_BTN_NOIDEA_OFF = {x = 0, y = 56}
+BTN_NOIDEA_NAME = 'btn noidea'
+BTN_NOIDEA_HINT = "I'm stumped!"
+
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
     local ndField = ndScreen:addChildFromTopRight(
@@ -2433,6 +2442,13 @@ function StInGame.new()
         BTN_SIMPLE_W,
         BTN_SIMPLE_H
     )
+    local ndBtnNoIdea = ndScreen:addChild(
+        'nd btn noidea',
+        IN_GAME_BTN_NOIDEA_OFF.x,
+        IN_GAME_BTN_NOIDEA_OFF.y,
+        BTN_SIMPLE_W,
+        BTN_SIMPLE_H
+    )
 
     local btnMusic =
         SpriteToggleButton.new(
@@ -2456,11 +2472,19 @@ function StInGame.new()
             {BTN_SPR_NEXT_BGM},
             PALETTE.BLACK
         )
+    local btnNoIdea =
+        SpriteToggleButton.new(
+            ndBtnNoIdea,
+            BTN_NOIDEA_NAME, BTN_NOIDEA_HINT,
+            {BTN_SPR_NO_IDEA},
+            PALETTE.BLACK
+        )
 
     local buttons = {
         btnMusic,
         btnSfx,
-        btnNextBgm
+        btnNextBgm,
+        btnNoIdea,
     }
 
     local state = {
@@ -2727,6 +2751,32 @@ function ParValuePercentage(level)
     return PAR_PROP_LVL1 + (level - 1) * PAR_PROP_STEP_PER_LVL
 end
 
+
+
+---@param superlative string
+function StInGame:freezeBestWord(superlative)
+    -- freeze tiles
+    self.grid:freeze(self.grid.bestWord.crs)
+    self:setStatus(XWasBetter(self.grid.bestWord.word, superlative))
+    sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL, SfxVol)
+
+    -- two "huh" animations
+    local huhs = {WispellAnims.huh, WispellAnims.argh}
+    local whichHuh = math.random(1, 2)
+    self.wispell.expressionAnimState:switch(huhs[whichHuh])
+
+    -- deduct a chance
+    self.nChances = self.nChances - 1
+end
+
+function StInGame:gameOver()
+    self.subState = StInGame_GameOver.new(60,
+        self.gameBestWord, self.gameBestWordScore,
+        self.score, self.ticks, self.level
+    )
+    sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL, SfxVol)
+end
+
 function StInGame:submitWord()
     local letters, elems = self.strand:asStringAndElements(self.grid)
     local score = WordScore(letters, elems)
@@ -2753,18 +2803,7 @@ function StInGame:submitWord()
     -- assert(self.grid.bestWord, "no word exists despite being in submit word.")
 
     if score < comparisonScore then
-        -- freeze tiles
-        self.grid:freeze(self.grid.bestWord.crs)
-        self:setStatus(XWasBetter(self.grid.bestWord.word))
-        sfx(SFX.badWord, 'C-6', 120, SFX_CHANNEL, SfxVol)
-
-        -- two "huh" animations
-        local huhs = {WispellAnims.huh, WispellAnims.argh}
-        local whichHuh = math.random(1, 2)
-        self.wispell.expressionAnimState:switch(huhs[whichHuh])
-
-        -- deduct a chance
-        self.nChances = self.nChances - 1
+        self:freezeBestWord("better")
     elseif score >= self.grid.bestWord.score then
         self:setStatus(BestWord())
         self.nChances = self.nChances + 1
@@ -2798,15 +2837,11 @@ function StInGame:submitWord()
         if self.nextLevelTarget < 0 then
             self:levelUp()
         elseif self.nChances <= 0 then
-            self.subState = StInGame_GameOver.new(60,
-                self.gameBestWord, self.gameBestWordScore,
-                self.score, self.ticks, self.level
-            )
-            sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL, SfxVol)
+            self:gameOver()
         else
             sfx(SFX.blockBreak, 'C-4', 60, SFX_CHANNEL, SfxVol)
         end
-
+        
         self:startFalling()
         local spawnResult = self:spawnTiles();
 
@@ -2882,17 +2917,6 @@ function StInGame:levelUp()
 
     self.grid:clearAllTiles()
     self:spawnTiles()
-end
-
-function StInGame:gameOver()
-    self.subState = StInGame_GameOver.new(
-        SUB_STATE_DELAY,
-        self.gameBestWord,
-        self.gameBestWordScore,
-        self.score,
-        self.ticks,
-        self.level
-    )
 end
 
 ---make it so that every gap has everything above it fall down
@@ -2989,6 +3013,7 @@ function StInGame:tick(mouse)
 
     if not self.subState then
         self.ticks = self.ticks + 1
+        self.delayTicks = math.max(self.delayTicks - 1, 0)
     end
 
     self:tickDelayActions()
@@ -3028,11 +3053,24 @@ function StInGame:tick(mouse)
                 SfxVol = 0
                 btnSfx.toggleState = 2
             end
-        elseif clicked.name == BTN_NEXTBGM_NAME then 
+        elseif clicked.name == BTN_NEXTBGM_NAME then
             if not MusicEnabled then
                 MusicOn()
             else
                 PlayNextSong()
+            end
+        elseif clicked.name == BTN_NOIDEA_NAME and self.delayTicks == 0 then
+            if not self.grid.bestWord then
+                self:setStatus(NoGoodWords())
+                return
+            end
+
+            self:freezeBestWord("best")
+            self.grid:updateBestWords()
+            self.delayTicks = 60
+
+            if self.nChances <= 0 then
+                self:delayAction(60, function() self:gameOver() end)
             end
         end
     end
@@ -3194,12 +3232,14 @@ end
 
 ---create a StatusMessage that tells us there was a better word to have played.
 ---@param word string
-function XWasBetter(word)
+---@param superlative string
+function XWasBetter(word, superlative)
     return function(x, y)
         local w = print(word, x, y, PALETTE.BLUE)
-        print(" was better!", x + w, y, PALETTE.WHITE)
+        print(" was " .. superlative .. '!', x + w, y, PALETTE.WHITE)
     end
 end
+
 
 function CheatMemProfile()
     return function(x, y)
@@ -3228,6 +3268,16 @@ end
 function BestWord()
     return function(x, y)
         print("Best word!", x, y, PALETTE.YELLOW)
+    end
+end
+
+-- could only happen on an incredibly sparse board where 
+-- the user mashes the no idea button a bunch of times.
+-- there may be no words with score > 0, forcing the user 
+-- to play a 0 score one.
+function NoGoodWords()
+    return function(x, y)
+        print("No good words!", x, y, PALETTE.RED)
     end
 end
 
@@ -3388,6 +3438,7 @@ MusicEnabled = false
 
 SFX_VOL_ORIG = 15
 SfxVol = SFX_VOL_ORIG
+MuseVol = 8
 
 function MusicOff()
     MusicEnabled = false
@@ -3434,6 +3485,10 @@ function BOOT()
 
     MusicOn()
 end
+
+-- addresses of the 4 volume nybbles
+-- stride is 
+--VOLUME_ADDRS = {0XFF9D, 0xFF9D + }
 
 function TIC()
     if MusicEnabled then
