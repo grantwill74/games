@@ -3438,7 +3438,7 @@ MusicEnabled = false
 
 SFX_VOL_ORIG = 15
 SfxVol = SFX_VOL_ORIG
-MuseVol = 8
+MuseVol = 1
 
 function MusicOff()
     MusicEnabled = false
@@ -3487,8 +3487,27 @@ function BOOT()
 end
 
 -- addresses of the 4 volume nybbles
--- stride is 
---VOLUME_ADDRS = {0XFF9D, 0xFF9D + }
+-- stride is 18 bytes
+VOLUME_BASE_ADDR4 = 0xFF9C * 2 + 3
+VOLUME_STRIDE_ADDR4 = 18 * 2
+
+-- change the last nybble of frequency for some weird pitch shifting
+FREQ_SPOOKY_ADDR4 = VOLUME_BASE_ADDR4 - 1
+
+---Don't actually use this function: it overwrites the envelopes
+---@param vol integer
+function SetVolume(vol)
+    for channel=0, 3 do
+        -- have to check if there is volume, if not, the wave will be all zeros,
+        -- which the virtual sound chip interprets as noise which we will
+        -- end up amplifying by mistake.
+        local adr = VOLUME_BASE_ADDR4 + channel * VOLUME_STRIDE_ADDR4
+        local currentVol = peek4(adr)
+        if currentVol > 0 then
+            poke4(adr, math.ceil((vol/15) * currentVol))
+        end
+    end
+end
 
 function TIC()
     if MusicEnabled then
