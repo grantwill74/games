@@ -2352,6 +2352,8 @@ function DelayAction.new(ticsLeft, action)
     }
 end
 
+
+
 ---@class StInGame : IAppState
 ---@field ndScreen Node
 ---@field ndField Node
@@ -2382,11 +2384,20 @@ end
 ---@field letterPartEmitter LetterParticleEmitter
 ---@field delayActions DelayAction[]
 ---@field ticksSinceLastPlay integer
+---@field bookDeployTicks number
 StInGame = {}
 StInGame.__index = StInGame
 
 ---how long until wispell pulls out his book
 WISPELL_BORED_TIME = 1 * 60 -- debug: make longer in future
+---how long does the book take to reach its final position
+WISPELL_BOOK_DEPLOY_TIME = 1 * 60
+---how long does a fully deployed book take to be removed from screen
+WISPELL_BOOK_DISMISS_TIME = 1 * 60
+---distance down from wispell's node to book when finished deploying 
+WISPELL_BOOK_DEPLOY_OFF = 30
+---distance down from wispell's node to book when fully away
+WISPELL_BOOK_AWAY_OFF = SCREEN_H_px - WISPELL_OFF_Y_px
 
 IN_GAME_BTN_MUSIC_OFF = {x = 0, y = 0}
 
@@ -2429,7 +2440,7 @@ function StInGame.new()
     local ndBook = ndWispell:addChild(
         'book node',
         WISPELL_BOOK_OFF_X,
-        ndWispell.hpx - WISPELL_BOOK_OFF_Y,
+        SCREEN_H_px - ndWispell.hpx + WISPELL_BOOK_H * TILE_H_px,
         WISPELL_BOOK_W * TILE_W_px,
         WISPELL_BOOK_H * TILE_H_px
     )
@@ -2552,6 +2563,7 @@ function StInGame:newGame()
     self.levelStartScore = 0
     self.delayActions = {}
     self.ticksSinceLastPlay = 0
+    self.bookDeployTicks = 0
 
     --for col=1, 8 do
     --    for row=1, FIELD_TILES_PER_COL[col] do
@@ -2897,16 +2909,6 @@ function StInGame:tickDelayActions()
             i = i + 1
         end
     end
---[[
-    for _, action in ipairs(self.delayActions) do
-        if action.ticsLeft == 0 then
-            action.action(self)
-        else
-            action.ticsLeft = action.ticsLeft - 1
-            table.insert(keep, action)
-        end
-    end
-    self.delayActions = keep --]]
 end
 
 function StInGame:levelUp()
@@ -3015,10 +3017,31 @@ function StInGame:memProfile()
     self.statusMsg = CheatMemProfile()
 end
 
-function StInGame:tickBook()
-    if self.ticksSinceLastPlay < WISPELL_BORED_TIME then return end
+---@return boolean
+function StInGame:wispellBored()
+    return self.ticksSinceLastPlay >= WISPELL_BORED_TIME and not self.subState
+end
+
+function StInGame:drawBook()
+    local x, y = self.ndBook:pos()
+    -- spr()
     -- TODO
 end
+
+function StInGame:tickBook()
+    local ticks_since_bored = self.ticksSinceLastPlay - WISPELL_BORED_TIME
+    local dir = ticks_since_bored > 0 and 1 or -1
+    self.bookDeployTicks = math.max(self.bookDeployTicks + dir, 0)
+
+    -- lerp between the book deployed position and the book put away position
+    local bookDeployAmount = self.bookDeployTicks / WISPELL_BOOK_DEPLOY_TIME
+    local bookOff =
+        (1 - bookDeployAmount) * WISPELL_BOOK_AWAY_OFF +
+        bookDeployAmount * WISPELL_BOOK_DEPLOY_OFF
+    self.ndBook.yoffpx = bookOff
+end
+
+
 
 ---
 ---@param mouse MouseState
