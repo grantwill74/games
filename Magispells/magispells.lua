@@ -1996,7 +1996,7 @@ function WispellImage.new(spriteNo, offX, offY, tileW, tileH, colorKey)
     }
 end
 
----@alias AnimName 'idle'|'blink'|'huh'|'argh'|'okay'|'great'
+---@alias AnimName 'idle'|'blink'|'huh'|'argh'|'okay'|'great'|'bored'
 
 ---@alias WispellFrameDesc {
 --- image: WispellImage,
@@ -2090,6 +2090,12 @@ WispellAnims = {
         name = 'great',
         frames = {
             {image = Wispell.expressions.wow, howLong=60}
+        }
+    },
+    bored = {
+        name = 'bored',
+        frames = {
+            {image = Wispell.expressions.blink1, howLong=nil}
         }
     }
 }
@@ -2211,7 +2217,8 @@ function Wispell:tick()
         end
     end
 
-    if self.expressionAnimState.anim.name ~= 'idle' and
+    if  self.expressionAnimState.anim.name ~= 'idle' and
+        self.expressionAnimState.anim.name ~= 'bored' and
         self.expressionAnimState:finished()
     then
         self.expressionAnimState:switch(WispellAnims.idle)
@@ -2592,11 +2599,12 @@ function StInGame:handleClick(mouse)
     local gridOffX, gridOffY = self.ndField:offsetOf(mouse.x, mouse.y)
     self.highlight = self.grid:pointOverTile(gridOffX, gridOffY)
 
-    self.ticksSinceLastPlay = 0
-
     if mouse.leftTrans ~= 'up' then
         return
     end
+
+    self.ticksSinceLastPlay = 0
+    self.wispell.expressionAnimState:switch(WispellAnims.idle)
 
     if self.subState and self.subState.id == 'level up' then
         self.subState = nil
@@ -3022,9 +3030,16 @@ function StInGame:wispellBored()
     return self.ticksSinceLastPlay >= WISPELL_BORED_TIME and not self.subState
 end
 
+---Did wispell just become bored on this exact frame
+---@return boolean
+function StInGame:wispellGotBored()
+    return self.ticksSinceLastPlay == WISPELL_BORED_TIME and not self.subState
+end
+
 function StInGame:drawBook()
     local x, y = self.ndBook:pos()
-    -- spr()
+    
+    -- spr(BOOK)
     -- TODO
 end
 
@@ -3061,6 +3076,10 @@ function StInGame:tick(mouse)
         self.delayTicks = math.max(self.delayTicks - 1, 0)
     end
     self:tickBook()
+
+    if self:wispellGotBored() then
+        self.wispell.expressionAnimState:switch(WispellAnims.bored)
+    end
 
     self:tickDelayActions()
     if #self.delayActions == 0 then
