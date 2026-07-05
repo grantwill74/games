@@ -1967,6 +1967,7 @@ WEXP_OX = WISPELL_EXPRESSION_OFF_X
 WEXP_OY = WISPELL_EXPRESSION_OFF_Y
 WEXP_W = WISPELL_EXPRESSION_TILES_W
 WEXP_H = WISPELL_EXPRESSION_TILES_H
+WISPELL_SPR_BOOK = 200
 
 ---An image attached to Wispell's image
 ---@class WispellImage
@@ -2008,11 +2009,21 @@ end
 --- frames: WispellFrameDesc[],
 ---}
 
+---@alias WispellBoredomStateId 'interested'|'boring'|'bored'|'unboring'
+---@class WispellBoredomState
+---@field state WispellBoredomStateId
+---@field ticks integer
+
 ---@class Wispell
 ---@field profile WispellImage
 ---@field expressionAnimState WispellAnimState
 ---@field node Node
+---@field boredomState WispellBoredomState
 Wispell = {
+    boredomState = {
+        state = 'interested',
+        ticks = 0,
+    },
     profiles = {
         neutral = WispellImage.new(
             128, 0, 0,
@@ -2031,7 +2042,7 @@ Wispell = {
         book = WispellImage.new(
             200,
             WISPELL_BOOK_OFF_X,
-            WISPELL_BOOK_OFF_Y,
+            WISPELL_BOOK_AWAY_OFF,
             WISPELL_BOOK_W,
             WISPELL_BOOK_H),
     },
@@ -2168,6 +2179,7 @@ function WispellAnimState:tick()
     end
 end
 
+
 ---comment
 ---@param x number
 ---@param y number
@@ -2176,7 +2188,7 @@ function WispellAnimState:draw(x, y)
         self.anim.frames[self.currentFrame] or
         self.anim.frames[1]
     local image = frame.image
-    
+
     spr(image.spriteNo, x + image.offX, y + image.offY,
         image.colorKey, 1, 0, 0, image.tileW, image.tileH)
 end
@@ -2204,6 +2216,8 @@ function Wispell:draw()
         y + self.profile.offY, 0, 1, 0, 0,
         self.profile.tileW, self.profile.tileH)
     self.expressionAnimState:draw(x, y);
+    --spr(self.accessories.book,
+    --    )
 end
 
 function Wispell:tick()
@@ -2217,12 +2231,29 @@ function Wispell:tick()
         end
     end
 
+    -- TODO: add half blink when bored
+
     if  self.expressionAnimState.anim.name ~= 'idle' and
         self.expressionAnimState.anim.name ~= 'bored' and
         self.expressionAnimState:finished()
     then
         self.expressionAnimState:switch(WispellAnims.idle)
     end
+end
+
+
+function Wispell:restoreInterest()
+    if self.boredomState.state == 'interested' then
+        self.boredomState.ticks = 0
+        return
+    end
+
+    if self.boredomState.state == 'unboring' then
+        return
+    end
+
+    self.boredomState.state = 'unboring'
+    self.boredomState.ticks = 0
 end
 
 ---@alias DrawFun fun(x, y): nil
@@ -3038,9 +3069,13 @@ end
 
 function StInGame:drawBook()
     local x, y = self.ndBook:pos()
-    
-    -- spr(BOOK)
-    -- TODO
+    spr(
+        WISPELL_SPR_BOOK, 
+        x, y, PALETTE.BLACK,
+        1, 0, 0,
+        WISPELL_BOOK_W,
+        WISPELL_BOOK_H
+    )
 end
 
 function StInGame:tickBook()
@@ -3055,8 +3090,6 @@ function StInGame:tickBook()
         bookDeployAmount * WISPELL_BOOK_DEPLOY_OFF
     self.ndBook.yoffpx = bookOff
 end
-
-
 
 ---
 ---@param mouse MouseState
