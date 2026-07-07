@@ -1968,6 +1968,22 @@ WEXP_OY = WISPELL_EXPRESSION_OFF_Y
 WEXP_W = WISPELL_EXPRESSION_TILES_W
 WEXP_H = WISPELL_EXPRESSION_TILES_H
 WISPELL_SPR_BOOK = 200
+---how long until wispell pulls out his book
+WISPELL_BORED_TIME = 1 * 60 -- debug: make longer in future
+---how long does the book take to reach its final position
+WISPELL_BOOK_DEPLOY_TIME = 1 * 60
+---how long does a fully deployed book take to be removed from screen
+WISPELL_BOOK_DISMISS_TIME = 1 * 60
+---distance down from wispell's node to book when finished deploying 
+WISPELL_BOOK_DEPLOY_OFF = 30
+---distance down from wispell's node to book when fully away
+WISPELL_BOOK_AWAY_OFF = SCREEN_H_px - WISPELL_OFF_Y_px
+
+
+WISPELL_BOOK_MOVE_PER_TICK_BORING =
+    WISPELL_BOOK_DEPLOY_OFF / WISPELL_BOOK_DEPLOY_TIME
+WISPELL_BOOK_MOVE_PER_TICK_UNBORING =
+    WISPELL_BOOK_AWAY_OFF / WISPELL_BOOK_DISMISS_TIME
 
 ---An image attached to Wispell's image
 ---@class WispellImage
@@ -2222,8 +2238,10 @@ function Wispell:draw()
         y + self.profile.offY, 0, 1, 0, 0,
         self.profile.tileW, self.profile.tileH)
     self.expressionAnimState:draw(x, y);
-    --spr(self.accessories.book,
-    --    )
+    local bkX, bkY = self.accessories.book.offX, self.accessories.book.offY
+    spr(self.accessories.book.spriteNo,
+        bkX, bkY, PALETTE.BLACK, 1, 0, 0,
+        WISPELL_BOOK_W, WISPELL_BOOK_H)
 end
 
 function Wispell:tick()
@@ -2237,8 +2255,7 @@ function Wispell:tick()
         end
     end
 
-    -- TODO: add half blink when bored
-    if self.expressionAnimState.anim.name == 'bored' then
+    if self.boredomState.state == 'bored' then
         local blink = math.random() < 1.0 / WISPELL_BLINK_MTTH
         if blink then
             self.expressionAnimState:switch(WispellAnims.half_blink)
@@ -2247,21 +2264,62 @@ function Wispell:tick()
 
     if self.expressionAnimState.anim.name == 'half_blink' and
         self.expressionAnimState:finished() and
-        (self.boredomState.state ~= 'unboring' or
-        self.boredomState.state ~= 'interested')
+        (self.boredomState.state == 'boring' or
+        self.boredomState.state == 'bored')
     then
         self.expressionAnimState:switch(WispellAnims.bored)
     end
 
-    if  self.expressionAnimState.anim.name ~= 'idle' and
-        self.expressionAnimState.anim.name ~= 'bored' and
+    if  self.boredomState.state ~= 'boring' and
+        self.boredomState.state ~= 'bored' and
         self.expressionAnimState:finished()
     then
         self.expressionAnimState:switch(WispellAnims.idle)
     end
+
+    -- tick book
+    if self.boredomState.state == 'boring' then
+        self.accessories.book.offY =
+            self.accessories.book.offY +
+            WISPELL_BOOK_MOVE_PER_TICK_BORING
+    elseif self.boredomState.state == 'unboring' then
+        self.accessories.book.offY =
+            self.accessories.book.offY +
+            WISPELL_BOOK_MOVE_PER_TICK_UNBORING
+    elseif self.boredomState.state == 'interested' then
+        self.accessories.book.offy = WISPELL_BOOK_AWAY_OFF
+    end
+
+    self:tickBoredom()
 end
 
+---@param newState WispellBoredomStateId
+function Wispell:changeBoredom(newState)
+    self.boredomState.state = newState
+    self.boredomState.ticks = 0
+end
 
+---@return nil
+function Wispell:tickBoredom()
+    self.boredomState.ticks = self.boredomState.ticks + 1
+
+    if  self.boredomState.state == 'interested' and 
+        self.boredomState.ticks >= WISPELL_BORED_TIME
+    then
+        self:changeBoredom('boring')
+        self.expressionAnimState:switch(WispellAnims.bored)
+        return
+    end
+
+    if  self.boredomState.state == 'boring' and
+        self.boredomState.ticks >= WISPELL_BOOK_DEPLOY_TIME
+    then
+        self:changeBoredom('bored')
+        return
+    end
+end
+
+---@return nil
 function Wispell:restoreInterest()
     if self.boredomState.state == 'interested' then
         self.boredomState.ticks = 0
@@ -2445,17 +2503,6 @@ end
 ---@field bookDeployTicks number
 StInGame = {}
 StInGame.__index = StInGame
-
----how long until wispell pulls out his book
-WISPELL_BORED_TIME = 1 * 60 -- debug: make longer in future
----how long does the book take to reach its final position
-WISPELL_BOOK_DEPLOY_TIME = 1 * 60
----how long does a fully deployed book take to be removed from screen
-WISPELL_BOOK_DISMISS_TIME = 1 * 60
----distance down from wispell's node to book when finished deploying 
-WISPELL_BOOK_DEPLOY_OFF = 30
----distance down from wispell's node to book when fully away
-WISPELL_BOOK_AWAY_OFF = SCREEN_H_px - WISPELL_OFF_Y_px
 
 IN_GAME_BTN_MUSIC_OFF = {x = 0, y = 0}
 
@@ -2655,7 +2702,7 @@ function StInGame:handleClick(mouse)
     end
 
     self.ticksSinceLastPlay = 0
-    self.wispell.expressionAnimState:switch(WispellAnims.idle)
+    self.wispell:restoreInterest()
 
     if self.subState and self.subState.id == 'level up' then
         self.subState = nil
@@ -3076,17 +3123,6 @@ function StInGame:memProfile()
     self.statusMsg = CheatMemProfile()
 end
 
----@return boolean
-function StInGame:wispellBored()
-    return self.ticksSinceLastPlay >= WISPELL_BORED_TIME and not self.subState
-end
-
----Did wispell just become bored on this exact frame
----@return boolean
-function StInGame:wispellGotBored()
-    return self.ticksSinceLastPlay == WISPELL_BORED_TIME and not self.subState
-end
-
 function StInGame:drawBook()
     local x, y = self.ndBook:pos()
     spr(
@@ -3096,19 +3132,6 @@ function StInGame:drawBook()
         WISPELL_BOOK_W,
         WISPELL_BOOK_H
     )
-end
-
-function StInGame:tickBook()
-    local ticks_since_bored = self.ticksSinceLastPlay - WISPELL_BORED_TIME
-    local dir = ticks_since_bored > 0 and 1 or -1
-    self.bookDeployTicks = math.max(self.bookDeployTicks + dir, 0)
-
-    -- lerp between the book deployed position and the book put away position
-    local bookDeployAmount = self.bookDeployTicks / WISPELL_BOOK_DEPLOY_TIME
-    local bookOff =
-        (1 - bookDeployAmount) * WISPELL_BOOK_AWAY_OFF +
-        bookDeployAmount * WISPELL_BOOK_DEPLOY_OFF
-    self.ndBook.yoffpx = bookOff
 end
 
 ---
@@ -3127,11 +3150,6 @@ function StInGame:tick(mouse)
         self.ticks = self.ticks + 1
         self.ticksSinceLastPlay = self.ticksSinceLastPlay + 1
         self.delayTicks = math.max(self.delayTicks - 1, 0)
-    end
-    self:tickBook()
-
-    if self:wispellGotBored() then
-        self.wispell.expressionAnimState:switch(WispellAnims.bored)
     end
 
     self:tickDelayActions()
