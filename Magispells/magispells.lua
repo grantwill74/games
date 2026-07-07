@@ -1977,7 +1977,8 @@ WISPELL_BOOK_DISMISS_TIME = 1 * 60
 ---distance down from wispell's node to book when finished deploying 
 WISPELL_BOOK_DEPLOY_OFF = 30
 ---distance down from wispell's node to book when fully away
-WISPELL_BOOK_AWAY_OFF = SCREEN_H_px - WISPELL_OFF_Y_px
+WISPELL_BOOK_AWAY_OFF =
+    WISPELL_PROFILE_TILES_H * TILE_H_px - WISPELL_OFF_Y_px
 
 
 WISPELL_BOOK_MOVE_PER_TICK_BORING =
@@ -2242,6 +2243,12 @@ function Wispell:draw()
     spr(self.accessories.book.spriteNo,
         bkX, bkY, PALETTE.BLACK, 1, 0, 0,
         WISPELL_BOOK_W, WISPELL_BOOK_H)
+    rect(
+        x, y + self.profile.tileH * TILE_H_px,
+        self.profile.tileW * TILE_W_px,
+        200, PALETTE.BLACK
+    )
+    -- cut off the book
 end
 
 function Wispell:tick()
@@ -2280,7 +2287,7 @@ function Wispell:tick()
     -- tick book
     if self.boredomState.state == 'boring' then
         self.accessories.book.offY =
-            self.accessories.book.offY +
+            self.accessories.book.offY -
             WISPELL_BOOK_MOVE_PER_TICK_BORING
     elseif self.boredomState.state == 'unboring' then
         self.accessories.book.offY =
