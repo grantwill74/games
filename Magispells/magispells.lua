@@ -1997,7 +1997,7 @@ function WispellImage.new(spriteNo, offX, offY, tileW, tileH, colorKey)
     }
 end
 
----@alias AnimName 'idle'|'blink'|'huh'|'argh'|'okay'|'great'|'bored'
+---@alias AnimName 'idle'|'blink'|'huh'|'argh'|'okay'|'great'|'bored'|'half_blink'
 
 ---@alias WispellFrameDesc {
 --- image: WispellImage,
@@ -2077,6 +2077,12 @@ WispellAnims = {
             {image = Wispell.expressions.blink1, howLong=5},
             {image = Wispell.expressions.blink2, howLong=10},
             {image = Wispell.expressions.blink1, howLong=5},
+        }
+    },
+    half_blink = {
+        name = 'half_blink',
+        frames = {
+            {image = Wispell.expressions.blink2, howLong=30},
         }
     },
     huh = {
@@ -2232,6 +2238,20 @@ function Wispell:tick()
     end
 
     -- TODO: add half blink when bored
+    if self.expressionAnimState.anim.name == 'bored' then
+        local blink = math.random() < 1.0 / WISPELL_BLINK_MTTH
+        if blink then
+            self.expressionAnimState:switch(WispellAnims.half_blink)
+        end
+    end
+
+    if self.expressionAnimState.anim.name == 'half_blink' and
+        self.expressionAnimState:finished() and
+        (self.boredomState.state ~= 'unboring' or
+        self.boredomState.state ~= 'interested')
+    then
+        self.expressionAnimState:switch(WispellAnims.bored)
+    end
 
     if  self.expressionAnimState.anim.name ~= 'idle' and
         self.expressionAnimState.anim.name ~= 'bored' and
