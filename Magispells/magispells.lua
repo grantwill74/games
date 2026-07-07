@@ -1953,7 +1953,7 @@ WISPELL_EXPRESSION_OFF_X = 16
 WISPELL_EXPRESSION_OFF_Y = 16
 WISPELL_BOOK_W = 4
 WISPELL_BOOK_H = 4
-WISPELL_BOOK_OFF_X = 10
+WISPELL_BOOK_OFF_X = 20
 WISPELL_BOOK_OFF_Y = 10
 WISPELL_RHAND_OFF_X = -16 -- relative to book
 WISPELL_RHAND_OFF_Y = 0
@@ -1971,9 +1971,9 @@ WISPELL_SPR_BOOK = 200
 ---how long until wispell pulls out his book
 WISPELL_BORED_TIME = 1 * 60 -- debug: make longer in future
 ---how long does the book take to reach its final position
-WISPELL_BOOK_DEPLOY_TIME = 1 * 60
+WISPELL_BOOK_DEPLOY_TIME = 2 * 60
 ---how long does a fully deployed book take to be removed from screen
-WISPELL_BOOK_DISMISS_TIME = 1 * 60
+WISPELL_BOOK_DISMISS_TIME = 0.5 * 60
 ---distance down from wispell's node to book when finished deploying 
 WISPELL_BOOK_DEPLOY_OFF = 30
 ---distance down from wispell's node to book when fully away
