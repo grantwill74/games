@@ -1969,7 +1969,7 @@ WEXP_W = WISPELL_EXPRESSION_TILES_W
 WEXP_H = WISPELL_EXPRESSION_TILES_H
 WISPELL_SPR_BOOK = 200
 ---how long until wispell pulls out his book
-WISPELL_BORED_TIME = 1 * 60 -- debug: make longer in future
+WISPELL_BORED_TIME = 10 * 60 -- debug: make longer in future
 ---how long does the book take to reach its final position
 WISPELL_BOOK_DEPLOY_TIME = 2 * 60
 ---how long does a fully deployed book take to be removed from screen
@@ -2330,6 +2330,14 @@ function Wispell:tickBoredom()
         self.boredomState.ticks >= WISPELL_BOOK_DEPLOY_TIME
     then
         self:changeBoredom('bored')
+        return
+    end
+
+    if  self.boredomState.state == 'unboring' and
+        self.boredomState.ticks >= WISPELL_BOOK_DISMISS_TIME
+    then
+        self:changeBoredom('interested')
+        self.accessories.book.offY = WISPELL_BOOK_AWAY_OFF
         return
     end
 end
