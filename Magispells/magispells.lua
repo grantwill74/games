@@ -1953,14 +1953,14 @@ WISPELL_EXPRESSION_OFF_X = 16
 WISPELL_EXPRESSION_OFF_Y = 16
 WISPELL_BOOK_W = 4
 WISPELL_BOOK_H = 4
-WISPELL_BOOK_OFF_X = 20
+WISPELL_BOOK_OFF_X = 24
 WISPELL_BOOK_OFF_Y = 10
-WISPELL_RHAND_OFF_X = -16 -- relative to book
-WISPELL_RHAND_OFF_Y = 0
+WISPELL_RHAND_OFF_X = -5 -- relative to book
+WISPELL_RHAND_OFF_Y = 18
 WISPELL_RHAND_W = 2
 WISPELL_RHAND_H = 2
-WISPELL_LHAND_OFF_X = 16 -- relative to book
-WISPELL_LHAND_OFF_Y = 0
+WISPELL_LHAND_OFF_X = 27 -- relative to book
+WISPELL_LHAND_OFF_Y = 6
 WISPELL_LHAND_W = 1
 WISPELL_LHAND_H = 2
 WEXP_OX = WISPELL_EXPRESSION_OFF_X
@@ -1976,7 +1976,7 @@ WISPELL_BOOK_DEPLOY_TIME = 2 * 60
 WISPELL_BOOK_DISMISS_TIME = 0.5 * 60
 ---distance down from wispell's node to book when finished deploying 
 WISPELL_BOOK_DEPLOY_OFF = 30
----distance down from wispell's node to book when fully away
+---distance down screen to book when fully away
 WISPELL_BOOK_AWAY_OFF =
     WISPELL_PROFILE_TILES_H * TILE_H_px - WISPELL_OFF_Y_px
 
@@ -2065,13 +2065,13 @@ Wispell = {
     },
     parts = {
         lhand = WispellImage.new(
-            137,
+            140,
             WISPELL_LHAND_OFF_X,
             WISPELL_LHAND_OFF_Y,
             WISPELL_LHAND_W,
             WISPELL_LHAND_H),
         rhand = WispellImage.new(
-            140,
+            137,
             WISPELL_RHAND_OFF_X,
             WISPELL_RHAND_OFF_Y,
             WISPELL_RHAND_W,
@@ -2243,12 +2243,20 @@ function Wispell:draw()
     spr(self.accessories.book.spriteNo,
         bkX, bkY, PALETTE.BLACK, 1, 0, 0,
         WISPELL_BOOK_W, WISPELL_BOOK_H)
+    -- draw hands
+    local lh, rh = self.parts.lhand, self.parts.rhand
+    spr(rh.spriteNo, bkX + rh.offX, bkY + rh.offY,
+        PALETTE.BLACK, 1, 0, 0, rh.tileW, rh.tileH)
+    spr(lh.spriteNo, bkX + lh.offX, bkY + lh.offY,
+        PALETTE.BLACK, 1, 0, 0, lh.tileW, lh.tileH)
     rect(
         x, y + self.profile.tileH * TILE_H_px,
         self.profile.tileW * TILE_W_px,
         200, PALETTE.BLACK
     )
-    -- cut off the book
+    -- cut off the book and hands. no stencil buffer...
+
+
 end
 
 function Wispell:tick()
@@ -2982,7 +2990,7 @@ function StInGame:submitWord()
         else
             sfx(SFX.blockBreak, 'C-4', 60, SFX_CHANNEL, SfxVol)
         end
-        
+
         self:startFalling()
         local spawnResult = self:spawnTiles();
 
@@ -3128,17 +3136,6 @@ end
 
 function StInGame:memProfile()
     self.statusMsg = CheatMemProfile()
-end
-
-function StInGame:drawBook()
-    local x, y = self.ndBook:pos()
-    spr(
-        WISPELL_SPR_BOOK, 
-        x, y, PALETTE.BLACK,
-        1, 0, 0,
-        WISPELL_BOOK_W,
-        WISPELL_BOOK_H
-    )
 end
 
 ---
