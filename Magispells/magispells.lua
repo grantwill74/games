@@ -1980,12 +1980,12 @@ WISPELL_BOOK_DEPLOY_OFF = 30
 WISPELL_BOOK_AWAY_OFF =
     WISPELL_PROFILE_TILES_H * TILE_H_px - WISPELL_OFF_Y_px
 
-WISPELL_SALUTE_OFF_FINAL_X = 20
-WISPELL_SALUTE_OFF_FINAL_Y = 16
+WISPELL_SALUTE_OFF_FINAL_X = 12
+WISPELL_SALUTE_OFF_FINAL_Y = 22
 WISPELL_SALUTE_OFF_INITIAL_X = 20
 WISPELL_SALUTE_OFF_INITIAL_Y = 64
 WISPELL_SALUTE_OFF_CUFF_X = -4
-WISPELL_SALUTE_OFF_CUFF_Y = -4
+WISPELL_SALUTE_OFF_CUFF_Y = 10
 WISPELL_SALUTE_W = 2
 WISPELL_SALUTE_H = 2
 WISPELL_SALUTE_CUFF_W = 1
@@ -2100,14 +2100,16 @@ Wispell = {
             WISPELL_SALUTE_OFF_FINAL_X,
             WISPELL_SALUTE_OFF_FINAL_Y,
             WISPELL_SALUTE_W,
-            WISPELL_SALUTE_H
+            WISPELL_SALUTE_H,
+            PALETTE.SKY
         ),
         saluteCuff = WispellImage.new(
             174,
             WISPELL_SALUTE_OFF_CUFF_X,
             WISPELL_SALUTE_OFF_CUFF_Y,
             WISPELL_SALUTE_CUFF_W,
-            WISPELL_SALUTE_CUFF_H
+            WISPELL_SALUTE_CUFF_H,
+            PALETTE.SKY
         )
     },
     saluteAmount = 0,
@@ -2283,6 +2285,16 @@ function Wispell:draw()
         PALETTE.BLACK, 1, 0, 0, rh.tileW, rh.tileH)
     spr(lh.spriteNo, bkX + lh.offX, bkY + lh.offY,
         PALETTE.BLACK, 1, 0, 0, lh.tileW, lh.tileH)
+
+    -- draw salute if he's doing that
+    if self:saluting() then
+        local s = self.parts.salute
+        spr(s.spriteNo, s.offX, s.offY, s.colorKey, 1, 0, 0, s.tileW, s.tileH)
+        local c = self.parts.saluteCuff
+        spr(c.spriteNo, s.offX + c.offX, s.offY + c.offY,
+            c.colorKey, 1, 0, 0, c.tileW, c.tileH)
+    end
+
     rect(
         x, y + self.profile.tileH * TILE_H_px,
         self.profile.tileW * TILE_W_px,
@@ -2313,10 +2325,10 @@ function Wispell:tick()
     if Wispell.saluteDir == -1 then
         local maxSaluteOff = WISPELL_SALUTE_OFF_FINAL_Y
         local saluteDismissOff = WISPELL_SALUTE_OFF_INITIAL_Y
-        local offYperSec = (saluteDismissOff - maxSaluteOff) /
+        local offYperTic = (saluteDismissOff - maxSaluteOff) /
             WISPELL_SALUTE_DISMISS_TIME
         self.saluteAmount = math.max(self.saluteAmount - 1, 0)
-        self.parts.salute.offY = offYperSec * self.saluteAmount + maxSaluteOff
+        self.parts.salute.offY = offYperTic * self.saluteAmount + maxSaluteOff
 
         if self.saluteAmount == 0 then
             self.saluteDir = nil
@@ -2324,10 +2336,10 @@ function Wispell:tick()
     elseif Wispell.saluteDir == 1 then
         local maxSaluteOff = WISPELL_SALUTE_OFF_FINAL_Y
         local saluteDismissOff = WISPELL_SALUTE_OFF_INITIAL_Y
-        local offYperSec = (maxSaluteOff - saluteDismissOff) /
+        local offYperTic = (maxSaluteOff - saluteDismissOff) /
             WISPELL_SALUTE_DISMISS_TIME
         self.saluteAmount = math.min(WISPELL_SALUTE_TIME, self.saluteAmount + 1)
-        self.parts.salute.offY = offYperSec * self.saluteAmount + saluteDismissOff
+        self.parts.salute.offY = offYperTic * self.saluteAmount + saluteDismissOff
     end
 
     self.expressionAnimState:tick()
@@ -2765,6 +2777,8 @@ function StInGame:newGame()
     self.ticksSinceLastPlay = 0
     self.bookDeployTicks = 0
 
+    self.wispell:restoreInterest()
+
     --for col=1, 8 do
     --    for row=1, FIELD_TILES_PER_COL[col] do
     --        self.grid.cols[col][row] = GridTile.new('a', 0, 'normal')
@@ -2809,6 +2823,7 @@ function StInGame:handleClick(mouse)
 
     if self.subState and self.subState.id == 'game over' then
         self.subState = nil
+        self.wispell:orderArms()
 
         self:newGame()
     end
@@ -2999,7 +3014,7 @@ function StInGame:freezeBestWord(superlative)
 end
 
 function StInGame:gameOver()
-    -- self.wispell:presentArms()
+    self.wispell:presentArms()
     self.subState = StInGame_GameOver.new(60,
         self.gameBestWord, self.gameBestWordScore,
         self.score, self.ticks, self.level
@@ -3251,6 +3266,7 @@ function StInGame:tick(mouse)
     self:fallTick()
     self.letterPartEmitter:tick()
     self.wispell:tick()
+
 
     local clicked = Button.updateButtonsAndDetectClick(
         self.buttons, mouse.x, mouse.y, mouse.left)
@@ -3877,8 +3893,8 @@ end
 -- 138:00000000000000000000000000000000ccccccccccccccccccccccccccc00000
 -- 140:0000cccc000cc000000ccccc000ccccc000ccccc0000cccc0000cccc000ccccc
 -- 141:00000000c000000000000000c0000000c0000000c0000000c0000000c0000000
--- 142:00000000000000000000000000000000000000000000c0cc00cccccc0cccccc0
--- 143:000000000000000000000000000cc0c0ccc00cc0c00cc00c0cc000cccc00ccc0
+-- 142:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaccaaccccccacccccc0
+-- 143:aaaaaaaaaaaaaaaaaaaaaaaaaaaccacaccc00ccac00cc00c0cc000cccc00ccc0
 -- 145:0000009900000091000009910000091100000911000091110000911100009111
 -- 146:1111111111111111111111141111111311111121111112221111222211122222
 -- 147:1144222844334222331144224114324234222440134443312333300100000111
@@ -3891,7 +3907,7 @@ end
 -- 156:00cccc0c0cccc0cccccc0cccccc0ccc0cc0ccc0cc0ccc0cc0ccc0cc0000ccc00
 -- 157:c0000000c0000000c0000000c0000000c0000000000000000000000000000000
 -- 158:cccccccccccccccccccccccccccccccccccccccccccccc00cc00000c0ccccccc
--- 159:c0ccc00c0ccc00c0ccc0cc00cc0cc00000cc00000cc00000cc00000000000000
+-- 159:c0ccc00c0ccc00caccc0ccaacc0ccaaa00ccaaaa0ccaaaaaccaaaaaaaaaaaaaa
 -- 161:0000911100009111000911110009111100091111009111110091111109111111
 -- 162:1022222010222201102220111022011110201111100111191011199010199000
 -- 163:11111111111111991111990011990000990000000000000000000088000088aa
@@ -3899,7 +3915,7 @@ end
 -- 165:00000000000000000000000000000000000000000000000088000000aa800000
 -- 166:0000000000000000000000000000000000000008000000800000080000008000
 -- 167:0800000008000000080000008000000000000000000000000000000000000000
--- 174:0ccc0000c00c0000cc0000000c0000000cc00c0000c00c00000ccc0000000000
+-- 174:acccaaaac00caaaacc00aaaaac000aaaacc00caaaac00caaaaacccaaaaaaaaaa
 -- 177:0911111909111990999990090000099000009000000900000090000099000000
 -- 178:9990000090000000000000080000008a000008aa00008aaa0008aaaa008aaaaa
 -- 179:0088aaaa88aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
