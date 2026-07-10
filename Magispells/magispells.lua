@@ -1980,9 +1980,9 @@ WISPELL_BOOK_DEPLOY_OFF = 30
 WISPELL_BOOK_AWAY_OFF =
     WISPELL_PROFILE_TILES_H * TILE_H_px - WISPELL_OFF_Y_px
 
-WISPELL_SALUTE_OFF_FINAL_X = 12
-WISPELL_SALUTE_OFF_FINAL_Y = 22
-WISPELL_SALUTE_OFF_INITIAL_X = 20
+WISPELL_SALUTE_OFF_FINAL_X = 16
+WISPELL_SALUTE_OFF_FINAL_Y = 8
+WISPELL_SALUTE_OFF_INITIAL_X = 16
 WISPELL_SALUTE_OFF_INITIAL_Y = 64
 WISPELL_SALUTE_OFF_CUFF_X = -4
 WISPELL_SALUTE_OFF_CUFF_Y = 10
@@ -2318,11 +2318,11 @@ end
 
 ---@return boolean
 function Wispell:saluting()
-    return not not self.saluteDir
+    return self.saluteDir ~= nil
 end
 
 function Wispell:tick()
-    if Wispell.saluteDir == -1 then
+    if self.saluteDir == -1 then
         local maxSaluteOff = WISPELL_SALUTE_OFF_FINAL_Y
         local saluteDismissOff = WISPELL_SALUTE_OFF_INITIAL_Y
         local offYperTic = (saluteDismissOff - maxSaluteOff) /
@@ -2333,7 +2333,7 @@ function Wispell:tick()
         if self.saluteAmount == 0 then
             self.saluteDir = nil
         end
-    elseif Wispell.saluteDir == 1 then
+    elseif self.saluteDir == 1 then
         local maxSaluteOff = WISPELL_SALUTE_OFF_FINAL_Y
         local saluteDismissOff = WISPELL_SALUTE_OFF_INITIAL_Y
         local offYperTic = (maxSaluteOff - saluteDismissOff) /
@@ -3266,7 +3266,6 @@ function StInGame:tick(mouse)
     self:fallTick()
     self.letterPartEmitter:tick()
     self.wispell:tick()
-
 
     local clicked = Button.updateButtonsAndDetectClick(
         self.buttons, mouse.x, mouse.y, mouse.left)
