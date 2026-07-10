@@ -2112,8 +2112,6 @@ Wispell = {
             PALETTE.SKY
         )
     },
-    saluteAmount = 0,
-    saluteDir = nil
 }
 
 ---@type table<string, WispellAnim>
@@ -2184,7 +2182,9 @@ function WispellAnimState.new()
     local state = {
         anim = WispellAnims.idle,
         currentFrame = 1,
-        currentTicksLeft = WispellAnims.idle.frames[1].howLong
+        currentTicksLeft = WispellAnims.idle.frames[1].howLong,
+        saluteAmount = 0,
+        saluteDir = nil
     }
 
     return setmetatable(state, {__index = WispellAnimState});
