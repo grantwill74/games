@@ -2630,6 +2630,8 @@ IN_GAME_BTN_NOIDEA_OFF = {x = 0, y = 56}
 BTN_NOIDEA_NAME = 'btn noidea'
 BTN_NOIDEA_HINT = "I'm stumped!"
 
+BONUS_SCORE_PER_CHANCE = 1000
+
 function StInGame.new()
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
     local ndField = ndScreen:addChildFromTopRight(
@@ -3131,14 +3133,19 @@ end
 function StInGame:levelUp()
     self.level = self.level + 1
     self.nextLevelTarget = ScoreToReachLevel(self.level + 1)
+    local wordScoreGained = self.score - self.levelStartScore
+    local chanceScoreGained = self.nChances * BONUS_SCORE_PER_CHANCE
     self.subState = StInGame_LevelUp.new {
             newLevel = self.level,
-            scoreGained = self.score - self.levelStartScore,
+            wordScoreGained = wordScoreGained,
+            chanceScoreGained = chanceScoreGained,
+            totalScoreGained = wordScoreGained + chanceScoreGained,
             newScoreTarget = ScoreToReachLevel(self.level + 1),
             ticksTaken = self.ticks,
             wordsSubmitted = self.nLevelWordsSubmitted,
             bestWord = self.levelBestWord,
             bestWordScore = self.levelBestWordScore,
+            chancesLeft = self.nChances
     }
     sfx(SFX.levelUp, 'C-5', 60, SFX_CHANNEL, SfxVol)
     self:setStatus(HeyLevelUp())
@@ -3147,6 +3154,7 @@ function StInGame:levelUp()
     self.levelBestWord = ""
     self.levelBestWordScore = 0
     self.nChances = math.max(self.nChances, N_STARTING_CHANCES)
+    self.score = self.score + chanceScoreGained
     self.levelStartScore = self.score
     self.delayActions = {}
 
@@ -3316,12 +3324,15 @@ end
 ---@field id 'level up'
 ---@field delayTicks integer
 ---@field newLevel integer
----@field scoreGained integer
+---@field wordScoreGained number
+---@field chanceScoreGained number
+---@field totalScoreGained number
 ---@field newScoreTarget integer
 ---@field ticksTaken integer
 ---@field wordsSubmitted integer
 ---@field bestWord string
 ---@field bestWordScore integer
+---@field chancesLeft integer
 StInGame_LevelUp = {}
 
 
@@ -3365,19 +3376,22 @@ function StInGame_LevelUp:draw(node)
 
 
     print("Welcome to level " .. ToStr(self.newLevel) .. "!", x, y, PALETTE.WHITE)
-    print("Score gained: " .. ToStr(self.scoreGained), x + 8, y + 8, PALETTE.BLUE)
-    print("New target: " .. ToStr(self.newScoreTarget), x + 8, y + 16, PALETTE.BLUE)
-    print("Words made: " .. ToStr(self.wordsSubmitted), x + 8, y + 24, PALETTE.RED)
-    print("Best word: " .. self.bestWord, x + 8, y + 32, PALETTE.LIME)
-    print("Was worth: " .. ToStr(self.bestWordScore), x + 8, y + 40, PALETTE.LIME)
-
+    print("Word Score: " .. ToStr(self.wordScoreGained), x + 8, y + 8, PALETTE.BLUE)
+    print("Chance Score: " .. ToStr(self.chancesLeft) .. " * 1000", x + 8, y + 16, PALETTE.BLUE)
+    print("Score gained: " .. ToStr(self.totalScoreGained), x + 8, y + 24, PALETTE.WHITE)
+    print("New target: " .. ToStr(self.newScoreTarget), x + 8, y + 32, PALETTE.WHITE)
+    print("Words made: " .. ToStr(self.wordsSubmitted), x + 8, y + 40, PALETTE.RED)
+    print("Best word: " .. self.bestWord, x + 8, y + 48, PALETTE.LIME)
+    print("Was worth: " .. ToStr(self.bestWordScore), x + 8, y + 56, PALETTE.LIME)
+    
     if hours < 1 then
         local formatStr = "%02d:%02d,%02d"
         local time = string.format(formatStr, mins, secs, ticks)
-        print("Time: " .. time, x + 8, y + 64, PALETTE.WHITE)
+        print("Time: " .. time, x + 8, y + 72, PALETTE.WHITE)
     else
-        print("Time: > 1 hour", x + 8, y + 64, PALETTE.WHITE)
+        print("Time: > 1 hour", x + 8, y + 72, PALETTE.WHITE)
     end
+
 
     print("Click/tap anywhere", x, y + 104, PALETTE.WHITE)
     print("to continue!", x, y + 112, PALETTE.WHITE)
