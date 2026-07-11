@@ -1981,7 +1981,7 @@ WISPELL_BOOK_AWAY_OFF =
     WISPELL_PROFILE_TILES_H * TILE_H_px - WISPELL_OFF_Y_px
 
 WISPELL_SALUTE_OFF_FINAL_X = 16
-WISPELL_SALUTE_OFF_FINAL_Y = 8
+WISPELL_SALUTE_OFF_FINAL_Y = 22
 WISPELL_SALUTE_OFF_INITIAL_X = 16
 WISPELL_SALUTE_OFF_INITIAL_Y = 64
 WISPELL_SALUTE_OFF_CUFF_X = -4
@@ -1992,7 +1992,7 @@ WISPELL_SALUTE_CUFF_W = 1
 WISPELL_SALUTE_CUFF_H = 1
 
 ---how long does it take to bring hand into salute
-WISPELL_SALUTE_TIME = 1.5 * 60
+WISPELL_SALUTE_TIME = 0.5 * 60
 
 ---how long does it take to put hand back
 WISPELL_SALUTE_DISMISS_TIME = 2 * 60
@@ -2337,7 +2337,7 @@ function Wispell:tick()
         local maxSaluteOff = WISPELL_SALUTE_OFF_FINAL_Y
         local saluteDismissOff = WISPELL_SALUTE_OFF_INITIAL_Y
         local offYperTic = (maxSaluteOff - saluteDismissOff) /
-            WISPELL_SALUTE_DISMISS_TIME
+            WISPELL_SALUTE_TIME
         self.saluteAmount = math.min(WISPELL_SALUTE_TIME, self.saluteAmount + 1)
         self.parts.salute.offY = offYperTic * self.saluteAmount + saluteDismissOff
     end
