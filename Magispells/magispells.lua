@@ -1176,6 +1176,32 @@ function StLoading:draw()
     x, y = self.loadingPercent.xPx, self.loadingPercent.yPx
     print(percentStr, x, y, PALETTE.WHITE, true)
 end
+--------------------------------------------------------------------------------
+
+---@class StIntro : IAppState
+---@field tick fun(self, MouseState): IAppState | nil -- returns new state
+---@field draw fun(self): nil
+StIntro = {}
+StIntro.__index = StIntro
+
+
+-- basic storyboard:
+-- wispell, small is hovering, hands waving, core glowing, minor key intro plays
+-- particles come up from the bottom of the screen
+-- Zoom in on larger sprite, now background is glowing,
+-- in the foreground letter sprites are drawn coming up
+-- Zoom back out, facing behind Wispell, as sprites come down in shape of title
+-- Wispell smiles and faces the camera, giving the thumbs up. 
+-- mixolydian title music starts playing
+
+function StIntro.new()
+    local state = {
+
+    }
+
+    return setmetatable(state, StIntro)
+end
+
 
 --------------------------- in game constants ----------------------------------
 FIELD_TILES_W = 8
@@ -3993,8 +4019,15 @@ end
 -- 044:8888888888888000aaaaa880aaaaa9a8aa999ca8aa6ccca8aa06caa8aa06aaa8
 -- 045:8888888800000000000000000000000000000000000000008888888800000000
 -- 046:8000000008888000000008800000000800000880088880008000000000000000
+-- 048:0000888800088000008000000800000008000000088000000088800000000888
+-- 049:8888888800000000000000000000000000000000000000000000000000000000
+-- 050:0000000088800000000888880000000800000000000000000000000000000000
+-- 051:0000000000000000000000008888000000088808000008880000008800000008
 -- 059:08aaaaaa08aa999a008aaaa90008aaaa00008888000000000000000000000000
 -- 060:aaaaaa80aaaaaa809aaaa800aaaa800088880000000000000000000000000000
+-- 065:8880000000888888000000880000000000000000000000000000000000000000
+-- 066:0000000000000008888888888000000000000000000000000000000000000000
+-- 067:0000088888888808000000000000000000000000000000000000000000000000
 -- 074:00000000000000000000000000000000000000070000066600066888006888bb
 -- 075:000000000000000000000000000000007777777767777bbb86667777b9866666
 -- 076:0000000000000000000000000000000077777777bbb77776777766686666889b
