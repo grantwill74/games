@@ -1097,6 +1097,8 @@ end
 ---@class IAppState
 ---@field tick fun(self, MouseState): IAppState | nil -- returns new state
 ---@field draw fun(self): nil
+---@field enter (fun(self): nil)|nil
+---@field leave (fun(self): nil)|nil
 IAppState = {}
 
 ---@class StLoading : IAppState
@@ -1221,10 +1223,86 @@ SPR_BACK_FAR_BODY_TH = 3
 SPR_BACK_FAR_HAND_LEFT_ID = 100
 SPR_BACK_FAR_HAND_RIGHT_ID = 116
 
-Scenes = {
-    
+
+---@class IntroScene
+---@field tickLen integer
+---@field draw fun(curT: integer): nil
+IntroScene = {}
+IntroScene.__index = {}
+
+---@param len integer
+---@param drawer fun(curT: integer): nil
+function IntroScene.new(len, drawer)
+    local scene = {
+        tickLen = len,
+        draw = drawer,
+    }
+
+    return setmetatable(scene, IntroScene)
+end
+
+---@type IntroScene[]
+IntroScenes = {
+    -- far, front, hands out
+    -- close, tiles moving up
+    -- far, back, tiles falling into position
+    -- close, smiling, thumbs up
 }
 
+INTRO_SCENE1_TIME = 3 * 60
+
+-- far, front, hands out
+IntroScenes[1] = IntroScene.new(INTRO_SCENE1_TIME, function(cur)
+    cls(PALETTE.BLACK)
+
+    spr(
+        SPR_FRONT_FAR_HEAD, 100, 20,
+        PALETTE.BLACK, 1, 0, 0,
+        SPR_BACK_FAR_BODY_TW,
+        SPR_BACK_FAR_BODY_TH
+    )
+end)
+
+
+---@class StIntro : IAppState
+---@field t integer
+---@field curScene integer
+StIntro = {}
+StIntro.__index = StIntro
+
+function StIntro.new()
+    local state = {
+        t = 0,
+        curScene = 1,
+    }
+    return setmetatable(state, StIntro)
+end
+
+function StIntro:draw()
+    IntroScenes[self.curScene].draw(self.t)
+end
+
+function StIntro:enter()
+    sync(1, 1) -- switch tiles to bank 1
+    music(0)
+end
+
+function StIntro:leave()
+    
+end
+
+function StIntro:tick()
+    self.t = self.t + 1
+
+    if self.t >= IntroScenes[self.curScene].tickLen then
+        self.t = 0
+        self.curScene = self.curScene + 1
+
+        if self.curScene > #IntroScenes then
+            self.curScene = 1
+        end
+    end
+end
 
 -- basic storyboard:
 -- wispell, small is hovering, hands waving, core glowing, minor key intro plays
@@ -1235,13 +1313,6 @@ Scenes = {
 -- Wispell smiles and faces the camera, giving the thumbs up. 
 -- mixolydian title music starts playing
 
-function StIntro.new()
-    local state = {
-
-    }
-
-    return setmetatable(state, StIntro)
-end
 
 
 --------------------------- in game constants ----------------------------------
@@ -3797,10 +3868,13 @@ end
 
 function BOOT()
     cls(0)
-    appState = StLoading.new()
+    sync(2, 1, false) -- why is this not working?
+    -- appState = StLoading.new()
+    appState = StIntro.new()
+    if appState.enter then appState:enter() end
     Mouse = MouseState.new()
 
-    MusicOn()
+    -- MusicOn()
 end
 
 -- addresses of the 4 volume nybbles
