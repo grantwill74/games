@@ -11,7 +11,7 @@
 
 ---------------------------- System constants ----------------------------------
 
-
+TAU = math.pi * 2
 SCREEN_W_px = 240
 SCREEN_H_px = 136
 TILE_W_px = 8
@@ -1186,14 +1186,17 @@ end
 StIntro = {}
 StIntro.__index = StIntro
 
-SPR_FRONT_FAR_HEAD = 23
+SPR_FRONT_FAR_HEAD = 9
 SPR_FRONT_FAR_HEAD_TW = 7
 SPR_FRONT_FAR_HEAD_TH = 4
+SPR_FRONT_FAR_BODY_HEAD_OFF_X = 8
+SPR_FRONT_FAR_BODY_HEAD_OFF_Y = 28
 SPR_FRONT_FAR_BODY = 74
 SPR_FRONT_FAR_BODY_TW = 4
 SPR_FRONT_FAR_BODY_TH = 2
 SPR_FRONT_FAR_BODY_HAND_RIGHT = 88
 SPR_FRONT_FAR_BODY_HAND_LEFT = 95
+SPR_FRONT_FAR_BODY_HAND_OFF_X = 8
 
 SPR_FRONT_CLOSE_HEAD_STRAINED_ID = 136
 SPR_FRONT_CLOSE_HEAD_STRAINED_TW = 8
@@ -1231,11 +1234,11 @@ IntroScene = {}
 IntroScene.__index = {}
 
 ---@param len integer
----@param drawer fun(curT: integer): nil
-function IntroScene.new(len, drawer)
+---@param draw fun(curT: integer): nil
+function IntroScene.new(len, draw)
     local scene = {
         tickLen = len,
-        draw = drawer,
+        draw = draw,
     }
 
     return setmetatable(scene, IntroScene)
@@ -1250,18 +1253,46 @@ IntroScenes = {
 }
 
 INTRO_SCENE1_TIME = 3 * 60
+INTRO_FAR_FLOAT_END_OFF_X = -20
+INTRO_FAR_FLOAT_HEAD_START_Y = 40
+
+function Scene_FarFrontHandsOut()
+    local state = {}
+    state.head = Node.new(
+        nil, "head",
+        122, 40,
+        SPR_FRONT_FAR_HEAD_TW * TILE_W_px,
+        SPR_FRONT_FAR_HEAD_TH * TILE_H_px
+    )
+    state.body = Node.new(
+        state.head, "body",
+        SPR_FRONT_FAR_BODY_HAND_OFF_X,
+        SPR_FRONT_FAR_BODY_HEAD_OFF_Y,
+        SPR_FRONT_FAR_BODY_TW * TILE_W_px,
+        SPR_FRONT_FAR_BODY_TH * TILE_H_px
+    )
+    --[[state.rhand = Node.new(
+        state.body, "rhand",
+        -SPR_FRONT_FAR_BODY_HAND_OFF_X,
+        
+    )--]]
+
+    return IntroScene.new(INTRO_SCENE1_TIME, function (curT)
+        local offFloat = INTRO_FAR_FLOAT_END_OFF_X * (curT / INTRO_SCENE1_TIME)
+
+        state.head.yoffpx = INTRO_FAR_FLOAT_HEAD_START_Y + offFloat
+        local headX, headY = state.head:pos()
+        local bodyX, bodyY = state.body:pos()
+
+        spr(SPR_FRONT_FAR_HEAD, headX, headY, PALETTE.BLACK, 1, 0, 0,
+            SPR_FRONT_FAR_HEAD_TW, SPR_FRONT_FAR_HEAD_TH)
+        spr(SPR_FRONT_FAR_BODY, bodyX, bodyY, PALETTE.BLACK, 1, 0, 0,
+            SPR_FRONT_FAR_BODY_TW, SPR_FRONT_FAR_BODY_TH)
+    end)
+end
 
 -- far, front, hands out
-IntroScenes[1] = IntroScene.new(INTRO_SCENE1_TIME, function(cur)
-    cls(PALETTE.BLACK)
-
-    spr(
-        SPR_FRONT_FAR_HEAD, 100, 20,
-        PALETTE.BLACK, 1, 0, 0,
-        SPR_BACK_FAR_BODY_TW,
-        SPR_BACK_FAR_BODY_TH
-    )
-end)
+IntroScenes[1] = Scene_FarFrontHandsOut()
 
 
 ---@class StIntro : IAppState
@@ -1288,7 +1319,7 @@ function StIntro:enter()
 end
 
 function StIntro:leave()
-    
+    music()
 end
 
 function StIntro:tick()
