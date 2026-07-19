@@ -1308,6 +1308,7 @@ end
 
 function Scene_FarFrontHandsOut:tick()
     self.head.yoffpx = self.head.yoffpx + INTRO_FAR_FLOAT_HEAD_OFF_PER_TIC
+    -- self.t = self.t + 1
 end
 
 function Scene_FarFrontHandsOut:draw()
