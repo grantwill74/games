@@ -1197,6 +1197,9 @@ SPR_FRONT_FAR_BODY_TH = 2
 SPR_FRONT_FAR_BODY_HAND_RIGHT = 88
 SPR_FRONT_FAR_BODY_HAND_LEFT = 95
 SPR_FRONT_FAR_BODY_HAND_OFF_X = 8
+SPR_FRONT_FAR_BODY_HAND_OFF_Y = 8
+
+SPR_SMALL_TILE_ = 366
 
 SPR_FRONT_CLOSE_HEAD_STRAINED_ID = 136
 SPR_FRONT_CLOSE_HEAD_STRAINED_TW = 8
@@ -1229,19 +1232,26 @@ SPR_BACK_FAR_HAND_RIGHT_ID = 116
 
 ---@class IntroScene
 ---@field tickLen integer
----@field draw fun(curT: integer): nil
+---@field t integer
+---@field draw fun(self: IntroScene): nil
+---@field tick fun(self: IntroScene): boolean
+---@field finished fun(self: IntroScene): boolean
 IntroScene = {}
 IntroScene.__index = {}
 
----@param len integer
----@param draw fun(curT: integer): nil
-function IntroScene.new(len, draw)
-    local scene = {
-        tickLen = len,
-        draw = draw,
+---@param tickLen integer
+---@return nil
+function IntroScene.new(tickLen)
+    local state = {
+        t = 0,
+        tickLen = tickLen
     }
 
-    return setmetatable(scene, IntroScene)
+    return setmetatable(state, IntroScene)
+end
+
+function IntroScene:finished()
+    return self.t > self.tickLen
 end
 
 ---@type IntroScene[]
@@ -1252,12 +1262,21 @@ IntroScenes = {
     -- close, smiling, thumbs up
 }
 
-INTRO_SCENE1_TIME = 3 * 60
-INTRO_FAR_FLOAT_END_OFF_X = -20
+INTRO_SCENE1_TIME = 1.5 * 60
+INTRO_FAR_FLOAT_END_OFF_Y = -10
 INTRO_FAR_FLOAT_HEAD_START_Y = 40
+INTRO_FAR_FLOAT_HEAD_OFF_PER_TIC = INTRO_FAR_FLOAT_END_OFF_Y / INTRO_SCENE1_TIME
 
-function Scene_FarFrontHandsOut()
-    local state = {}
+---@class Scene_FarFrontHandsOut : IntroScene
+---@field head Node
+---@field body Node
+---@field rhand Node
+---@field lhand Node
+Scene_FarFrontHandsOut = {}
+setmetatable(Scene_FarFrontHandsOut, {__index = IntroScene})
+
+function Scene_FarFrontHandsOut.new()
+    local state = IntroScene.new(INTRO_SCENE1_TIME) --[[@as Scene_FarFrontHandsOut]]
     state.head = Node.new(
         nil, "head",
         122, 40,
@@ -1266,51 +1285,67 @@ function Scene_FarFrontHandsOut()
     )
     state.body = Node.new(
         state.head, "body",
-        SPR_FRONT_FAR_BODY_HAND_OFF_X,
+        SPR_FRONT_FAR_BODY_HEAD_OFF_X,
         SPR_FRONT_FAR_BODY_HEAD_OFF_Y,
         SPR_FRONT_FAR_BODY_TW * TILE_W_px,
         SPR_FRONT_FAR_BODY_TH * TILE_H_px
     )
-    --[[state.rhand = Node.new(
+    state.rhand = Node.new(
         state.body, "rhand",
         -SPR_FRONT_FAR_BODY_HAND_OFF_X,
-        
-    )--]]
+        SPR_FRONT_FAR_BODY_HAND_OFF_Y,
+        1, 1
+    )
+    state.lhand = Node.new(
+        state.body, "lhand",
+        state.body.wpx,
+        SPR_FRONT_FAR_BODY_HAND_OFF_Y,
+        1, 1
+    )
 
-    return IntroScene.new(INTRO_SCENE1_TIME, function (curT)
-        local offFloat = INTRO_FAR_FLOAT_END_OFF_X * (curT / INTRO_SCENE1_TIME)
-
-        state.head.yoffpx = INTRO_FAR_FLOAT_HEAD_START_Y + offFloat
-        local headX, headY = state.head:pos()
-        local bodyX, bodyY = state.body:pos()
-
-        spr(SPR_FRONT_FAR_HEAD, headX, headY, PALETTE.BLACK, 1, 0, 0,
-            SPR_FRONT_FAR_HEAD_TW, SPR_FRONT_FAR_HEAD_TH)
-        spr(SPR_FRONT_FAR_BODY, bodyX, bodyY, PALETTE.BLACK, 1, 0, 0,
-            SPR_FRONT_FAR_BODY_TW, SPR_FRONT_FAR_BODY_TH)
-    end)
+    return setmetatable(state, {__index = Scene_FarFrontHandsOut})
 end
 
--- far, front, hands out
-IntroScenes[1] = Scene_FarFrontHandsOut()
+function Scene_FarFrontHandsOut:tick()
+    self.head.yoffpx = self.head.yoffpx + INTRO_FAR_FLOAT_HEAD_OFF_PER_TIC
+end
+
+function Scene_FarFrontHandsOut:draw()
+    local headX, headY = self.head:pos()
+    local bodyX, bodyY = self.body:pos()
+    local rhandX, rhandY = self.rhand:pos()
+    local lhandX, lhandY = self.lhand:pos()
+
+    spr(SPR_FRONT_FAR_HEAD, headX, headY, PALETTE.BLACK, 1, 0, 0,
+        SPR_FRONT_FAR_HEAD_TW, SPR_FRONT_FAR_HEAD_TH)
+    spr(SPR_FRONT_FAR_BODY, bodyX, bodyY, PALETTE.BLACK, 1, 0, 0,
+        SPR_FRONT_FAR_BODY_TW, SPR_FRONT_FAR_BODY_TH)
+    spr(SPR_FRONT_FAR_BODY_HAND_RIGHT, rhandX, rhandY, PALETTE.BLACK,
+        1, 0, 0, 1, 1)
+    spr(SPR_FRONT_FAR_BODY_HAND_LEFT, lhandX, lhandY, PALETTE.BLACK,
+        1, 0, 0, 1, 1)
+end
 
 
 ---@class StIntro : IAppState
----@field t integer
+---@field scenes IntroScene
 ---@field curScene integer
 StIntro = {}
 StIntro.__index = StIntro
 
 function StIntro.new()
     local state = {
-        t = 0,
+        scenes = {},
         curScene = 1,
     }
+
+    state.scenes[1] = Scene_FarFrontHandsOut.new()
+
     return setmetatable(state, StIntro)
 end
 
 function StIntro:draw()
-    IntroScenes[self.curScene].draw(self.t)
+    self.scenes[self.curScene]:draw()
 end
 
 function StIntro:enter()
@@ -1323,15 +1358,17 @@ function StIntro:leave()
 end
 
 function StIntro:tick()
-    self.t = self.t + 1
+    local cur = self.scenes[self.curScene]
 
-    if self.t >= IntroScenes[self.curScene].tickLen then
-        self.t = 0
+    cur:tick()
+
+    if cur:finished() then
         self.curScene = self.curScene + 1
+    end
 
-        if self.curScene > #IntroScenes then
-            self.curScene = 1
-        end
+    if self.curScene > #self.scenes then
+        self:leave()
+        -- TRANSITION TO MAIN MENU
     end
 end
 
@@ -4290,6 +4327,7 @@ end
 -- 015:2222220022222220222222232222222322222223222222232222222322222223
 -- 030:2222222222222222222222222222222222222222222222220222222203333333
 -- 031:2222222322222223222222232222222322222223222222232222223333333330
+-- 046:0444443044444443444444434444444344444443444444433444443303333330
 -- 096:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 097:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 -- 098:0000000000aaaaa000a000a000a000a000a000a00aa00aa00aa00aa000000000
@@ -4437,6 +4475,7 @@ end
 -- </SPRITES>
 
 -- <SPRITES1>
+-- 110:0444443044444443444444434444444344444443444444433444443303333330
 -- 128:ccccccccccccccc1cccccc11cccccc11ccccc111ccccc11ccccc111ccccc11cc
 -- 129:cccccccccccccccc1ccccccc1ccccccc11cccccc11cccccc111cccccc11ccccc
 -- 130:cccccccccc111111cc111111cc111ccccc11cccccc11cccccc11cc11cc11cc11
