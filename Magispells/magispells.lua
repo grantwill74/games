@@ -1362,6 +1362,42 @@ function Scene_FarFrontHandsOut:draw()
     end
 end
 
+---@class Scene_NearFront : IntroScene
+---@field body Node
+---@field rhand Node
+---@field lhand Node
+---@field tilePoses Node[]
+---@field tileVelos integer[]
+Scene_NearFront = {}
+setmetatable(Scene_NearFront, {__index = IntroScene})
+
+INTRO_SCENE2_TIME = 60 * 1.5
+INTRO_NEAR_FRONT_END_OFF_Y  = 20
+INTRO_NEAR_FRONT_HEAD_START_Y = 40
+INTRO_NEAR_FRONT_HEAD_START_X = 100
+INTRO_NEAR_FRONT_HEAD_OFF_PER_TIC = INTRO_NEAR_FRONT_END_OFF_Y / INTRO_SCENE2_TIME
+INTRO_NEAR_FRONT_SPR_BODY_ID = 136
+INTRO_NEAR_FRONT_SPR_BODY_TW = 8
+INTRO_NEAR_FRONT_SPR_BODY_TH = 8
+
+function Scene_NearFront.new()
+    local state = IntroScene.new(INTRO_SCENE2_TIME) --[[ @as Scene_NearFront ]]
+    state.body = Node.new(
+        nil, 'body',
+        -10, 8, 8 * TILE_W_px, 8 * TILE_H_px
+    )
+
+    return setmetatable(state, {__index = Scene_NearFront})
+end
+
+function Scene_NearFront:tick()
+    self.body.yoffpx = self.body.yoffpx - INTRO_NEAR_FRONT_HEAD_OFF_PER_TIC
+end
+
+function Scene_NearFront:draw()
+    
+end
+
 
 ---@class StIntro : IAppState
 ---@field scenes IntroScene
