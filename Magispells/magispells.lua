@@ -1199,7 +1199,7 @@ SPR_FRONT_FAR_BODY_HAND_LEFT = 95
 SPR_FRONT_FAR_BODY_HAND_OFF_X = 8
 SPR_FRONT_FAR_BODY_HAND_OFF_Y = 8
 
-SPR_SMALL_TILE_ = 366
+SPR_SMALL_TILE = 366
 
 SPR_FRONT_CLOSE_HEAD_STRAINED_ID = 136
 SPR_FRONT_CLOSE_HEAD_STRAINED_TW = 8
@@ -1266,12 +1266,20 @@ INTRO_SCENE1_TIME = 1.5 * 60
 INTRO_FAR_FLOAT_END_OFF_Y = -10
 INTRO_FAR_FLOAT_HEAD_START_Y = 40
 INTRO_FAR_FLOAT_HEAD_OFF_PER_TIC = INTRO_FAR_FLOAT_END_OFF_Y / INTRO_SCENE1_TIME
+INTRO_SCENE1_TILE_SPEED = 1 -- pixels per tick
+INTRO_SCENE1_N_TILES = 10
+INTRO_SCENE1_TILE_MAX_SPEED = 4
+INTRO_SCENE1_TILE_MIN_SPEED = 1
+INTRO_SCENE1_TILE_MAX_OFF = 100
+INTRO_SCENE1_TILE_MIN_OFF = 0
 
 ---@class Scene_FarFrontHandsOut : IntroScene
 ---@field head Node
 ---@field body Node
 ---@field rhand Node
 ---@field lhand Node
+---@field tilePoses Node[]
+---@field tileVelos integer[]
 Scene_FarFrontHandsOut = {}
 setmetatable(Scene_FarFrontHandsOut, {__index = IntroScene})
 
@@ -1302,12 +1310,33 @@ function Scene_FarFrontHandsOut.new()
         SPR_FRONT_FAR_BODY_HAND_OFF_Y,
         1, 1
     )
+    state.tilePoses = {}
+    state.tileVelos = {}
+
+    -- scatter tiles around.
+    for i=1, INTRO_SCENE1_N_TILES do
+        local x = math.random(0, SCREEN_W_px - TILE_W_px)
+        local y = math.random(INTRO_SCENE1_TILE_MIN_OFF, INTRO_SCENE1_TILE_MAX_OFF)
+            + SCREEN_H_px
+        local v = -math.random() *
+            (INTRO_SCENE1_TILE_MAX_SPEED - INTRO_SCENE1_TILE_MIN_SPEED) -
+            INTRO_SCENE1_TILE_MIN_SPEED
+        
+        table.insert(state.tilePoses, Node.new(nil, '', x, y))
+        table.insert(state.tileVelos, v)
+    end
 
     return setmetatable(state, {__index = Scene_FarFrontHandsOut})
 end
 
 function Scene_FarFrontHandsOut:tick()
     self.head.yoffpx = self.head.yoffpx + INTRO_FAR_FLOAT_HEAD_OFF_PER_TIC
+
+    for i, _ in ipairs(self.tilePoses) do
+        local node = self.tilePoses[i]
+        local velo = self.tileVelos[i]
+        node.yoffpx = node.yoffpx + velo
+    end
     -- self.t = self.t + 1
 end
 
@@ -1325,6 +1354,12 @@ function Scene_FarFrontHandsOut:draw()
         1, 0, 0, 1, 1)
     spr(SPR_FRONT_FAR_BODY_HAND_LEFT, lhandX, lhandY, PALETTE.BLACK,
         1, 0, 0, 1, 1)
+
+    for _, tile in ipairs(self.tilePoses) do
+        local tx, ty = tile:pos()
+        trace(ty)
+        spr(SPR_SMALL_TILE, tx, ty, PALETTE.BLACK, 1, 1, 0, 1, 1)
+    end
 end
 
 
