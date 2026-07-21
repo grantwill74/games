@@ -1234,7 +1234,7 @@ SPR_BACK_FAR_HAND_RIGHT_ID = 116
 ---@field tickLen integer
 ---@field t integer
 ---@field draw fun(self: IntroScene): nil
----@field tick fun(self: IntroScene): boolean
+---@field tick fun(self: IntroScene): nil
 ---@field finished fun(self: IntroScene): boolean
 IntroScene = {}
 IntroScene.__index = {}
@@ -1262,7 +1262,7 @@ IntroScenes = {
     -- close, smiling, thumbs up
 }
 
-INTRO_SCENE1_TIME = 1.5 * 60
+INTRO_SCENE1_TIME = 1.44 * 60
 INTRO_FAR_FLOAT_END_OFF_Y = -10
 INTRO_FAR_FLOAT_HEAD_START_Y = 40
 INTRO_FAR_FLOAT_HEAD_OFF_PER_TIC = INTRO_FAR_FLOAT_END_OFF_Y / INTRO_SCENE1_TIME
@@ -1337,7 +1337,7 @@ function Scene_FarFrontHandsOut:tick()
         local velo = self.tileVelos[i]
         node.yoffpx = node.yoffpx + velo
     end
-    -- self.t = self.t + 1
+    self.t = self.t + 1
 end
 
 function Scene_FarFrontHandsOut:draw()
@@ -1357,7 +1357,6 @@ function Scene_FarFrontHandsOut:draw()
 
     for _, tile in ipairs(self.tilePoses) do
         local tx, ty = tile:pos()
-        trace(ty)
         spr(SPR_SMALL_TILE, tx, ty, PALETTE.BLACK, 1, 1, 0, 1, 1)
     end
 end
@@ -1376,26 +1375,58 @@ INTRO_NEAR_FRONT_END_OFF_Y  = 20
 INTRO_NEAR_FRONT_HEAD_START_Y = 40
 INTRO_NEAR_FRONT_HEAD_START_X = 100
 INTRO_NEAR_FRONT_HEAD_OFF_PER_TIC = INTRO_NEAR_FRONT_END_OFF_Y / INTRO_SCENE2_TIME
+INTRO_NEAR_FRONT_HAND_OFF_PER_TIC = INTRO_NEAR_FRONT_HEAD_OFF_PER_TIC / 2
 INTRO_NEAR_FRONT_SPR_BODY_ID = 136
 INTRO_NEAR_FRONT_SPR_BODY_TW = 8
 INTRO_NEAR_FRONT_SPR_BODY_TH = 8
+
+INTRO_NEAR_FRONT_SPR_LHAND_ID = 2
+INTRO_NEAR_FRONT_SPR_LHAND_OFF_X = -16
+INTRO_NEAR_FRONT_SPR_RHAND_ID = 4
+INTRO_NEAR_FRONT_SPR_RHAND_OFF_X = 0
+INTRO_NEAR_FRONT_SPR_HANDS_OFF_Y_START = 40
 
 function Scene_NearFront.new()
     local state = IntroScene.new(INTRO_SCENE2_TIME) --[[ @as Scene_NearFront ]]
     state.body = Node.new(
         nil, 'body',
-        -10, 8, 8 * TILE_W_px, 8 * TILE_H_px
+        INTRO_NEAR_FRONT_HEAD_START_X, 
+        INTRO_NEAR_FRONT_HEAD_START_Y,
+        8 * TILE_W_px, 8 * TILE_H_px
     )
+    state.lhand = Node.new(
+        state.body, 'lhand',
+        INTRO_NEAR_FRONT_SPR_LHAND_OFF_X,
+        INTRO_NEAR_FRONT_SPR_HANDS_OFF_Y_START, 16, 16
+    )
+    state.rhand = Node.new(
+        state.body, 'rhand',
+        INTRO_NEAR_FRONT_SPR_RHAND_OFF_X + state.body.wpx,
+        INTRO_NEAR_FRONT_SPR_HANDS_OFF_Y_START, 16, 16
+    )
+    state.tilePoses = {}
+    state.tileVelos = {}
+    
+    state.tilePoses[1] = Node.new(nil, 'm-tile', 50, SCREEN_H_px + 50)
+    state.tileVelos[1] = -2
 
     return setmetatable(state, {__index = Scene_NearFront})
 end
 
 function Scene_NearFront:tick()
     self.body.yoffpx = self.body.yoffpx - INTRO_NEAR_FRONT_HEAD_OFF_PER_TIC
+    self.lhand.yoffpx = self.lhand.yoffpx - INTRO_NEAR_FRONT_HAND_OFF_PER_TIC
+    self.rhand.yoffpx = self.rhand.yoffpx - INTRO_NEAR_FRONT_HAND_OFF_PER_TIC
 end
 
 function Scene_NearFront:draw()
-    
+    local x, y = self.body:pos()
+    spr(INTRO_NEAR_FRONT_SPR_BODY_ID, x, y, PALETTE.BLACK, 1, 0, 0,
+        INTRO_NEAR_FRONT_SPR_BODY_TW, INTRO_NEAR_FRONT_SPR_BODY_TH)
+    local lx, ly = self.lhand:pos()
+    spr(INTRO_NEAR_FRONT_SPR_LHAND_ID, lx, ly, PALETTE.BLACK, 1, 0, 0, 2, 2)
+    local rx, ry = self.rhand:pos()
+    spr(INTRO_NEAR_FRONT_SPR_RHAND_ID, rx, ry, PALETTE.BLACK, 1, 0, 0, 2, 2)
 end
 
 
@@ -1408,10 +1439,11 @@ StIntro.__index = StIntro
 function StIntro.new()
     local state = {
         scenes = {},
-        curScene = 1,
+        curScene = 2,
     }
 
     state.scenes[1] = Scene_FarFrontHandsOut.new()
+    state.scenes[2] = Scene_NearFront.new()
 
     return setmetatable(state, StIntro)
 end
@@ -1422,7 +1454,7 @@ end
 
 function StIntro:enter()
     sync(1, 1) -- switch tiles to bank 1
-    music(0)
+    music(0, 0, 0, false)
 end
 
 function StIntro:leave()
