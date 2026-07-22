@@ -1199,7 +1199,9 @@ SPR_FRONT_FAR_BODY_HAND_LEFT = 95
 SPR_FRONT_FAR_BODY_HAND_OFF_X = 8
 SPR_FRONT_FAR_BODY_HAND_OFF_Y = 8
 
-SPR_SMALL_TILE = 366
+SPR_SMALL_TILE_NORMAL = 366
+SPR_SMALL_TILE_CHARGED = 367
+SPR_SMALL_TILE_FROZEN = 382
 
 SPR_FRONT_CLOSE_HEAD_STRAINED_ID = 136
 SPR_FRONT_CLOSE_HEAD_STRAINED_TW = 8
@@ -1321,7 +1323,7 @@ function Scene_FarFrontHandsOut.new()
         local v = -math.random() *
             (INTRO_SCENE1_TILE_MAX_SPEED - INTRO_SCENE1_TILE_MIN_SPEED) -
             INTRO_SCENE1_TILE_MIN_SPEED
-        
+
         table.insert(state.tilePoses, Node.new(nil, '', x, y))
         table.insert(state.tileVelos, v)
     end
@@ -1357,7 +1359,7 @@ function Scene_FarFrontHandsOut:draw()
 
     for _, tile in ipairs(self.tilePoses) do
         local tx, ty = tile:pos()
-        spr(SPR_SMALL_TILE, tx, ty, PALETTE.BLACK, 1, 1, 0, 1, 1)
+        spr(SPR_SMALL_TILE_NORMAL, tx, ty, PALETTE.BLACK, 1, 1, 0, 1, 1)
     end
 end
 
@@ -1367,6 +1369,7 @@ end
 ---@field lhand Node
 ---@field tilePoses Node[]
 ---@field tileVelos integer[]
+---@field tileLetters string[]
 Scene_NearFront = {}
 setmetatable(Scene_NearFront, {__index = IntroScene})
 
@@ -1406,9 +1409,11 @@ function Scene_NearFront.new()
     )
     state.tilePoses = {}
     state.tileVelos = {}
-    
-    state.tilePoses[1] = Node.new(nil, 'm-tile', 50, SCREEN_H_px + 50)
+    state.tileLetters = {}
+
+    state.tilePoses[1] = Node.new(nil, 'm-tile', 50, SCREEN_H_px + 25)
     state.tileVelos[1] = -2
+    state.tileLetters[1] = 'm'
 
     return setmetatable(state, {__index = Scene_NearFront})
 end
@@ -1417,6 +1422,10 @@ function Scene_NearFront:tick()
     self.body.yoffpx = self.body.yoffpx - INTRO_NEAR_FRONT_HEAD_OFF_PER_TIC
     self.lhand.yoffpx = self.lhand.yoffpx - INTRO_NEAR_FRONT_HAND_OFF_PER_TIC
     self.rhand.yoffpx = self.rhand.yoffpx - INTRO_NEAR_FRONT_HAND_OFF_PER_TIC
+
+    for i, _ in ipairs(self.tilePoses) do
+        self.tilePoses[i].yoffpx = self.tilePoses[i].yoffpx + self.tileVelos[i]
+    end
 end
 
 function Scene_NearFront:draw()
@@ -1427,6 +1436,12 @@ function Scene_NearFront:draw()
     spr(INTRO_NEAR_FRONT_SPR_LHAND_ID, lx, ly, PALETTE.BLACK, 1, 0, 0, 2, 2)
     local rx, ry = self.rhand:pos()
     spr(INTRO_NEAR_FRONT_SPR_RHAND_ID, rx, ry, PALETTE.BLACK, 1, 0, 0, 2, 2)
+
+    for i, _ in ipairs(self.tilePoses) do
+        local node = self.tilePoses[i]
+        local x, y = node:pos()
+        RenderLetter(self.tileLetters[i], 'normal', x, y, nil, 1)
+    end
 end
 
 
@@ -1439,7 +1454,7 @@ StIntro.__index = StIntro
 function StIntro.new()
     local state = {
         scenes = {},
-        curScene = 2,
+        curScene = 1,
     }
 
     state.scenes[1] = Scene_FarFrontHandsOut.new()
@@ -1453,6 +1468,7 @@ function StIntro:draw()
 end
 
 function StIntro:enter()
+    math.randomseed(7) -- why not sticking?
     sync(1, 1) -- switch tiles to bank 1
     music(0, 0, 0, false)
 end
@@ -1472,6 +1488,7 @@ function StIntro:tick()
 
     if self.curScene > #self.scenes then
         self:leave()
+        math.randomseed()
         -- TRANSITION TO MAIN MENU
     end
 end
@@ -1669,6 +1686,26 @@ function LetterGrid:addTileToCol(letter, col, element)
     table.insert(column, GridTile.new(letter, row, element))
 end
 
+---@param letter string
+---@param elem TileElem
+---@param px number
+---@param py number
+---@param mode 'highlighted' | 'selected' | nil
+---@param scale number | nil
+function RenderLetter(letter, elem, px, py, mode, scale)
+    local sprite = LETTER_SPRITES[letter]
+    scale = scale or 1
+
+    spr(TILE_ELEMENTS[elem], px, py, nil, scale, 0, 0, 2, 2)
+    if mode =='highlighted' then
+        spr(TILE_HILITE, px, py, nil, scale, 0, 0, 2, 2)
+    elseif mode == 'selected' then
+        spr(TILE_SELECTED, px, py, nil, scale, 0, 0, 2, 2)
+    end
+
+    spr(sprite, px, py, LETTER_CHROMAKEY, scale, 0, 0, 2, 2)
+end
+
 ---draw a given letter to a given place
 ---@param col integer
 ---@param row integer
@@ -1680,20 +1717,11 @@ function LetterGrid:drawLetter(col, row, px, py, mode)
     local tile = self.cols[col][row]
     if not tile then return end
     local letter = tile.letter
-    local sprite = LETTER_SPRITES[letter]
     local offy = (tile.rowOff or 0) * LETTER_TILE_H_px
     py = py - offy
 
     local elem = tile.elem
-
-    spr(TILE_ELEMENTS[elem], px, py, nil, 1, 0, 0, 2, 2)
-    if mode =='highlighted' then
-        spr(TILE_HILITE, px, py, nil, 1, 0, 0, 2, 2)
-    elseif mode == 'selected' then
-        spr(TILE_SELECTED, px, py, nil, 1, 0, 0, 2, 2)
-    end
-
-    spr(sprite, px, py, LETTER_CHROMAKEY, 1, 0, 0, 2, 2)
+    RenderLetter(letter, elem, px, py, mode, 1)
 end
 
 ---draw an entire column
@@ -4040,7 +4068,7 @@ end
 
 function BOOT()
     cls(0)
-    sync(2, 1, false) -- why is this not working?
+    sync(2, 1, false)
     -- appState = StLoading.new()
     appState = StIntro.new()
     if appState.enter then appState:enter() end
@@ -4580,6 +4608,8 @@ end
 
 -- <SPRITES1>
 -- 110:0444443044444443444444434444444344444443444444433444443303333330
+-- 111:0555556055555556555555565555555655555556555555566555556606666660
+-- 126:0bbbbba0bbbbbbbabbbbbbbabbbbbbbabbbbbbbabbbbbbbaabbbbbaa0aaaaaa0
 -- 128:ccccccccccccccc1cccccc11cccccc11ccccc111ccccc11ccccc111ccccc11cc
 -- 129:cccccccccccccccc1ccccccc1ccccccc11cccccc11cccccc111cccccc11ccccc
 -- 130:cccccccccc111111cc111111cc111ccccc11cccccc11cccccc11cc11cc11cc11
