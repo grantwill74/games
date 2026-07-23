@@ -1260,7 +1260,7 @@ end
 IntroScenes = {
     -- far, front, hands out
     -- close, tiles moving up
-    -- far, back, tiles falling into position
+    -- far, back, title in arc, last tile coming down (crash)
     -- close, smiling, thumbs up
 }
 
@@ -1269,7 +1269,7 @@ INTRO_FAR_FLOAT_END_OFF_Y = -10
 INTRO_FAR_FLOAT_HEAD_START_Y = 40
 INTRO_FAR_FLOAT_HEAD_OFF_PER_TIC = INTRO_FAR_FLOAT_END_OFF_Y / INTRO_SCENE1_TIME
 INTRO_SCENE1_TILE_SPEED = 1 -- pixels per tick
-INTRO_SCENE1_N_TILES = 10
+INTRO_SCENE1_N_TILES = 11
 INTRO_SCENE1_TILE_MAX_SPEED = 4
 INTRO_SCENE1_TILE_MIN_SPEED = 1
 INTRO_SCENE1_TILE_MAX_OFF = 100
@@ -1315,6 +1315,10 @@ function Scene_FarFrontHandsOut.new()
     state.tilePoses = {}
     state.tileVelos = {}
 
+    local old_seed = math.random(0, 0xFFFFFFFF)
+
+    math.randomseed(44)
+
     -- scatter tiles around.
     for i=1, INTRO_SCENE1_N_TILES do
         local x = math.random(0, SCREEN_W_px - TILE_W_px)
@@ -1327,6 +1331,8 @@ function Scene_FarFrontHandsOut.new()
         table.insert(state.tilePoses, Node.new(nil, '', x, y))
         table.insert(state.tileVelos, v)
     end
+
+    math.randomseed(old_seed)
 
     return setmetatable(state, {__index = Scene_FarFrontHandsOut})
 end
@@ -1357,9 +1363,16 @@ function Scene_FarFrontHandsOut:draw()
     spr(SPR_FRONT_FAR_BODY_HAND_LEFT, lhandX, lhandY, PALETTE.BLACK,
         1, 0, 0, 1, 1)
 
-    for _, tile in ipairs(self.tilePoses) do
+    for i, tile in ipairs(self.tilePoses) do
         local tx, ty = tile:pos()
-        spr(SPR_SMALL_TILE_NORMAL, tx, ty, PALETTE.BLACK, 1, 1, 0, 1, 1)
+        local spriteId = SPR_SMALL_TILE_NORMAL
+        if i == 1 or i == 5 then
+            spriteId = SPR_SMALL_TILE_CHARGED
+        elseif i == 11 then
+            spriteId = SPR_SMALL_TILE_FROZEN
+        end
+
+        spr(spriteId, tx, ty, PALETTE.BLACK, 1, 1, 0, 1, 1)
     end
 end
 
@@ -1370,6 +1383,7 @@ end
 ---@field tilePoses Node[]
 ---@field tileVelos integer[]
 ---@field tileLetters string[]
+---@field tileElems TileElem[]
 Scene_NearFront = {}
 setmetatable(Scene_NearFront, {__index = IntroScene})
 
@@ -1388,6 +1402,9 @@ INTRO_NEAR_FRONT_SPR_LHAND_OFF_X = -16
 INTRO_NEAR_FRONT_SPR_RHAND_ID = 4
 INTRO_NEAR_FRONT_SPR_RHAND_OFF_X = 0
 INTRO_NEAR_FRONT_SPR_HANDS_OFF_Y_START = 40
+
+INTRO_NEAR_FRONT_N_TILES = 11
+INTRO_NEAR_FRONT_TILES_BEFORE_WISPELL = 5
 
 function Scene_NearFront.new()
     local state = IntroScene.new(INTRO_SCENE2_TIME) --[[ @as Scene_NearFront ]]
@@ -1410,10 +1427,62 @@ function Scene_NearFront.new()
     state.tilePoses = {}
     state.tileVelos = {}
     state.tileLetters = {}
+    state.tileElems = {}
 
-    state.tilePoses[1] = Node.new(nil, 'm-tile', 50, SCREEN_H_px + 25)
+    state.tilePoses[1] = Node.new(nil, 'm-tile', 50, SCREEN_H_px + 5)
     state.tileVelos[1] = -2
     state.tileLetters[1] = 'm'
+    state.tileElems[1] = 'charged'
+
+    state.tilePoses[2] = Node.new(nil, 'a-tile', 80, SCREEN_H_px)
+    state.tileVelos[2] = -2.5
+    state.tileLetters[2] = 'a'
+    state.tileElems[2] = 'normal'
+
+    state.tilePoses[3] = Node.new(nil, 'g-tile', 110, SCREEN_H_px + 30)
+    state.tileVelos[3] = -2.5
+    state.tileLetters[3] = 'g'
+    state.tileElems[3] = 'normal'
+
+    state.tilePoses[4] = Node.new(nil, 'i-tile', 140, SCREEN_H_px + 10)
+    state.tileVelos[4] = -2.0
+    state.tileLetters[4] = 'i'
+    state.tileElems[4] = 'normal'
+
+    state.tilePoses[5] = Node.new(nil, 'i-tile', 165, SCREEN_H_px + 75)
+    state.tileVelos[5] = -2.5
+    state.tileLetters[5] = 's'
+    state.tileElems[5] = 'charged'
+
+    state.tilePoses[6] = Node.new(nil, 's-tile', 35, SCREEN_H_px - 30)
+    state.tileVelos[6] = -1
+    state.tileLetters[6] = 'p'
+    state.tileElems[6] = 'normal'
+
+    state.tilePoses[7] = Node.new(nil, 'p-tile', 55, SCREEN_H_px - 40)
+    state.tileVelos[7] = -1.25
+    state.tileLetters[7] = 'e'
+    state.tileElems[7] = 'normal'
+
+    state.tilePoses[8] = Node.new(nil, 'e-tile', 70, SCREEN_H_px - 50)
+    state.tileVelos[8] = -1.25
+    state.tileLetters[8] = 'l'
+    state.tileElems[8] = 'normal'
+
+    state.tilePoses[9] = Node.new(nil, 'e-tile', 90, SCREEN_H_px - 25)
+    state.tileVelos[9] = -1.5
+    state.tileLetters[9] = 'l'
+    state.tileElems[9] = 'normal'
+
+    state.tilePoses[10] = Node.new(nil, 'e-tile', 112, SCREEN_H_px - 60)
+    state.tileVelos[10] = -1
+    state.tileLetters[10] = 's'
+    state.tileElems[10] = 'normal'
+
+    state.tilePoses[11] = Node.new(nil, 'e-tile', 135, SCREEN_H_px - 35)
+    state.tileVelos[11] = -1.25
+    state.tileLetters[11] = '!'
+    state.tileElems[11] = 'frozen'
 
     return setmetatable(state, {__index = Scene_NearFront})
 end
@@ -1430,6 +1499,15 @@ end
 
 function Scene_NearFront:draw()
     local x, y = self.body:pos()
+
+    -- tiles behind wispell
+    for i=INTRO_NEAR_FRONT_TILES_BEFORE_WISPELL, #self.tileLetters do
+        local node = self.tilePoses[i]
+        local tx, ty = node:pos()
+        local scale = 1
+        RenderLetter(self.tileLetters[i], self.tileElems[i], tx, ty, nil, scale)
+    end
+
     spr(INTRO_NEAR_FRONT_SPR_BODY_ID, x, y, PALETTE.BLACK, 1, 0, 0,
         INTRO_NEAR_FRONT_SPR_BODY_TW, INTRO_NEAR_FRONT_SPR_BODY_TH)
     local lx, ly = self.lhand:pos()
@@ -1437,10 +1515,12 @@ function Scene_NearFront:draw()
     local rx, ry = self.rhand:pos()
     spr(INTRO_NEAR_FRONT_SPR_RHAND_ID, rx, ry, PALETTE.BLACK, 1, 0, 0, 2, 2)
 
-    for i, _ in ipairs(self.tilePoses) do
+    -- tiles in front
+    for i=1, (INTRO_NEAR_FRONT_TILES_BEFORE_WISPELL - 1) do
         local node = self.tilePoses[i]
-        local x, y = node:pos()
-        RenderLetter(self.tileLetters[i], 'normal', x, y, nil, 1)
+        local tx, ty = node:pos()
+        local scale = 1
+        RenderLetter(self.tileLetters[i], self.tileElems[i], tx, ty, nil, scale)
     end
 end
 
@@ -1468,7 +1548,6 @@ function StIntro:draw()
 end
 
 function StIntro:enter()
-    math.randomseed(7) -- why not sticking?
     sync(1, 1) -- switch tiles to bank 1
     music(0, 0, 0, false)
 end
