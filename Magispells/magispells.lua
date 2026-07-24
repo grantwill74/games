@@ -1387,7 +1387,7 @@ end
 Scene_NearFront = {}
 setmetatable(Scene_NearFront, {__index = IntroScene})
 
-INTRO_SCENE2_TIME = 60 * 1.5
+INTRO_SCENE2_TIME = 60 * 1.44
 INTRO_NEAR_FRONT_END_OFF_Y  = 20
 INTRO_NEAR_FRONT_HEAD_START_Y = 40
 INTRO_NEAR_FRONT_HEAD_START_X = 100
@@ -1429,7 +1429,7 @@ function Scene_NearFront.new()
     state.tileLetters = {}
     state.tileElems = {}
 
-    state.tilePoses[1] = Node.new(nil, 'm-tile', 50, SCREEN_H_px + 5)
+    state.tilePoses[1] = Node.new(nil, 'm-tile', 25, SCREEN_H_px + 5)
     state.tileVelos[1] = -2
     state.tileLetters[1] = 'm'
     state.tileElems[1] = 'charged'
@@ -1449,37 +1449,37 @@ function Scene_NearFront.new()
     state.tileLetters[4] = 'i'
     state.tileElems[4] = 'normal'
 
-    state.tilePoses[5] = Node.new(nil, 'i-tile', 165, SCREEN_H_px + 75)
+    state.tilePoses[5] = Node.new(nil, 's-tile', 165, SCREEN_H_px + 75)
     state.tileVelos[5] = -2.5
     state.tileLetters[5] = 's'
     state.tileElems[5] = 'charged'
 
-    state.tilePoses[6] = Node.new(nil, 's-tile', 35, SCREEN_H_px - 30)
-    state.tileVelos[6] = -1
+    state.tilePoses[6] = Node.new(nil, 'p-tile', 195, SCREEN_H_px - 30)
+    state.tileVelos[6] = -2
     state.tileLetters[6] = 'p'
     state.tileElems[6] = 'normal'
 
-    state.tilePoses[7] = Node.new(nil, 'p-tile', 55, SCREEN_H_px - 40)
+    state.tilePoses[7] = Node.new(nil, 'e-tile', 55, SCREEN_H_px - 40)
     state.tileVelos[7] = -1.25
     state.tileLetters[7] = 'e'
     state.tileElems[7] = 'normal'
 
-    state.tilePoses[8] = Node.new(nil, 'e-tile', 70, SCREEN_H_px - 50)
+    state.tilePoses[8] = Node.new(nil, 'l-tile', 25, SCREEN_H_px - 50)
     state.tileVelos[8] = -1.25
     state.tileLetters[8] = 'l'
     state.tileElems[8] = 'normal'
 
-    state.tilePoses[9] = Node.new(nil, 'e-tile', 90, SCREEN_H_px - 25)
+    state.tilePoses[9] = Node.new(nil, 'l-tile2', 75, SCREEN_H_px - 25)
     state.tileVelos[9] = -1.5
     state.tileLetters[9] = 'l'
     state.tileElems[9] = 'normal'
 
-    state.tilePoses[10] = Node.new(nil, 'e-tile', 112, SCREEN_H_px - 60)
+    state.tilePoses[10] = Node.new(nil, 's-tile', 222, SCREEN_H_px - 60)
     state.tileVelos[10] = -1
     state.tileLetters[10] = 's'
     state.tileElems[10] = 'normal'
 
-    state.tilePoses[11] = Node.new(nil, 'e-tile', 135, SCREEN_H_px - 35)
+    state.tilePoses[11] = Node.new(nil, '!-tile', 165, SCREEN_H_px - 35)
     state.tileVelos[11] = -1.25
     state.tileLetters[11] = '!'
     state.tileElems[11] = 'frozen'
@@ -1495,6 +1495,8 @@ function Scene_NearFront:tick()
     for i, _ in ipairs(self.tilePoses) do
         self.tilePoses[i].yoffpx = self.tilePoses[i].yoffpx + self.tileVelos[i]
     end
+
+    self.t = self.t + 1
 end
 
 function Scene_NearFront:draw()
@@ -1525,6 +1527,66 @@ function Scene_NearFront:draw()
 end
 
 
+---@class Scene_FarBack : IntroScene
+---@field body Node
+---@field head Node
+---@field rhand Node
+---@field lhand Node
+---@field tilePoses Node[]
+---@field tileVelos integer[]
+---@field tileLetters string[]
+---@field tileElems TileElem[]
+Scene_FarBack = {}
+setmetatable(Scene_FarBack, {__index = IntroScene})
+
+INTRO_SCENE3_TIME = 4 * 60
+
+INTRO_SCENE3_FINAL_HAND_OFF = 8
+INTRO_SCENE3_HAND_OFF_TIME = 2 * 60
+INTRO_SCENE3_HAND_OFF_PER_TICK =
+    INTRO_SCENE3_FINAL_HAND_OFF / INTRO_SCENE3_HAND_OFF_TIME
+
+function Scene_FarBack.new()
+    local state = IntroScene.new(INTRO_SCENE3_TIME) --[[@as Scene_FarBack]]
+    -- you know, it might be easier if I hardcode some of these constants
+
+    state.body = Node.new(
+        nil, 'body', 45, 100,
+        SPR_BACK_FAR_BODY_TW * TILE_W_px,
+        SPR_BACK_FAR_BODY_TH * TILE_H_px
+    )
+    state.head = Node.new(
+        state.body, 'head', 0, -SPR_BACK_FAR_HEAD_TH * TILE_H_px + 4,
+        SPR_BACK_FAR_HEAD_TW * TILE_W_px,
+        SPR_BACK_FAR_HEAD_TH * TILE_H_px
+    )
+    state.rhand = Node.new(
+        state.body, 'rhand', SPR_BACK_FAR_BODY_TW * TILE_W_px + 4,
+        8, 8
+    )
+    state.lhand = Node.new(state.body, 'lhand', -8, 0, 8, 8)
+
+    return setmetatable(state, {__index = Scene_FarBack})
+end
+
+function Scene_FarBack:tick()
+
+end
+
+function Scene_FarBack:draw()
+    local bx, by = self.body:pos()
+    spr(SPR_BACK_FAR_BODY_ID, bx, by, PALETTE.BLACK, 1, 0, 0,
+        SPR_BACK_FAR_BODY_TW, SPR_BACK_FAR_BODY_TH)
+    local hx, hy = self.head:pos()
+    spr(SPR_BACK_FAR_HEAD_ID, hx, hy, PALETTE.BLACK, 1, 0, 0,
+        SPR_BACK_FAR_HEAD_TW, SPR_BACK_FAR_HEAD_TH)
+    local rhx, rhy = self.rhand:pos()
+    spr(SPR_BACK_FAR_HAND_RIGHT_ID, rhx, rhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
+    local lhx, lhy = self.lhand:pos()
+    spr(SPR_BACK_FAR_HAND_LEFT_ID, lhx, lhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
+end
+
+
 ---@class StIntro : IAppState
 ---@field scenes IntroScene
 ---@field curScene integer
@@ -1534,11 +1596,12 @@ StIntro.__index = StIntro
 function StIntro.new()
     local state = {
         scenes = {},
-        curScene = 1,
+        curScene = 3 -- 1,
     }
 
     state.scenes[1] = Scene_FarFrontHandsOut.new()
     state.scenes[2] = Scene_NearFront.new()
+    state.scenes[3] = Scene_FarBack.new()
 
     return setmetatable(state, StIntro)
 end
@@ -1567,7 +1630,6 @@ function StIntro:tick()
 
     if self.curScene > #self.scenes then
         self:leave()
-        math.randomseed()
         -- TRANSITION TO MAIN MENU
     end
 end
