@@ -21,6 +21,9 @@ MIN_WORD_LEN = 3
 SUB_STATE_DELAY = 30
 SUBMIT_DELAY_TICKS = 60
 
+LETTER_TILE_W_px = TILE_W_px * 2
+LETTER_TILE_H_px = TILE_H_px * 2
+
 IDEAL_VOWEL_PROP = 0.2
 
 ---@type integer
@@ -1256,6 +1259,23 @@ function IntroScene:finished()
     return self.t > self.tickLen
 end
 
+---@type string[]
+MagispellsChars = {'m', 'a', 'g', 'i', 's', 'p', 'e', 'l', 'l', 's', '!'}
+---@type TileElem[]
+MagispellsElems = {
+    'charged',  --m
+    'normal',   --a
+    'normal',   --g
+    'normal',   --i
+    'charged',  --s
+    'normal',   --p
+    'normal',   --e
+    'normal',   --l
+    'normal',   --l
+    'normal',   --s
+    'frozen'    --!
+}
+
 ---@type IntroScene[]
 IntroScenes = {
     -- far, front, hands out
@@ -1382,12 +1402,10 @@ end
 ---@field lhand Node
 ---@field tilePoses Node[]
 ---@field tileVelos integer[]
----@field tileLetters string[]
----@field tileElems TileElem[]
 Scene_NearFront = {}
 setmetatable(Scene_NearFront, {__index = IntroScene})
 
-INTRO_SCENE2_TIME = 60 * 1.44
+INTRO_SCENE2_TIME = 60 * 1.4
 INTRO_NEAR_FRONT_END_OFF_Y  = 20
 INTRO_NEAR_FRONT_HEAD_START_Y = 40
 INTRO_NEAR_FRONT_HEAD_START_X = 100
@@ -1426,63 +1444,39 @@ function Scene_NearFront.new()
     )
     state.tilePoses = {}
     state.tileVelos = {}
-    state.tileLetters = {}
-    state.tileElems = {}
 
     state.tilePoses[1] = Node.new(nil, 'm-tile', 25, SCREEN_H_px + 5)
     state.tileVelos[1] = -2
-    state.tileLetters[1] = 'm'
-    state.tileElems[1] = 'charged'
 
     state.tilePoses[2] = Node.new(nil, 'a-tile', 80, SCREEN_H_px)
     state.tileVelos[2] = -2.5
-    state.tileLetters[2] = 'a'
-    state.tileElems[2] = 'normal'
 
     state.tilePoses[3] = Node.new(nil, 'g-tile', 110, SCREEN_H_px + 30)
     state.tileVelos[3] = -2.5
-    state.tileLetters[3] = 'g'
-    state.tileElems[3] = 'normal'
 
     state.tilePoses[4] = Node.new(nil, 'i-tile', 140, SCREEN_H_px + 10)
     state.tileVelos[4] = -2.0
-    state.tileLetters[4] = 'i'
-    state.tileElems[4] = 'normal'
 
     state.tilePoses[5] = Node.new(nil, 's-tile', 165, SCREEN_H_px + 75)
     state.tileVelos[5] = -2.5
-    state.tileLetters[5] = 's'
-    state.tileElems[5] = 'charged'
 
     state.tilePoses[6] = Node.new(nil, 'p-tile', 195, SCREEN_H_px - 30)
     state.tileVelos[6] = -2
-    state.tileLetters[6] = 'p'
-    state.tileElems[6] = 'normal'
 
     state.tilePoses[7] = Node.new(nil, 'e-tile', 55, SCREEN_H_px - 40)
     state.tileVelos[7] = -1.25
-    state.tileLetters[7] = 'e'
-    state.tileElems[7] = 'normal'
 
     state.tilePoses[8] = Node.new(nil, 'l-tile', 25, SCREEN_H_px - 50)
     state.tileVelos[8] = -1.25
-    state.tileLetters[8] = 'l'
-    state.tileElems[8] = 'normal'
 
     state.tilePoses[9] = Node.new(nil, 'l-tile2', 75, SCREEN_H_px - 25)
     state.tileVelos[9] = -1.5
-    state.tileLetters[9] = 'l'
-    state.tileElems[9] = 'normal'
 
     state.tilePoses[10] = Node.new(nil, 's-tile', 222, SCREEN_H_px - 60)
     state.tileVelos[10] = -1
-    state.tileLetters[10] = 's'
-    state.tileElems[10] = 'normal'
 
     state.tilePoses[11] = Node.new(nil, '!-tile', 165, SCREEN_H_px - 35)
     state.tileVelos[11] = -1.25
-    state.tileLetters[11] = '!'
-    state.tileElems[11] = 'frozen'
 
     return setmetatable(state, {__index = Scene_NearFront})
 end
@@ -1503,11 +1497,11 @@ function Scene_NearFront:draw()
     local x, y = self.body:pos()
 
     -- tiles behind wispell
-    for i=INTRO_NEAR_FRONT_TILES_BEFORE_WISPELL, #self.tileLetters do
+    for i=INTRO_NEAR_FRONT_TILES_BEFORE_WISPELL, #MagispellsChars do
         local node = self.tilePoses[i]
         local tx, ty = node:pos()
         local scale = 1
-        RenderLetter(self.tileLetters[i], self.tileElems[i], tx, ty, nil, scale)
+        RenderLetter(MagispellsChars[i], MagispellsElems[i], tx, ty, nil, scale)
     end
 
     spr(INTRO_NEAR_FRONT_SPR_BODY_ID, x, y, PALETTE.BLACK, 1, 0, 0,
@@ -1522,9 +1516,29 @@ function Scene_NearFront:draw()
         local node = self.tilePoses[i]
         local tx, ty = node:pos()
         local scale = 1
-        RenderLetter(self.tileLetters[i], self.tileElems[i], tx, ty, nil, scale)
+        RenderLetter(MagispellsChars[i], MagispellsElems[i], tx, ty, nil, scale)
     end
 end
+
+TitleSideMargin = 10 
+
+TitleTopMargin = 10
+
+TitleNode = Node.new(nil, 'title',  TitleSideMargin, TitleTopMargin)
+
+TitleLetterBaseGap = 3
+TitleLetterBaseXoff = LETTER_TILE_W_px + TitleLetterBaseGap
+
+TitleM = Node.new(TitleNode, 'm', 0, 20)
+TitleA = Node.new(TitleM, 'a', TitleLetterBaseXoff, -2)
+TitleG = Node.new(TitleA, 'g', TitleLetterBaseXoff, -2)
+TitleI = Node.new(TitleG, 'i', TitleLetterBaseXoff, -2)
+TitleS1 = Node.new(TitleI, 's1', TitleLetterBaseXoff, -2)
+
+---@type Node[]
+TitleLetterNodes = {
+    TitleM, TitleA, TitleG, TitleI, TitleS1
+}
 
 
 ---@class Scene_FarBack : IntroScene
@@ -1561,10 +1575,11 @@ function Scene_FarBack.new()
         SPR_BACK_FAR_HEAD_TH * TILE_H_px
     )
     state.rhand = Node.new(
-        state.body, 'rhand', SPR_BACK_FAR_BODY_TW * TILE_W_px + 4,
-        8, 8
+        state.body, 'rhand',
+        SPR_BACK_FAR_BODY_TW * TILE_W_px + 2,
+        2, 8, 8
     )
-    state.lhand = Node.new(state.body, 'lhand', -8, 0, 8, 8)
+    state.lhand = Node.new(state.body, 'lhand', 0, -3, 8, 8)
 
     return setmetatable(state, {__index = Scene_FarBack})
 end
@@ -1584,6 +1599,11 @@ function Scene_FarBack:draw()
     spr(SPR_BACK_FAR_HAND_RIGHT_ID, rhx, rhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
     local lhx, lhy = self.lhand:pos()
     spr(SPR_BACK_FAR_HAND_LEFT_ID, lhx, lhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
+
+    for i, node in ipairs(TitleLetterNodes) do
+        local lx, ly = node:pos()
+        RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
+    end
 end
 
 
@@ -1648,8 +1668,6 @@ end
 --------------------------- in game constants ----------------------------------
 FIELD_TILES_W = 8
 FIELD_TILES_H = 8
-LETTER_TILE_W_px = TILE_W_px * 2
-LETTER_TILE_H_px = TILE_H_px * 2
 
 ---the number of y offset pixels for each column
 FIELD_TILES_Y_OFF_px = {8, 0, 8, 0, 8, 0, 8, 0}
