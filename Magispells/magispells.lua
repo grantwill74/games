@@ -1520,25 +1520,61 @@ function Scene_NearFront:draw()
     end
 end
 
-TitleSideMargin = 10 
+TITLE_SIDE_MARGIN = 32
+TITLE_TOP_MARGIN = 10
+TITLE_MAX_HEIGHT = 50
 
-TitleTopMargin = 10
+TitleNode = Node.new(nil, 'title',  TITLE_SIDE_MARGIN, TITLE_TOP_MARGIN)
+TITLE_N_LETTERS = 11
 
-TitleNode = Node.new(nil, 'title',  TitleSideMargin, TitleTopMargin)
+TITLE_LETTER_BASE_GAP =
+    (SCREEN_W_px - TITLE_N_LETTERS * LETTER_TILE_W_px - TITLE_SIDE_MARGIN * 2) /
+    TITLE_N_LETTERS
+TITLE_LETTER_BASE_XOFF = LETTER_TILE_W_px + TITLE_LETTER_BASE_GAP
+-- TitleYSlope1 = -3
 
-TitleLetterBaseGap = 3
-TitleLetterBaseXoff = LETTER_TILE_W_px + TitleLetterBaseGap
+-- we want the letters to form a nice arc. how much of an arc?
+TITLE_ARC_RADS = TAU / 4
+TITLE_HALF_ARC = TITLE_ARC_RADS / 2
+TITLE_HALF_N_LETTERS = TITLE_N_LETTERS / 2
 
-TitleM = Node.new(TitleNode, 'm', 0, 20)
-TitleA = Node.new(TitleM, 'a', TitleLetterBaseXoff, -2)
-TitleG = Node.new(TitleA, 'g', TitleLetterBaseXoff, -2)
-TitleI = Node.new(TitleG, 'i', TitleLetterBaseXoff, -2)
-TitleS1 = Node.new(TitleI, 's1', TitleLetterBaseXoff, -2)
+TITLE_MAX_YOFF = math.cos(TITLE_HALF_ARC)
+---@param whichNo integer
+---@
+function TitleLetterOffY(whichNo)
+    local phase = (whichNo - 1 - TITLE_HALF_N_LETTERS) / TITLE_N_LETTERS
+    return TITLE_MAX_HEIGHT * (1 -
+        math.sin(phase * TITLE_HALF_ARC)) - LETTER_TILE_H_px
+end
+
+---@type Node[]
+TitleLetterNodes = {}
+
+_TitleNodeNames = {'m', 'a', 'g', 'i', 's1', 'p', 'e', 'l1', 'l2', 's2', '!'}
+
+for i = 1, TITLE_N_LETTERS do
+    local offY = TitleLetterOffY(i)
+    local node = Node.new(
+        TitleNode,
+        _TitleNodeNames[i],
+        (i - 1) * TITLE_LETTER_BASE_XOFF,
+        offY
+    )
+    table.insert(TitleLetterNodes, node)
+end
+
+--[[
+TitleM = Node.new(TitleNode, 'm', 0, TitleLetterOffY(1))
+TitleA = Node.new(TitleM, 'a', TITLE_LETTER_BASE_XOFF, TitleLetterOff(1))
+TitleG = Node.new(TitleA, 'g', TITLE_LETTER_BASE_XOFF,  TitleYSlope1)
+TitleI = Node.new(TitleG, 'i', TITLE_LETTER_BASE_XOFF,  TitleYSlope1)
+TitleS1 = Node.new(TitleI, 's1', TITLE_LETTER_BASE_XOFF, 12)
 
 ---@type Node[]
 TitleLetterNodes = {
     TitleM, TitleA, TitleG, TitleI, TitleS1
 }
+]]
 
 
 ---@class Scene_FarBack : IntroScene
