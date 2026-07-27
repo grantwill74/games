@@ -1405,7 +1405,7 @@ end
 Scene_NearFront = {}
 setmetatable(Scene_NearFront, {__index = IntroScene})
 
-INTRO_SCENE2_TIME = 60 * 1.4
+INTRO_SCENE2_TIME = 60 * 1.3
 INTRO_NEAR_FRONT_END_OFF_Y  = 20
 INTRO_NEAR_FRONT_HEAD_START_Y = 40
 INTRO_NEAR_FRONT_HEAD_START_X = 100
@@ -1542,7 +1542,6 @@ TITLE_MAX_YOFF_FACTOR = 1 / (1 - math.cos(TITLE_HALF_ARC))
 ---@param whichNo integer
 function TitleLetterOffY(whichNo)
     local phase = (whichNo - 1 - TITLE_HALF_N_LETTERS + .5) / (TITLE_N_LETTERS - 1)
-    trace(string.format("which: %d, phase: %f, cos: %f", whichNo, phase, math.cos(phase * TITLE_HALF_ARC)))
     return TITLE_MAX_HEIGHT * (1 -
         math.cos(phase * TITLE_HALF_ARC)) * TITLE_MAX_YOFF_FACTOR + LETTER_TILE_H_px
 end
@@ -1563,45 +1562,43 @@ for i = 1, TITLE_N_LETTERS do
     table.insert(TitleLetterNodes, node)
 end
 
---[[
-TitleM = Node.new(TitleNode, 'm', 0, TitleLetterOffY(1))
-TitleA = Node.new(TitleM, 'a', TITLE_LETTER_BASE_XOFF, TitleLetterOff(1))
-TitleG = Node.new(TitleA, 'g', TITLE_LETTER_BASE_XOFF,  TitleYSlope1)
-TitleI = Node.new(TitleG, 'i', TITLE_LETTER_BASE_XOFF,  TitleYSlope1)
-TitleS1 = Node.new(TitleI, 's1', TITLE_LETTER_BASE_XOFF, 12)
-
----@type Node[]
-TitleLetterNodes = {
-    TitleM, TitleA, TitleG, TitleI, TitleS1
-}
-]]
-
 
 ---@class Scene_FarBack : IntroScene
 ---@field body Node
 ---@field head Node
 ---@field rhand Node
 ---@field lhand Node
+---@field bangNode Node
 ---@field tilePoses Node[]
 ---@field tileVelos integer[]
 ---@field tileLetters string[]
 ---@field tileElems TileElem[]
+---@field handDownTicks integer
+---@field bumpNode Node
 Scene_FarBack = {}
 setmetatable(Scene_FarBack, {__index = IntroScene})
 
-INTRO_SCENE3_TIME = 4 * 60
+INTRO_SCENE3_TIME = 6 * 60
 
 INTRO_SCENE3_FINAL_HAND_OFF = 8
 INTRO_SCENE3_HAND_OFF_TIME = 2 * 60
 INTRO_SCENE3_HAND_OFF_PER_TICK =
     INTRO_SCENE3_FINAL_HAND_OFF / INTRO_SCENE3_HAND_OFF_TIME
+INTRO_SCENE3_BANG_NODE_FINAL_YOFF = TitleLetterOffY(TITLE_N_LETTERS)
+INTRO_SCENE3_BANG_NODE_START_YOFF = -LETTER_TILE_H_px
+INTRO_SCENE3_BANG_NODE_OFF_PER_TICK =
+    (INTRO_SCENE3_BANG_NODE_FINAL_YOFF - INTRO_SCENE3_BANG_NODE_START_YOFF) /
+    INTRO_SCENE3_HAND_OFF_TIME
 
 function Scene_FarBack.new()
     local state = IntroScene.new(INTRO_SCENE3_TIME) --[[@as Scene_FarBack]]
     -- you know, it might be easier if I hardcode some of these constants
 
+    -- used to bump everything when the last letter hits its spot
+    state.bumpNode = Node.new(nil, 'bump', TitleNode.xoffpx, TitleNode.yoffpx)
+
     state.body = Node.new(
-        nil, 'body', 45, 100,
+        state.bumpNode, 'body', 45, 100,
         SPR_BACK_FAR_BODY_TW * TILE_W_px,
         SPR_BACK_FAR_BODY_TH * TILE_H_px
     )
@@ -1616,30 +1613,46 @@ function Scene_FarBack.new()
         2, 8, 8
     )
     state.lhand = Node.new(state.body, 'lhand', 0, -3, 8, 8)
+    state.bangNode = Node.new(
+        state.bumpNode, '!',
+        TitleLetterNodes[TITLE_N_LETTERS].xoffpx,
+        INTRO_SCENE3_BANG_NODE_START_YOFF
+    )
+
+    state.handDownTicks = 0
 
     return setmetatable(state, {__index = Scene_FarBack})
 end
 
 function Scene_FarBack:tick()
-
+    if self.handDownTicks < INTRO_SCENE3_HAND_OFF_TIME then
+        self.handDownTicks = self.handDownTicks + 1
+        self.lhand.yoffpx = self.lhand.yoffpx + INTRO_SCENE3_HAND_OFF_PER_TICK
+        self.rhand.yoffpx = self.rhand.yoffpx + INTRO_SCENE3_HAND_OFF_PER_TICK
+        self.bangNode.yoffpx = self.bangNode.yoffpx + INTRO_SCENE3_BANG_NODE_OFF_PER_TICK
+    end
 end
 
 function Scene_FarBack:draw()
+    local rhx, rhy = self.rhand:pos()
+    spr(SPR_BACK_FAR_HAND_RIGHT_ID, rhx, rhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
+    local lhx, lhy = self.lhand:pos()
+    spr(SPR_BACK_FAR_HAND_LEFT_ID, lhx, lhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
     local bx, by = self.body:pos()
     spr(SPR_BACK_FAR_BODY_ID, bx, by, PALETTE.BLACK, 1, 0, 0,
         SPR_BACK_FAR_BODY_TW, SPR_BACK_FAR_BODY_TH)
     local hx, hy = self.head:pos()
     spr(SPR_BACK_FAR_HEAD_ID, hx, hy, PALETTE.BLACK, 1, 0, 0,
         SPR_BACK_FAR_HEAD_TW, SPR_BACK_FAR_HEAD_TH)
-    local rhx, rhy = self.rhand:pos()
-    spr(SPR_BACK_FAR_HAND_RIGHT_ID, rhx, rhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
-    local lhx, lhy = self.lhand:pos()
-    spr(SPR_BACK_FAR_HAND_LEFT_ID, lhx, lhy, PALETTE.BLACK, 1, 0, 0, 1, 1)
 
-    for i, node in ipairs(TitleLetterNodes) do
+    for i = 1, TITLE_N_LETTERS - 1 do
+        local node = TitleLetterNodes[i]
         local lx, ly = node:pos()
         RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
     end
+
+    local bangx, bangy = self.bangNode:pos()
+    RenderLetter('!', 'frozen', bangx, bangy)
 end
 
 
@@ -1652,7 +1665,7 @@ StIntro.__index = StIntro
 function StIntro.new()
     local state = {
         scenes = {},
-        curScene = 3 -- 1,
+        curScene = 1 -- 1,
     }
 
     state.scenes[1] = Scene_FarFrontHandsOut.new()
