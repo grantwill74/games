@@ -1538,13 +1538,13 @@ TITLE_ARC_RADS = TAU / 4
 TITLE_HALF_ARC = TITLE_ARC_RADS / 2
 TITLE_HALF_N_LETTERS = TITLE_N_LETTERS / 2
 
-TITLE_MAX_YOFF = math.cos(TITLE_HALF_ARC)
+TITLE_MAX_YOFF_FACTOR = 1 / (1 - math.cos(TITLE_HALF_ARC))
 ---@param whichNo integer
----@
 function TitleLetterOffY(whichNo)
-    local phase = (whichNo - 1 - TITLE_HALF_N_LETTERS) / TITLE_N_LETTERS
+    local phase = (whichNo - 1 - TITLE_HALF_N_LETTERS + .5) / (TITLE_N_LETTERS - 1)
+    trace(string.format("which: %d, phase: %f, cos: %f", whichNo, phase, math.cos(phase * TITLE_HALF_ARC)))
     return TITLE_MAX_HEIGHT * (1 -
-        math.sin(phase * TITLE_HALF_ARC)) - LETTER_TILE_H_px
+        math.cos(phase * TITLE_HALF_ARC)) * TITLE_MAX_YOFF_FACTOR + LETTER_TILE_H_px
 end
 
 ---@type Node[]
