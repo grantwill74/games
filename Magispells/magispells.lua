@@ -1562,6 +1562,7 @@ for i = 1, TITLE_N_LETTERS do
     table.insert(TitleLetterNodes, node)
 end
 
+---@alias PalEntry {r: number, g: number, b: number}
 
 ---@class Scene_FarBack : IntroScene
 ---@field body Node
@@ -1575,10 +1576,12 @@ end
 ---@field tileElems TileElem[]
 ---@field handDownTicks integer
 ---@field bumpNode Node
+---@field savedPalette PalEntry[]
+---@field palFadeStep PalEntry[] # how much to fade each entry per tick
 Scene_FarBack = {}
 setmetatable(Scene_FarBack, {__index = IntroScene})
 
-INTRO_SCENE3_TIME = 6 * 60
+INTRO_SCENE3_TIME = 7 * 60
 
 INTRO_SCENE3_FINAL_HAND_OFF = 8
 INTRO_SCENE3_HAND_OFF_TIME = 2 * 60
@@ -1589,16 +1592,25 @@ INTRO_SCENE3_BANG_NODE_START_YOFF = -LETTER_TILE_H_px
 INTRO_SCENE3_BANG_NODE_OFF_PER_TICK =
     (INTRO_SCENE3_BANG_NODE_FINAL_YOFF - INTRO_SCENE3_BANG_NODE_START_YOFF) /
     INTRO_SCENE3_HAND_OFF_TIME
+INTRO_SCENE3_BUMP_OFFY = -2
+INTRO_SCENE3_BUMP_UP_TICKS = 6
+INTRO_SCENE3_BUMP_SFX = 20
+INTRO_SCENE3_FADE_OUT_START = 4 * 60
+INTRO_SCENE3_FADE_OUT_TICKS = 2 * 60
+
 
 function Scene_FarBack.new()
     local state = IntroScene.new(INTRO_SCENE3_TIME) --[[@as Scene_FarBack]]
     -- you know, it might be easier if I hardcode some of these constants
 
     -- used to bump everything when the last letter hits its spot
-    state.bumpNode = Node.new(nil, 'bump', TitleNode.xoffpx, TitleNode.yoffpx)
+    state.bumpNode = Node.new(nil, 'bump', 0, 0)
+    -- temporarily parent the title to the bump so all the letters bump up
+    TitleNode.parent = state.bumpNode
+    
 
     state.body = Node.new(
-        state.bumpNode, 'body', 45, 100,
+        nil, 'body', 45, 100,
         SPR_BACK_FAR_BODY_TW * TILE_W_px,
         SPR_BACK_FAR_BODY_TH * TILE_H_px
     )
@@ -1614,10 +1626,29 @@ function Scene_FarBack.new()
     )
     state.lhand = Node.new(state.body, 'lhand', 0, -3, 8, 8)
     state.bangNode = Node.new(
-        state.bumpNode, '!',
+        TitleNode, '!',
         TitleLetterNodes[TITLE_N_LETTERS].xoffpx,
         INTRO_SCENE3_BANG_NODE_START_YOFF
     )
+    state.savedPalette = {}
+    state.palFadeStep = {}
+
+    -- save the palette so that we can fade out
+    for i=0, 15 do
+        --- @type PalEntry
+        local saved = {}
+        local entry = PALETTE_ADDR + i * 3
+        saved.r = peek(entry)
+        saved.g = peek(entry + 1)
+        saved.b = peek(entry + 2)
+        table.insert(state.savedPalette, saved)
+
+        local step = {}
+        step.r = saved.r / INTRO_SCENE3_FADE_OUT_TICKS
+        step.g = saved.g / INTRO_SCENE3_FADE_OUT_TICKS
+        step.b = saved.b / INTRO_SCENE3_FADE_OUT_TICKS
+        table.insert(state.palFadeStep, step)
+    end
 
     state.handDownTicks = 0
 
@@ -1625,12 +1656,39 @@ function Scene_FarBack.new()
 end
 
 function Scene_FarBack:tick()
+    self.t = self.t + 1
+
     if self.handDownTicks < INTRO_SCENE3_HAND_OFF_TIME then
         self.handDownTicks = self.handDownTicks + 1
         self.lhand.yoffpx = self.lhand.yoffpx + INTRO_SCENE3_HAND_OFF_PER_TICK
         self.rhand.yoffpx = self.rhand.yoffpx + INTRO_SCENE3_HAND_OFF_PER_TICK
         self.bangNode.yoffpx = self.bangNode.yoffpx + INTRO_SCENE3_BANG_NODE_OFF_PER_TICK
+        return
     end
+
+    local timeAfterBump = self.handDownTicks - INTRO_SCENE3_HAND_OFF_TIME
+
+    if timeAfterBump == 0 then
+        self.bumpNode.yoffpx = INTRO_SCENE3_BUMP_OFFY
+        sfx(INTRO_SCENE3_BUMP_SFX, 'C-3', 120, SFX_CHANNEL, 15)
+    elseif timeAfterBump == INTRO_SCENE3_BUMP_UP_TICKS then
+        self.bumpNode.yoffpx = 0
+    end
+
+    local timeAfterFade = self.t - INTRO_SCENE3_FADE_OUT_START
+
+    if timeAfterFade >= 0 and timeAfterFade < INTRO_SCENE3_FADE_OUT_TICKS then
+        for palIndex=0, 15 do
+            local orig = self.savedPalette[palIndex + 1]
+            local step = self.palFadeStep[palIndex + 1]
+            local addr = PALETTE_ADDR + palIndex * 3
+            poke(addr, orig.r - step.r * timeAfterFade)
+            poke(addr + 1, orig.g - step.g * timeAfterFade)
+            poke(addr + 2, orig.b - step.b * timeAfterFade)
+        end
+    end
+
+    self.handDownTicks = self.handDownTicks + 1
 end
 
 function Scene_FarBack:draw()
@@ -2013,7 +2071,7 @@ OVR_TRANS_ADDR = 0x3FF8
 function LetterGrid:draw(highlight, strand)
     vbank(1)
     -- update palette in vbank 1
-    
+
     for _, palIndex in ipairs(CYCLE_COLORS) do
         local lo = CYCLE_LOW_COLOR[palIndex]
         local hi = CYCLE_HIGH_COLOR[palIndex]
