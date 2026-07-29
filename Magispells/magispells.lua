@@ -1581,7 +1581,7 @@ end
 Scene_FarBack = {}
 setmetatable(Scene_FarBack, {__index = IntroScene})
 
-INTRO_SCENE3_TIME = 7 * 60
+INTRO_SCENE3_TIME = 5 * 60
 
 INTRO_SCENE3_FINAL_HAND_OFF = 8
 INTRO_SCENE3_HAND_OFF_TIME = 2 * 60
@@ -1595,9 +1595,14 @@ INTRO_SCENE3_BANG_NODE_OFF_PER_TICK =
 INTRO_SCENE3_BUMP_OFFY = -2
 INTRO_SCENE3_BUMP_UP_TICKS = 6
 INTRO_SCENE3_BUMP_SFX = 20
-INTRO_SCENE3_FADE_OUT_START = 4 * 60
-INTRO_SCENE3_FADE_OUT_TICKS = 2 * 60
-
+INTRO_SCENE3_FADE_OUT_START = 3 * 60
+INTRO_SCENE3_FADE_OUT_TICKS = 1 * 60
+INTRO_SCENE3_FADE_OUT_CHUNKS = 6
+INTRO_SCENE3_FADE_OUT_AMOUNT = 1 / INTRO_SCENE3_FADE_OUT_CHUNKS
+INTRO_SCENE3_FADE_OUT_TICKS_PER_CHUNK =
+    INTRO_SCENE3_FADE_OUT_TICKS /
+    INTRO_SCENE3_FADE_OUT_CHUNKS
+INTRO_SCENE3_FADE_OUT_MOD = math.floor(INTRO_SCENE3_FADE_OUT_TICKS_PER_CHUNK)
 
 function Scene_FarBack.new()
     local state = IntroScene.new(INTRO_SCENE3_TIME) --[[@as Scene_FarBack]]
@@ -1655,6 +1660,41 @@ function Scene_FarBack.new()
     return setmetatable(state, {__index = Scene_FarBack})
 end
 
+
+---@param palStart PalEntry[]
+---@param amount number
+---@return nil
+function FadeOutBy(palStart, amount)
+    for palIndex=0, 15 do
+        local orig = palStart[palIndex + 1]
+        local amntR = orig.r * amount
+        local amntG = orig.g * amount
+        local amntB = orig.b * amount
+        local addr = PALETTE_ADDR + palIndex * 3
+        poke(addr, orig.r - amntR)
+        poke(addr + 1, orig.g - amntG)
+        poke(addr + 2, orig.b - amntB)
+    end
+end
+
+
+---@param palEnd PalEntry[]
+---@param amount number
+---@return nil
+function FadeInBy(palEnd, amount)
+    for palIndex=0, 15 do
+        local dest = palEnd[palIndex + 1]
+        local amntR = dest.r * amount
+        local amntG = dest.g * amount
+        local amntB = dest.b * amount
+        local addr = PALETTE_ADDR + palIndex * 3
+        poke(addr, amntR)
+        poke(addr + 1, amntG)
+        poke(addr + 2, amntB)
+    end
+end
+
+
 function Scene_FarBack:tick()
     self.t = self.t + 1
 
@@ -1676,16 +1716,15 @@ function Scene_FarBack:tick()
     end
 
     local timeAfterFade = self.t - INTRO_SCENE3_FADE_OUT_START
+    local timesFaded = timeAfterFade / INTRO_SCENE3_FADE_OUT_TICKS_PER_CHUNK
 
-    if timeAfterFade >= 0 and timeAfterFade < INTRO_SCENE3_FADE_OUT_TICKS then
-        for palIndex=0, 15 do
-            local orig = self.savedPalette[palIndex + 1]
-            local step = self.palFadeStep[palIndex + 1]
-            local addr = PALETTE_ADDR + palIndex * 3
-            poke(addr, orig.r - step.r * timeAfterFade)
-            poke(addr + 1, orig.g - step.g * timeAfterFade)
-            poke(addr + 2, orig.b - step.b * timeAfterFade)
-        end
+    if  timeAfterFade >= 0 and
+        (   (timeAfterFade < INTRO_SCENE3_FADE_OUT_TICKS and
+            timeAfterFade % INTRO_SCENE3_FADE_OUT_MOD == 0) or
+            (timeAfterFade == INTRO_SCENE3_FADE_OUT_TICKS)
+        )
+    then
+        FadeOutBy(self.savedPalette, INTRO_SCENE3_FADE_OUT_AMOUNT * timesFaded)
     end
 
     self.handDownTicks = self.handDownTicks + 1
