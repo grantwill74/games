@@ -1795,8 +1795,8 @@ function StIntro:tick()
     end
 
     if self.curScene > #self.scenes then
-        self:leave()
         -- TRANSITION TO MAIN MENU
+        return StMainMenu.new()
     end
 end
 
@@ -1808,7 +1808,36 @@ end
 -- Zoom back out, facing behind Wispell, as sprites come down in shape of title
 -- Wispell smiles and faces the camera, giving the thumbs up. 
 -- mixolydian title music starts playing
+-- I like it! It ended up looking pretty good.
 
+
+---@class StMainMenu : IAppState
+StMainMenu = {}
+
+
+---@return StMainMenu
+function StMainMenu.new()
+    local state = {
+    }
+
+    return setmetatable(state, {__index = StMainMenu})
+end
+
+function StMainMenu.enter()
+    music(1)
+end
+
+function StMainMenu.leave()
+    music()
+end
+
+function StMainMenu.tick()
+
+end
+
+function StMainMenu.draw()
+
+end
 
 
 --------------------------- in game constants ----------------------------------
@@ -4406,6 +4435,7 @@ function SetVolume(vol)
 end
 
 function TIC()
+    -- TODO: move this to in-game state
     if MusicEnabled then
         CurrentSongState:tick()
 
@@ -4418,6 +4448,8 @@ function TIC()
     local tx = appState:tick(Mouse)
 
     if tx then
+        if appState.leave then appState:leave() end
+        if appState.enter then tx:enter() end
         appState = tx
     end
 
