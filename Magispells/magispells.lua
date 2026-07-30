@@ -1660,6 +1660,18 @@ function Scene_FarBack.new()
     return setmetatable(state, {__index = Scene_FarBack})
 end
 
+-- TODO: there's other code that messes with the palette that should be refactored
+-- to use this function
+
+---Set the color in the palette
+---@param palIndex integer
+---@param color PalEntry
+function PokePalColor(palIndex, color)
+    local addr = PALETTE_ADDR + palIndex * 3
+    poke(addr, color.r)
+    poke(addr + 1, color.g)
+    poke(addr + 2, color.b)
+end
 
 ---@param palStart PalEntry[]
 ---@param amount number
@@ -1670,10 +1682,12 @@ function FadeOutBy(palStart, amount)
         local amntR = orig.r * amount
         local amntG = orig.g * amount
         local amntB = orig.b * amount
-        local addr = PALETTE_ADDR + palIndex * 3
-        poke(addr, orig.r - amntR)
-        poke(addr + 1, orig.g - amntG)
-        poke(addr + 2, orig.b - amntB)
+        local color = {
+            r = orig.r - amntR,
+            g = orig.g - amntG,
+            b = orig.b - amntB
+        }
+        PokePalColor(palIndex, color)
     end
 end
 
@@ -1687,10 +1701,7 @@ function FadeInBy(palEnd, amount)
         local amntR = dest.r * amount
         local amntG = dest.g * amount
         local amntB = dest.b * amount
-        local addr = PALETTE_ADDR + palIndex * 3
-        poke(addr, amntR)
-        poke(addr + 1, amntG)
-        poke(addr + 2, amntB)
+        PokePalColor(palIndex, {r = amntR, g = amntG, b = amntB})
     end
 end
 
@@ -1785,10 +1796,35 @@ function StIntro:leave()
     music()
 end
 
+
+-- cyan cycling definitions for the intro and main menu where wispell's 
+-- ectoplasm changes color (TODO: consider adding this to the main game, too)
+CYAN_LO = {
+    r = 0x33,
+    g = 0x8F,
+    b = 0x77
+}
+CYAN_HI = {
+    r = 0xff,
+    g = 0xfF,
+    b = 0xFf
+}
+function CycleCyan()
+    -- cycle cyan color 
+    -- TODO: figure out why this won't work
+    local newColor = CycleCurColor(CYAN_LO, CYAN_HI, ColorCyclePhase)
+    trace(ToStr(newColor))
+    PokePalColor(PALETTE.CYAN, newColor)
+
+    ColorCyclePhase = (ColorCyclePhase + 1) % 1024
+end
+
+
 function StIntro:tick()
     local cur = self.scenes[self.curScene]
 
     cur:tick()
+    CycleCyan()
 
     if cur:finished() then
         self.curScene = self.curScene + 1
@@ -1796,7 +1832,8 @@ function StIntro:tick()
 
     if self.curScene > #self.scenes then
         -- TRANSITION TO MAIN MENU
-        return StMainMenu.new()
+        local fadeOutScene = self.scenes[#self.scenes] --[[@as Scene_FarBack]]
+        return StMainMenu.new(fadeOutScene.savedPalette)
     end
 end
 
@@ -1811,28 +1848,38 @@ end
 -- I like it! It ended up looking pretty good.
 
 
+MENU_FADE_IN_TIME = 1 * 60
+
 ---@class StMainMenu : IAppState
+---@field fadeInTicks integer
+---@field finalPalette PalEntry[]
 StMainMenu = {}
 
 
+---@param palette  PalEntry[]
 ---@return StMainMenu
-function StMainMenu.new()
+function StMainMenu.new(palette)
     local state = {
+        fadeInTicks = 0,
+        finalPalette = palette
     }
 
     return setmetatable(state, {__index = StMainMenu})
 end
 
 function StMainMenu.enter()
+    sync(1, 1) -- switch tiles to bank 1
     music(1)
 end
 
 function StMainMenu.leave()
+    -- FadeInBy()
+    -- reset Cyan
     music()
 end
 
 function StMainMenu.tick()
-
+    CycleCyan()
 end
 
 function StMainMenu.draw()
