@@ -96,7 +96,7 @@ function CycleCurColor(lo, hi, phase)
     local result = {
         r = math.floor(0.5 + lo.r + (hi.r - lo.r) * alpha),
         g = math.floor(0.5 + lo.g + (hi.g - lo.g) * alpha),
-        b = math.floor(0.5 + lo.b + (hi.b - hi.b) * alpha),
+        b = math.floor(0.5 + lo.b + (hi.b - lo.b) * alpha),
     }
 
     return result
@@ -1562,7 +1562,7 @@ for i = 1, TITLE_N_LETTERS do
     table.insert(TitleLetterNodes, node)
 end
 
----@alias PalEntry {r: number, g: number, b: number}
+---@alias PalEntry Rgb
 
 ---@class Scene_FarBack : IntroScene
 ---@field body Node
@@ -1799,28 +1799,30 @@ end
 
 -- cyan cycling definitions for the intro and main menu where wispell's 
 -- ectoplasm changes color (TODO: consider adding this to the main game, too)
+---@type Rgb
 CYAN_LO = {
-    r = 0x33,
-    g = 0x8F,
+    r = 0x22,
+    g = 0x55,
     b = 0x77
 }
+---@type Rgb
 CYAN_HI = {
-    r = 0xff,
+    r = 0x8f,
     g = 0xfF,
     b = 0xFf
 }
 function CycleCyan()
     -- cycle cyan color 
-    -- TODO: figure out why this won't work
     local newColor = CycleCurColor(CYAN_LO, CYAN_HI, ColorCyclePhase)
-    trace(ToStr(newColor))
     PokePalColor(PALETTE.CYAN, newColor)
 
     ColorCyclePhase = (ColorCyclePhase + 1) % 1024
 end
 
-
-function StIntro:tick()
+---@param mouse MouseState
+---@return StMainMenu|nil
+function StIntro:tick(mouse)
+    local mouseClicked = mouse.left or mouse.middle or mouse.right
     local cur = self.scenes[self.curScene]
 
     cur:tick()
@@ -1830,7 +1832,7 @@ function StIntro:tick()
         self.curScene = self.curScene + 1
     end
 
-    if self.curScene > #self.scenes then
+    if self.curScene > #self.scenes or mouseClicked then
         -- TRANSITION TO MAIN MENU
         local fadeOutScene = self.scenes[#self.scenes] --[[@as Scene_FarBack]]
         return StMainMenu.new(fadeOutScene.savedPalette)
@@ -1853,37 +1855,79 @@ MENU_FADE_IN_TIME = 1 * 60
 ---@class StMainMenu : IAppState
 ---@field fadeInTicks integer
 ---@field finalPalette PalEntry[]
+---@field nWispellHead Node
+---@field nWispellBody Node
 StMainMenu = {}
 
+MENU_TITLE_OFFY = -20
+MENU_SPR_THUMBS_UP = 224
+MENU_SPR_HAND_WAVE = 226
+MENU_SPR_HAND_TW = 2
+MENU_SPR_HAND_TH = 2
+MENU_SPR_HEAD = 128
+MENU_SPR_HEAD_TW = 8
+MENU_SPR_HEAD_TH = 6
+MENU_SPR_BODY_OFFY = 8
+MENU_SPR_BODY = 217
+MENU_SPR_BODY_TW = 6
+MENU_SPR_BODY_TH = 3
 
 ---@param palette  PalEntry[]
 ---@return StMainMenu
 function StMainMenu.new(palette)
+    local wispellHead = Node.new(nil, 'wispell head',
+        0, 0,
+        MENU_SPR_HEAD_TW * TILE_W_px,
+        MENU_SPR_HEAD_TH * TILE_H_px
+    )
+    local wispellBody = Node.new(nil, 'wispell body',
+        TILE_W_px, MENU_SPR_BODY_OFFY,
+        MENU_SPR_BODY_TW * TILE_W_px,
+        MENU_SPR_BODY_TH * TILE_H_px
+    )
     local state = {
         fadeInTicks = 0,
-        finalPalette = palette
+        finalPalette = palette,
+        letterNode = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
+        nWispellHead = wispellHead,
+        nWispellBody = wispellBody
     }
+
+    TitleNode.parent = state.letterNode
 
     return setmetatable(state, {__index = StMainMenu})
 end
 
-function StMainMenu.enter()
+function StMainMenu:enter()
     sync(1, 1) -- switch tiles to bank 1
     music(1)
 end
 
-function StMainMenu.leave()
+function StMainMenu:leave()
     -- FadeInBy()
-    -- reset Cyan
+    -- TODO: reset Cyan?
     music()
 end
 
-function StMainMenu.tick()
+function StMainMenu:tick()
     CycleCyan()
 end
 
-function StMainMenu.draw()
+function StMainMenu:draw()
+    -- draw in the bottom left
+    local wispellHeight =
+        self.nWispellHead.hpx +
+        MENU_SPR_BODY_OFFY +
+        self.nWispellBody.hpx
+    spr(MENU_SPR_HEAD, 0, SCREEN_H_px - wispellHeight, PALETTE.BLACK, 1, 0, 0,
+        MENU_SPR_HEAD_TW, MENU_SPR_HEAD_TH)
+    spr(MENU_SPR_BODY, 0, SCREEN_H_px - self.nWispellBody.hpx, PALETTE.BLACK,
+        1, 0, 0, MENU_SPR_BODY_TW, MENU_SPR_BODY_TH)
 
+    for i, node in ipairs(TitleLetterNodes) do
+        local lx, ly = node:pos()
+        RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
+    end
 end
 
 
@@ -4447,17 +4491,6 @@ function PlayNextSong()
     PlaySongIdx(next)
 end
 
-function BOOT()
-    cls(0)
-    sync(2, 1, false)
-    -- appState = StLoading.new()
-    appState = StIntro.new()
-    if appState.enter then appState:enter() end
-    Mouse = MouseState.new()
-
-    -- MusicOn()
-end
-
 -- addresses of the 4 volume nybbles
 -- stride is 18 bytes
 VOLUME_BASE_ADDR4 = 0xFF9C * 2 + 3
@@ -4479,6 +4512,17 @@ function SetVolume(vol)
             poke4(adr, math.ceil((vol/15) * currentVol))
         end
     end
+end
+
+function BOOT()
+    cls(0)
+    sync(2, 1, false)
+    -- appState = StLoading.new()
+    appState = StIntro.new()
+    if appState.enter then appState:enter() end
+    Mouse = MouseState.new()
+
+    -- MusicOn()
 end
 
 function TIC()
