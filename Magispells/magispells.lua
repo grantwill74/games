@@ -1819,6 +1819,8 @@ function StIntro:leave()
     music()
 end
 
+INTRO_FADE_OUT_SCENE = 3
+
 
 -- cyan cycling definitions for the intro and main menu where wispell's 
 -- ectoplasm changes color (TODO: consider adding this to the main game, too)
@@ -1849,15 +1851,21 @@ function StIntro:tick(mouse)
     local cur = self.scenes[self.curScene]
 
     cur:tick()
-    CycleCyan()
 
     if cur:finished() then
         self.curScene = self.curScene + 1
     end
 
+    -- convenience local, used in two places conditionally
+    local fadeOutScene = self.scenes[#self.scenes] --[[@as Scene_FarBack]]
+    if  self.curScene < INTRO_FADE_OUT_SCENE or
+        fadeOutScene.t < INTRO_SCENE3_FADE_OUT_START
+    then
+        CycleCyan()
+    end
+
     if self.curScene > #self.scenes or mouseClicked then
         -- TRANSITION TO MAIN MENU
-        local fadeOutScene = self.scenes[#self.scenes] --[[@as Scene_FarBack]]
         return StMainMenu.new(fadeOutScene.savedPalette)
     end
 end
