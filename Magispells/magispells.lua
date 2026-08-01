@@ -1888,6 +1888,7 @@ end
 ---@field nWispellBody Node
 ---@field nWispellLHand Node
 ---@field nWispellRHand Node
+---@field hoverCycle integer
 StMainMenu = {}
 
 MENU_TITLE_OFFY = -20
@@ -1911,6 +1912,11 @@ MENU_FADE_TICKS = .5 * 60
 MENU_FADE_CHUNKS = 6
 MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
 MENU_FADE_TICKS_PER_CHUNK = MENU_FADE_TICKS / MENU_FADE_CHUNKS
+MENU_WISPELL_HOVER_AMP = 5
+--- cycles per tic
+MENU_WISPELL_HOVER_SPEED = 2 * TAU / 60 / 16
+--- tics per cycle
+MENU_WISPELL_HOVER_TIME = 1 / MENU_WISPELL_HOVER_SPEED 
 
 ---@return StMainMenu
 function StMainMenu.new()
@@ -1944,6 +1950,7 @@ function StMainMenu.new()
         nWispellBody = wispellBody,
         nWispellLHand = wispellLHand,
         nWispellRHand = wispellRHand,
+        hoverCycle = 0
     }
 
     TitleNode.parent = state.letterNode
@@ -1979,17 +1986,19 @@ function StMainMenu:tick(mouse)
 end
 
 function StMainMenu:draw()
+    local hoverOff = MENU_WISPELL_HOVER_AMP * math.sin(0)
+
     local hx, hy = self.nWispellHead:pos()
-    spr(MENU_SPR_HEAD, hx, hy, PALETTE.BLACK, 1, 0, 0,
+    spr(MENU_SPR_HEAD, hx, hy + hoverOff, PALETTE.BLACK, 1, 0, 0,
         MENU_SPR_HEAD_TW, MENU_SPR_HEAD_TH)
     local bx, by = self.nWispellBody:pos()
-    spr(MENU_SPR_BODY, bx, by, PALETTE.BLACK,
+    spr(MENU_SPR_BODY, bx, by + hoverOff, PALETTE.BLACK,
         1, 0, 0, MENU_SPR_BODY_TW, MENU_SPR_BODY_TH)
     local lhx, lhy = self.nWispellLHand:pos()
-    spr(MENU_SPR_HAND_WAVE, lhx, lhy, PALETTE.BLACK,
+    spr(MENU_SPR_HAND_WAVE, lhx, lhy + hoverOff, PALETTE.BLACK,
         1, 0, 0, MENU_SPR_HAND_TW, MENU_SPR_HAND_TH)
     local rhx, rhy = self.nWispellRHand:pos()
-    spr(MENU_SPR_THUMBS_UP, rhx, rhy, PALETTE.BLACK,
+    spr(MENU_SPR_THUMBS_UP, rhx, rhy + hoverOff, PALETTE.BLACK,
         1, 1, 0, MENU_SPR_HAND_TW, MENU_SPR_HAND_TH)
     for i, node in ipairs(TitleLetterNodes) do
         local lx, ly = node:pos()
