@@ -1887,6 +1887,7 @@ end
 ---@field nWispellHead Node
 ---@field nWispellBody Node
 ---@field nWispellLHand Node
+---@field nWispellRHand Node
 StMainMenu = {}
 
 MENU_TITLE_OFFY = -20
@@ -1904,6 +1905,8 @@ MENU_SPR_BODY_TW = 6
 MENU_SPR_BODY_TH = 3
 MENU_SPR_LHAND_OFFX = MENU_SPR_BODY_TW * TILE_W_px + 8
 MENU_SPR_LHAND_OFFY = -16
+MENU_SPR_RHAND_OFFX = -TILE_W_px
+MENU_SPR_RHAND_OFFY = TILE_H_px
 MENU_FADE_TICKS = .5 * 60
 MENU_FADE_CHUNKS = 6
 MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
@@ -1928,13 +1931,19 @@ function StMainMenu.new()
         MENU_SPR_LHAND_OFFX, MENU_SPR_LHAND_OFFY,
         MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
     )
-    
+    local wispellRHand = Node.new(
+        wispellBody, 'wispell rhand',
+        MENU_SPR_RHAND_OFFX, MENU_SPR_RHAND_OFFY,
+        MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
+    )
+
     local state = {
         fadeInTicks = 0,
         letterNode = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
         nWispellHead = wispellHead,
         nWispellBody = wispellBody,
-        nWispellLHand = wispellLHand
+        nWispellLHand = wispellLHand,
+        nWispellRHand = wispellRHand,
     }
 
     TitleNode.parent = state.letterNode
@@ -1979,6 +1988,9 @@ function StMainMenu:draw()
     local lhx, lhy = self.nWispellLHand:pos()
     spr(MENU_SPR_HAND_WAVE, lhx, lhy, PALETTE.BLACK,
         1, 0, 0, MENU_SPR_HAND_TW, MENU_SPR_HAND_TH)
+    local rhx, rhy = self.nWispellRHand:pos()
+    spr(MENU_SPR_THUMBS_UP, rhx, rhy, PALETTE.BLACK,
+        1, 1, 0, MENU_SPR_HAND_TW, MENU_SPR_HAND_TH)
     for i, node in ipairs(TitleLetterNodes) do
         local lx, ly = node:pos()
         RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
