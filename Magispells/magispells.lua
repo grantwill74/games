@@ -1866,7 +1866,7 @@ function StIntro:tick(mouse)
 
     if self.curScene > #self.scenes or mouseClicked then
         -- TRANSITION TO MAIN MENU
-        return StMainMenu.new(fadeOutScene.savedPalette)
+        return StMainMenu.new()
     end
 end
 
@@ -1886,6 +1886,7 @@ end
 ---@field finalPalette PalEntry[]
 ---@field nWispellHead Node
 ---@field nWispellBody Node
+---@field nWispellLHand Node
 StMainMenu = {}
 
 MENU_TITLE_OFFY = -20
@@ -1901,14 +1902,15 @@ MENU_SPR_BODY_OFFY = -4
 MENU_SPR_BODY = 217
 MENU_SPR_BODY_TW = 6
 MENU_SPR_BODY_TH = 3
+MENU_SPR_LHAND_OFFX = MENU_SPR_BODY_TW * TILE_W_px + 8
+MENU_SPR_LHAND_OFFY = -16
 MENU_FADE_TICKS = .5 * 60
 MENU_FADE_CHUNKS = 6
 MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
 MENU_FADE_TICKS_PER_CHUNK = MENU_FADE_TICKS / MENU_FADE_CHUNKS
 
----@param palette  PalEntry[]|nil
 ---@return StMainMenu
-function StMainMenu.new(palette)
+function StMainMenu.new()
     local wispellHead = Node.new(
         nil, 'wispell head',
         0, SCREEN_H_px - (MENU_SPR_HEAD_TH + MENU_SPR_BODY_TH) * TILE_H_px,
@@ -1921,12 +1923,18 @@ function StMainMenu.new(palette)
         MENU_SPR_BODY_TW * TILE_W_px,
         MENU_SPR_BODY_TH * TILE_H_px
     )
+    local wispellLHand = Node.new(
+        wispellBody, 'wispell lhand',
+        MENU_SPR_LHAND_OFFX, MENU_SPR_LHAND_OFFY,
+        MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
+    )
+    
     local state = {
-        fadeInTicks = palette and 0 or MENU_FADE_TICKS,
-        finalPalette = palette or DefaultPalette,
+        fadeInTicks = 0,
         letterNode = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
         nWispellHead = wispellHead,
-        nWispellBody = wispellBody
+        nWispellBody = wispellBody,
+        nWispellLHand = wispellLHand
     }
 
     TitleNode.parent = state.letterNode
@@ -1952,7 +1960,7 @@ function StMainMenu:tick(mouse)
         local brightLevel =
             math.floor(self.fadeInTicks / MENU_FADE_TICKS_PER_CHUNK) *
             MENU_FADE_CHUNK_BRIGHTNESS_AMNT
-        FadeInBy(self.finalPalette, brightLevel)
+        FadeInBy(DefaultPalette, brightLevel)
     elseif self.fadeInTicks == MENU_FADE_CHUNKS then
         self.fadeInTicks = self.fadeInTicks + 1
     else
@@ -1962,18 +1970,15 @@ function StMainMenu:tick(mouse)
 end
 
 function StMainMenu:draw()
-    -- draw in the bottom left
-    local wispellHeight =
-        self.nWispellHead.hpx +
-        MENU_SPR_BODY_OFFY +
-        self.nWispellBody.hpx
     local hx, hy = self.nWispellHead:pos()
     spr(MENU_SPR_HEAD, hx, hy, PALETTE.BLACK, 1, 0, 0,
         MENU_SPR_HEAD_TW, MENU_SPR_HEAD_TH)
     local bx, by = self.nWispellBody:pos()
     spr(MENU_SPR_BODY, bx, by, PALETTE.BLACK,
         1, 0, 0, MENU_SPR_BODY_TW, MENU_SPR_BODY_TH)
-
+    local lhx, lhy = self.nWispellLHand:pos()
+    spr(MENU_SPR_HAND_WAVE, lhx, lhy, PALETTE.BLACK,
+        1, 0, 0, MENU_SPR_HAND_TW, MENU_SPR_HAND_TH)
     for i, node in ipairs(TitleLetterNodes) do
         local lx, ly = node:pos()
         RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
@@ -4567,7 +4572,8 @@ function BOOT()
     cls(0)
     sync(2, 1, false)
     -- appState = StLoading.new()
-    appState = StIntro.new()
+    -- appState = StIntro.new()
+    appState = StMainMenu.new()
     if appState.enter then appState:enter() end
     Mouse = MouseState.new()
 
