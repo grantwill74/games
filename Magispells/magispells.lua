@@ -31,6 +31,9 @@ SCREEN_W_tiles = SCREEN_W_px / TILE_W_px
 ---@type integer
 SCREEN_H_tiles = SCREEN_H_px / TILE_H_px
 
+
+PALETTE_ADDR = 0x3FC0
+
 ---default palette colors
 PALETTE = {
     BLACK = 0,
@@ -50,6 +53,37 @@ PALETTE = {
     MID_GRAY = 14,
     DK_GRAY = 15,
 }
+
+-- TODO: there's other code that messes with the palette that should be refactored
+-- to use this function
+
+---Set the color in the palette
+---@param palIndex integer
+---@param color PalEntry
+function PokePalColor(palIndex, color)
+    local addr = PALETTE_ADDR + palIndex * 3
+    poke(addr, color.r)
+    poke(addr + 1, color.g)
+    poke(addr + 2, color.b)
+end
+
+---@param palIndex integer
+---@return PalEntry
+function PeekPalColor(palIndex)
+    local addr = PALETTE_ADDR + palIndex * 3
+    local r = peek(addr)
+    local g = peek(addr + 1)
+    local b = peek(addr + 2)
+    return { r = r, g = g, b = b }
+end
+
+
+---@type Rgb[]
+DefaultPalette = {}
+for i = 0, 15 do
+    local color = PeekPalColor(i)
+    table.insert(DefaultPalette, color)
+end
 
 ---these colors cycle in vbank 2
 CYCLE_COLORS = {
@@ -1660,18 +1694,7 @@ function Scene_FarBack.new()
     return setmetatable(state, {__index = Scene_FarBack})
 end
 
--- TODO: there's other code that messes with the palette that should be refactored
--- to use this function
 
----Set the color in the palette
----@param palIndex integer
----@param color PalEntry
-function PokePalColor(palIndex, color)
-    local addr = PALETTE_ADDR + palIndex * 3
-    poke(addr, color.r)
-    poke(addr + 1, color.g)
-    poke(addr + 2, color.b)
-end
 
 ---@param palStart PalEntry[]
 ---@param amount number
@@ -1850,8 +1873,6 @@ end
 -- I like it! It ended up looking pretty good.
 
 
-MENU_FADE_IN_TIME = 1 * 60
-
 ---@class StMainMenu : IAppState
 ---@field fadeInTicks integer
 ---@field finalPalette PalEntry[]
@@ -1867,27 +1888,34 @@ MENU_SPR_HAND_TH = 2
 MENU_SPR_HEAD = 128
 MENU_SPR_HEAD_TW = 8
 MENU_SPR_HEAD_TH = 6
-MENU_SPR_BODY_OFFY = 8
+MENU_SPR_BODY_OFFX = 8
+MENU_SPR_BODY_OFFY = -4
 MENU_SPR_BODY = 217
 MENU_SPR_BODY_TW = 6
 MENU_SPR_BODY_TH = 3
+MENU_FADE_TICKS = .5 * 60
+MENU_FADE_CHUNKS = 6
+MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
+MENU_FADE_TICKS_PER_CHUNK = MENU_FADE_TICKS / MENU_FADE_CHUNKS
 
----@param palette  PalEntry[]
+---@param palette  PalEntry[]|nil
 ---@return StMainMenu
 function StMainMenu.new(palette)
-    local wispellHead = Node.new(nil, 'wispell head',
-        0, 0,
+    local wispellHead = Node.new(
+        nil, 'wispell head',
+        0, SCREEN_H_px - (MENU_SPR_HEAD_TH + MENU_SPR_BODY_TH) * TILE_H_px,
         MENU_SPR_HEAD_TW * TILE_W_px,
         MENU_SPR_HEAD_TH * TILE_H_px
     )
-    local wispellBody = Node.new(nil, 'wispell body',
-        TILE_W_px, MENU_SPR_BODY_OFFY,
+    local wispellBody = Node.new(
+        wispellHead, 'wispell body',
+        MENU_SPR_BODY_OFFX, MENU_SPR_BODY_OFFY + MENU_SPR_HEAD_TH * TILE_H_px,
         MENU_SPR_BODY_TW * TILE_W_px,
         MENU_SPR_BODY_TH * TILE_H_px
     )
     local state = {
-        fadeInTicks = 0,
-        finalPalette = palette,
+        fadeInTicks = palette and 0 or MENU_FADE_TICKS,
+        finalPalette = palette or DefaultPalette,
         letterNode = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
         nWispellHead = wispellHead,
         nWispellBody = wispellBody
@@ -1909,8 +1937,20 @@ function StMainMenu:leave()
     music()
 end
 
-function StMainMenu:tick()
-    CycleCyan()
+---@param mouse MouseState
+function StMainMenu:tick(mouse)
+    if self.fadeInTicks < MENU_FADE_TICKS then
+        self.fadeInTicks = self.fadeInTicks + 1
+        local brightLevel =
+            math.floor(self.fadeInTicks / MENU_FADE_TICKS_PER_CHUNK) *
+            MENU_FADE_CHUNK_BRIGHTNESS_AMNT
+        FadeInBy(self.finalPalette, brightLevel)
+    elseif self.fadeInTicks == MENU_FADE_CHUNKS then
+        self.fadeInTicks = self.fadeInTicks + 1
+    else
+        CycleCyan()
+    end
+    
 end
 
 function StMainMenu:draw()
@@ -1919,9 +1959,11 @@ function StMainMenu:draw()
         self.nWispellHead.hpx +
         MENU_SPR_BODY_OFFY +
         self.nWispellBody.hpx
-    spr(MENU_SPR_HEAD, 0, SCREEN_H_px - wispellHeight, PALETTE.BLACK, 1, 0, 0,
+    local hx, hy = self.nWispellHead:pos()
+    spr(MENU_SPR_HEAD, hx, hy, PALETTE.BLACK, 1, 0, 0,
         MENU_SPR_HEAD_TW, MENU_SPR_HEAD_TH)
-    spr(MENU_SPR_BODY, 0, SCREEN_H_px - self.nWispellBody.hpx, PALETTE.BLACK,
+    local bx, by = self.nWispellBody:pos()
+    spr(MENU_SPR_BODY, bx, by, PALETTE.BLACK,
         1, 0, 0, MENU_SPR_BODY_TW, MENU_SPR_BODY_TH)
 
     for i, node in ipairs(TitleLetterNodes) do
@@ -2222,7 +2264,6 @@ function LetterGrid:drawBetweenArrows(crs)
     end
 end
 
-PALETTE_ADDR = 0x3FC0
 OVR_TRANS_ADDR = 0x3FF8
 
 ---@param highlight Cr | nil # tile to highlight for mouseover
