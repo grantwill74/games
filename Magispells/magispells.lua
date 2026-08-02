@@ -706,6 +706,32 @@ function SpriteToggleButton:draw()
     spr(spriteId, x, y, self.chroma)
 end
 
+
+---@class TextButton : Button
+---@field text string
+---@field textColor integer
+TextButton = {}
+setmetatable(TextButton, {__index = Button})
+
+---@param node Node
+---@param name string
+---@param hint string
+---@param text string
+---@param textColor integer
+function TextButton.new(node, name, hint, text, textColor)
+    local button = Button.new(node, name, hint) --[[@as TextButton]]
+    button.text = text
+    button.textColor = textColor
+
+    return setmetatable(button, {__index = TextButton})
+end
+
+function TextButton:draw()
+    local x, y = self.node:pos()
+    print(self.text, x, y, self.textColor)
+end
+
+
 ---@return TileElem
 function DrawElement()
     local r = math.random()
@@ -713,6 +739,9 @@ function DrawElement()
     return 'normal'
 end
 
+
+-- TODO: refactor name to SpawnLetter. Normally draw means render in my
+-- codebase, but here it means to draw it (from a random distribution)
 ---Generate a letter according to the table of frequencies. Shuffles the
 ---array of frequencies to mitigate the error
 ---@param pVowels number proportion of vowels
@@ -1880,6 +1909,25 @@ end
 -- mixolydian title music starts playing
 -- I like it! It ended up looking pretty good.
 
+---@class SubMenu
+---@field buttons Button[]
+SubMenu = {}
+
+
+---@return SubMenu
+function SubMenu.new()
+    return setmetatable({}, SubMenu)
+end
+
+---@return Button|nil
+function SubMenu:tickButtons()
+    
+end
+
+--- The main menu's sub-menu 
+---@class Sub_Main 
+Sub_Main = {}
+
 
 ---@class StMainMenu : IAppState
 ---@field fadeInTicks integer
@@ -1889,7 +1937,9 @@ end
 ---@field nWispellLHand Node
 ---@field nWispellRHand Node
 ---@field hoverCycle integer
+---@field btnStartGame Button
 StMainMenu = {}
+
 
 MENU_TITLE_OFFY = -20
 MENU_SPR_THUMBS_UP = 224
@@ -1942,6 +1992,8 @@ function StMainMenu.new()
         MENU_SPR_RHAND_OFFX, MENU_SPR_RHAND_OFFY,
         MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
     )
+
+
 
     local state = {
         fadeInTicks = 0,
