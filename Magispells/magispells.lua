@@ -1919,9 +1919,19 @@ function SubMenu.new()
     return setmetatable({}, SubMenu)
 end
 
+---@param mouse MouseState
 ---@return Button|nil
-function SubMenu:tickButtons()
-    
+function SubMenu:updateButtonsAndDetectClick(mouse)
+    return Button.updateButtonsAndDetectClick(
+        self.buttons, mouse.x, mouse.y, mouse.left)
+end
+
+
+---@class SubMenu_FadeIn : SubMenu
+---@field fadeInTicks integer
+SubMenu_FadeIn = {}
+function SubMenu_FadeIn.new()
+
 end
 
 --- The main menu's sub-menu 
