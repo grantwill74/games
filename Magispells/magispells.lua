@@ -1926,20 +1926,16 @@ function SubMenu:updateButtonsAndDetectClick(mouse)
         self.buttons, mouse.x, mouse.y, mouse.left)
 end
 
+function SubMenu:tick(mouse)
+    -- abstract
+end
 
----@class SubMenu_FadeIn : SubMenu
----@field fadeInTicks integer
-SubMenu_FadeIn = {}
-function SubMenu_FadeIn.new()
-
+function SubMenu:draw()
+    -- abstract 
 end
 
 --- The main menu's sub-menu 
----@class Sub_Main 
-Sub_Main = {}
-
-
----@class StMainMenu : IAppState
+---@class Sub_Title : SubMenu
 ---@field fadeInTicks integer
 ---@field finalPalette PalEntry[]
 ---@field nWispellHead Node
@@ -1948,8 +1944,8 @@ Sub_Main = {}
 ---@field nWispellRHand Node
 ---@field hoverCycle integer
 ---@field btnStartGame Button
-StMainMenu = {}
-
+Sub_Title = {}
+setmetatable(Sub_Title, {__index = SubMenu})
 
 MENU_TITLE_OFFY = -20
 MENU_SPR_THUMBS_UP = 224
@@ -1978,8 +1974,8 @@ MENU_WISPELL_HOVER_SPEED = 2 * TAU / 60 / 16
 --- tics per cycle
 MENU_WISPELL_HOVER_TIME = 1 / MENU_WISPELL_HOVER_SPEED 
 
----@return StMainMenu
-function StMainMenu.new()
+---@return Sub_Title
+function Sub_Title.new()
     local wispellHead = Node.new(
         nil, 'wispell head',
         0, SCREEN_H_px - (MENU_SPR_HEAD_TH + MENU_SPR_BODY_TH) * TILE_H_px,
@@ -2003,8 +1999,6 @@ function StMainMenu.new()
         MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
     )
 
-
-
     local state = {
         fadeInTicks = 0,
         letterNode = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
@@ -2017,22 +2011,10 @@ function StMainMenu.new()
 
     TitleNode.parent = state.letterNode
 
-    return setmetatable(state, {__index = StMainMenu})
+    return setmetatable(state, {__index = Sub_Title})
 end
 
-function StMainMenu:enter()
-    sync(1, 1) -- switch tiles to bank 1
-    music(1)
-end
-
-function StMainMenu:leave()
-    -- FadeInBy()
-    -- TODO: reset Cyan?
-    music()
-end
-
----@param mouse MouseState
-function StMainMenu:tick(mouse)
+function Sub_Title:tick()
     if self.fadeInTicks < MENU_FADE_TICKS then
         self.fadeInTicks = self.fadeInTicks + 1
         local brightLevel =
@@ -2044,10 +2026,9 @@ function StMainMenu:tick(mouse)
     else
         CycleCyan()
     end
-    
 end
 
-function StMainMenu:draw()
+function Sub_Title:draw()
     local hoverOff = MENU_WISPELL_HOVER_AMP * math.sin(0)
 
     local hx, hy = self.nWispellHead:pos()
@@ -2066,6 +2047,43 @@ function StMainMenu:draw()
         local lx, ly = node:pos()
         RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
     end
+end
+
+---@class StMainMenu : IAppState
+---@field subTitle Sub_Title
+---@field curSub SubMenu
+StMainMenu = {}
+
+---@return StMainMenu
+function StMainMenu.new()
+    local subTitle = Sub_Title.new()
+
+    local state = {
+        subTitle = subTitle,
+        curSub = subTitle,
+    }
+
+    return setmetatable(state, {__index = StMainMenu})
+end
+
+function StMainMenu:enter()
+    sync(1, 1) -- switch tiles to bank 1
+    music(1)
+end
+
+function StMainMenu:leave()
+    -- FadeInBy()
+    -- TODO: reset Cyan?
+    music()
+end
+
+---@param mouse MouseState
+function StMainMenu:tick(mouse)
+    self.curSub:tick(mouse)
+end
+
+function StMainMenu:draw()
+    self.curSub:draw()
 end
 
 
