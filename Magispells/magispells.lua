@@ -1916,7 +1916,7 @@ SubMenu = {}
 
 ---@return SubMenu
 function SubMenu.new()
-    return setmetatable({}, SubMenu)
+    return setmetatable({buttons = {}}, SubMenu)
 end
 
 ---@param mouse MouseState
@@ -1938,6 +1938,9 @@ end
 ---@class Sub_Title : SubMenu
 ---@field fadeInTicks integer
 ---@field finalPalette PalEntry[]
+---@field nTitleLetters Node
+---@field nButtons Node
+---@field btnWidth number
 ---@field nWispellHead Node
 ---@field nWispellBody Node
 ---@field nWispellLHand Node
@@ -1968,14 +1971,21 @@ MENU_FADE_TICKS = .5 * 60
 MENU_FADE_CHUNKS = 6
 MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
 MENU_FADE_TICKS_PER_CHUNK = MENU_FADE_TICKS / MENU_FADE_CHUNKS
-MENU_WISPELL_HOVER_AMP = 5
---- cycles per tic
-MENU_WISPELL_HOVER_SPEED = 2 * TAU / 60 / 16
---- tics per cycle
-MENU_WISPELL_HOVER_TIME = 1 / MENU_WISPELL_HOVER_SPEED 
+MENU_WISPELL_HOVER_AMP = 4
+--- seconds
+MENU_WISPELL_HOVER_PERIOD = 4
+MENU_WISPELL_HOVER_PERIOD_TICS = math.floor(MENU_WISPELL_HOVER_PERIOD * 60)
+--- phase per tick
+MENU_WISPELL_HOVER_FREQ = 1 / MENU_WISPELL_HOVER_PERIOD_TICS
+
+MENU_BTN_NAME_START = 'new game'
+MENU_BTN_NAME_START_TEXT = 'New Game!'
+MENU_BTN_NAME_START_HINT = 'Start a new game!'
 
 ---@return Sub_Title
 function Sub_Title.new()
+    local state = SubMenu.new() --[[@as Sub_Title]]
+
     local wispellHead = Node.new(
         nil, 'wispell head',
         0, SCREEN_H_px - (MENU_SPR_HEAD_TH + MENU_SPR_BODY_TH) * TILE_H_px,
@@ -1999,22 +2009,42 @@ function Sub_Title.new()
         MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
     )
 
-    local state = {
+    for var, val in pairs({
         fadeInTicks = 0,
-        letterNode = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
+        nTitleLetters = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
         nWispellHead = wispellHead,
         nWispellBody = wispellBody,
         nWispellLHand = wispellLHand,
         nWispellRHand = wispellRHand,
         hoverCycle = 0
-    }
+    }) do
+        state[var] = val
+    end
 
-    TitleNode.parent = state.letterNode
+    -- print button off screen to get the rendered width
+    local startBtnW = print(MENU_BTN_NAME_START_TEXT, SCREEN_W_px)
+
+    state.nButtons = Node.new(
+        nil, 'buttons',
+        SCREEN_W_px / 2,
+        SCREEN_H_px / 2,
+        startBtnW, TILE_H_px
+    )
+    state.btnStartGame = TextButton.new(
+        state.nButtons,
+        MENU_BTN_NAME_START,
+        MENU_BTN_NAME_START_TEXT,
+        MENU_BTN_NAME_START_HINT,
+        PALETTE.YELLOW
+    )
+    table.insert(state.buttons, state.btnStartGame);
+
+    TitleNode.parent = state.nTitleLetters
 
     return setmetatable(state, {__index = Sub_Title})
 end
 
-function Sub_Title:tick()
+function Sub_Title:tick(mouse)
     if self.fadeInTicks < MENU_FADE_TICKS then
         self.fadeInTicks = self.fadeInTicks + 1
         local brightLevel =
@@ -2026,10 +2056,15 @@ function Sub_Title:tick()
     else
         CycleCyan()
     end
+
+    self.hoverCycle = (self.hoverCycle + 1) % MENU_WISPELL_HOVER_PERIOD_TICS
+
+    local button = self:updateButtonsAndDetectClick(mouse)
 end
 
 function Sub_Title:draw()
-    local hoverOff = MENU_WISPELL_HOVER_AMP * math.sin(0)
+    local hoverPhase = self.hoverCycle / MENU_WISPELL_HOVER_PERIOD_TICS
+    local hoverOff = MENU_WISPELL_HOVER_AMP * math.sin(TAU * hoverPhase)
 
     local hx, hy = self.nWispellHead:pos()
     spr(MENU_SPR_HEAD, hx, hy + hoverOff, PALETTE.BLACK, 1, 0, 0,
