@@ -1154,7 +1154,7 @@ function Node:isPointInside(x, y)
         x >= nx and
         y >= ny and
         x < nx + self.wpx and
-        y < ny + self.wpx
+        y < ny + self.hpx
 end
 
 
