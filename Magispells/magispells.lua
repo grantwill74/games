@@ -545,6 +545,11 @@ BTN_SPR_SFX_OFF = 371
 BTN_SPR_NEXT_BGM = 356
 BTN_SPR_NO_IDEA = 372
 
+--- the amount to extend the highlight left and right
+BTN_HORIZ_PADDING_PX = 1
+--- the amount to extend the highlight up and down
+BTN_VERT_PADDING_PX = 2
+
 ---@alias ButtonStatus 'up'|'hover'|'down'
 ---@alias ButtonAction nil|'downed'|'hovered'|'clicked'
 ---@class Button
@@ -665,6 +670,10 @@ end
 function Button:drawBack()
     local status = self:status()
     local x, y, w, h = self:posAndDims()
+    x = x - BTN_HORIZ_PADDING_PX
+    w = w + 2 * BTN_HORIZ_PADDING_PX
+    y = y - BTN_VERT_PADDING_PX
+    h = h + 2 * BTN_VERT_PADDING_PX
 
     if status == 'up' then
         rect(x, y, w, h, BTN_UP_COLOR)
@@ -713,12 +722,14 @@ end
 TextButton = {}
 setmetatable(TextButton, {__index = Button})
 
+TEXT_BUTTON_H_PX = 6
+
 ---@param node Node
 ---@param name string
 ---@param hint string
 ---@param text string
 ---@param textColor integer
-function TextButton.new(node, name, hint, text, textColor)
+function TextButton.new(node, name, text, hint, textColor)
     local button = Button.new(node, name, hint) --[[@as TextButton]]
     button.text = text
     button.textColor = textColor
@@ -727,6 +738,7 @@ function TextButton.new(node, name, hint, text, textColor)
 end
 
 function TextButton:draw()
+    self:drawBack()
     local x, y = self.node:pos()
     print(self.text, x, y, self.textColor)
 end
@@ -1926,6 +1938,12 @@ function SubMenu:updateButtonsAndDetectClick(mouse)
         self.buttons, mouse.x, mouse.y, mouse.left)
 end
 
+function SubMenu:drawButtons()
+    for _, button in ipairs(self.buttons) do
+        button:draw()
+    end
+end
+
 function SubMenu:tick(mouse)
     -- abstract
 end
@@ -1944,6 +1962,7 @@ end
 ---@field nWispellHead Node
 ---@field nWispellBody Node
 ---@field nWispellLHand Node
+---@field nWispellLHandSaved Node
 ---@field nWispellRHand Node
 ---@field hoverCycle integer
 ---@field btnStartGame Button
@@ -1982,6 +2001,9 @@ MENU_BTN_NAME_START = 'new game'
 MENU_BTN_NAME_START_TEXT = 'New Game!'
 MENU_BTN_NAME_START_HINT = 'Start a new game!'
 
+MENU_GESTURE_OFF_X = -4
+MENU_GESTURE_OFF_Y = 4
+
 ---@return Sub_Title
 function Sub_Title.new()
     local state = SubMenu.new() --[[@as Sub_Title]]
@@ -2016,6 +2038,7 @@ function Sub_Title.new()
         nWispellBody = wispellBody,
         nWispellLHand = wispellLHand,
         nWispellRHand = wispellRHand,
+        nWispellLHandSaved = wispellLHand,
         hoverCycle = 0
     }) do
         state[var] = val
@@ -2027,11 +2050,16 @@ function Sub_Title.new()
     state.nButtons = Node.new(
         nil, 'buttons',
         SCREEN_W_px / 2,
-        SCREEN_H_px / 2,
-        startBtnW, TILE_H_px
+        SCREEN_H_px / 2
     )
+    local nStartButton = Node.new(
+        state.nButtons, 'start game btn node',
+        -startBtnW / 2,
+        0, startBtnW, TEXT_BUTTON_H_PX
+    )
+
     state.btnStartGame = TextButton.new(
-        state.nButtons,
+        nStartButton,
         MENU_BTN_NAME_START,
         MENU_BTN_NAME_START_TEXT,
         MENU_BTN_NAME_START_HINT,
@@ -2060,6 +2088,32 @@ function Sub_Title:tick(mouse)
     self.hoverCycle = (self.hoverCycle + 1) % MENU_WISPELL_HOVER_PERIOD_TICS
 
     local button = self:updateButtonsAndDetectClick(mouse)
+
+    local pointing = false
+    for _, maybeHoverButton in ipairs(self.buttons) do
+        if maybeHoverButton.hover then
+            self:pointAt(maybeHoverButton.node)
+            pointing = true
+        end
+    end
+
+    if not pointing then self:stopPointing() end
+
+end
+
+---Make Wispell gesture to a node with his hand
+---@param n Node
+function Sub_Title:pointAt(n)
+    self.nWispellLHand =
+        Node.new(
+            n, 'temp gesture node',
+            -MENU_SPR_HAND_TW * TILE_W_px + MENU_GESTURE_OFF_X,
+            MENU_GESTURE_OFF_Y
+        )
+end
+
+function Sub_Title:stopPointing()
+    self.nWispellLHand = self.nWispellLHandSaved
 end
 
 function Sub_Title:draw()
@@ -2082,6 +2136,8 @@ function Sub_Title:draw()
         local lx, ly = node:pos()
         RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
     end
+
+    self:drawButtons()
 end
 
 ---@class StMainMenu : IAppState
