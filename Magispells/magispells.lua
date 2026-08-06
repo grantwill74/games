@@ -2003,6 +2003,14 @@ MENU_BTN_NAME_START_HINT = 'Start a new game!'
 
 MENU_GESTURE_OFF_X = -4
 MENU_GESTURE_OFF_Y = 4
+MENU_SFX_CHOOSE = 48
+
+function DrawTitleLetters()
+    for i, node in ipairs(TitleLetterNodes) do
+        local lx, ly = node:pos()
+        RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
+    end
+end
 
 ---@return Sub_Title
 function Sub_Title.new()
@@ -2089,6 +2097,13 @@ function Sub_Title:tick(mouse)
 
     local button = self:updateButtonsAndDetectClick(mouse)
 
+    if button then
+        if button.name == MENU_BTN_NAME_START then
+            sfx(MENU_SFX_CHOOSE, 'C-5', 60, SFX_CHANNEL)
+            return Sub_NewGame.new()
+        end
+    end
+
     local pointing = false
     for _, maybeHoverButton in ipairs(self.buttons) do
         if maybeHoverButton.hover then
@@ -2098,7 +2113,6 @@ function Sub_Title:tick(mouse)
     end
 
     if not pointing then self:stopPointing() end
-
 end
 
 ---Make Wispell gesture to a node with his hand
@@ -2132,12 +2146,71 @@ function Sub_Title:draw()
     local rhx, rhy = self.nWispellRHand:pos()
     spr(MENU_SPR_THUMBS_UP, rhx, rhy + hoverOff, PALETTE.BLACK,
         1, 1, 0, MENU_SPR_HAND_TW, MENU_SPR_HAND_TH)
-    for i, node in ipairs(TitleLetterNodes) do
-        local lx, ly = node:pos()
-        RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
-    end
+    DrawTitleLetters()
 
     self:drawButtons()
+end
+
+---@class Sub_NewGame : SubMenu
+---@field nButtonRoot Node
+Sub_NewGame = {}
+setmetatable(Sub_NewGame, {__index = SubMenu})
+
+MENU_NEW_N_BUTTONS = 5
+
+MENU_NEW_LVL1_NAME = 'level1'
+MENU_NEW_LVL1_TEXT = 'Level 1'
+
+function Sub_NewGame.new()
+    local submenu = SubMenu.new() --[[@as Sub_NewGame]]
+
+    --[[ buttons:
+        Level 1
+        Level 4
+        Level 8
+        Level 12
+        Extended Play
+
+        show 4 through 12 if they have been unlocked
+        show extended play if the player has beaten level 15
+    --]]
+
+    local totalButtonHeight =
+        MENU_NEW_N_BUTTONS * TEXT_BUTTON_H_PX +
+        (MENU_NEW_N_BUTTONS - 1) * BTN_VERT_PADDING_PX
+
+    local level1Width = print(MENU_NEW_LVL1_TEXT, SCREEN_W_px)
+
+    -- center the buttons 
+    submenu.nButtonRoot = Node.new(
+        nil, 'button root',
+        (SCREEN_W_px - level1Width) / 2,
+        (SCREEN_H_px - totalButtonHeight) / 2,
+        level1Width, totalButtonHeight
+    )
+
+    local level1 = TextButton.new(
+        submenu.nButtonRoot,
+        MENU_NEW_LVL1_NAME,
+        "Level 1",
+        "Start from level 1!",
+        PALETTE.WHITE
+    )
+
+    table.insert(submenu.buttons, level1)
+
+    return setmetatable(submenu, {__index = Sub_NewGame})
+end
+
+function Sub_NewGame:tick(mouse)
+    self:updateButtonsAndDetectClick(mouse)
+end
+
+function Sub_NewGame:draw()
+    for _, button in ipairs(self.buttons) do
+        button:drawBack()
+        button:draw()
+    end
 end
 
 ---@class StMainMenu : IAppState
@@ -2170,7 +2243,11 @@ end
 
 ---@param mouse MouseState
 function StMainMenu:tick(mouse)
-    self.curSub:tick(mouse)
+    local tx = self.curSub:tick(mouse)
+
+    if tx then
+        self.curSub = tx
+    end
 end
 
 function StMainMenu:draw()
