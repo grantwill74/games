@@ -1923,6 +1923,7 @@ end
 
 ---@class SubMenu
 ---@field buttons Button[]
+---@field tick fun(self: SubMenu, mouse: MouseState): SubMenu | nil
 SubMenu = {}
 
 
@@ -1966,6 +1967,7 @@ end
 ---@field nWispellRHand Node
 ---@field hoverCycle integer
 ---@field btnStartGame Button
+---@field nCopyright Node
 Sub_Title = {}
 setmetatable(Sub_Title, {__index = SubMenu})
 
@@ -2005,6 +2007,9 @@ MENU_GESTURE_OFF_X = -4
 MENU_GESTURE_OFF_Y = 4
 MENU_SFX_CHOOSE = 48
 
+MENU_COPYRIGHT = '(c) Grant Williams, 2026. AGPL 3.0 or later.'
+MENU_COPYRIGHT_BOTM_OFFY = -8
+
 function DrawTitleLetters()
     for i, node in ipairs(TitleLetterNodes) do
         local lx, ly = node:pos()
@@ -2039,6 +2044,14 @@ function Sub_Title.new()
         MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
     )
 
+    local copyrightWidth = print(MENU_COPYRIGHT, SCREEN_W_px)
+    local copyright = Node.new(
+        nil, 'copyright',
+        (SCREEN_W_px - copyrightWidth) / 2,
+        SCREEN_H_px + MENU_COPYRIGHT_BOTM_OFFY,
+        copyrightWidth, TEXT_BUTTON_H_PX
+    )
+
     for var, val in pairs({
         fadeInTicks = 0,
         nTitleLetters = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
@@ -2047,7 +2060,8 @@ function Sub_Title.new()
         nWispellLHand = wispellLHand,
         nWispellRHand = wispellRHand,
         nWispellLHandSaved = wispellLHand,
-        hoverCycle = 0
+        hoverCycle = 0,
+        nCopyright = copyright
     }) do
         state[var] = val
     end
@@ -2149,6 +2163,9 @@ function Sub_Title:draw()
     DrawTitleLetters()
 
     self:drawButtons()
+    
+    local cx, cy = self.nCopyright:pos()
+    print(MENU_COPYRIGHT, cx, cy, PALETTE.LT_GRAY)
 end
 
 ---@class Sub_NewGame : SubMenu
@@ -2170,6 +2187,8 @@ function Sub_NewGame.new()
         Level 8
         Level 12
         Extended Play
+        [vertical space]
+        Back
 
         show 4 through 12 if they have been unlocked
         show extended play if the player has beaten level 15
@@ -2202,11 +2221,18 @@ function Sub_NewGame.new()
     return setmetatable(submenu, {__index = Sub_NewGame})
 end
 
+---@param mouse MouseState
 function Sub_NewGame:tick(mouse)
+    if mouse.rightTrans == 'up' then
+        
+    end
+
     self:updateButtonsAndDetectClick(mouse)
 end
 
 function Sub_NewGame:draw()
+    DrawTitleLetters()
+
     for _, button in ipairs(self.buttons) do
         button:drawBack()
         button:draw()
