@@ -1053,6 +1053,7 @@ function Dfa:matchPrefix(str, i)
 
     while i <= len do
         local state = self.states[current]
+        -- START TODO: stop this from crashing if DFA is unloaded
         current = state.tx[str:sub(i, i)]
 
         if not current then
@@ -1068,7 +1069,7 @@ end
 
 ---Global word dfa. Never unloaded once loaded.
 ---@type Dfa
-local wordDfa = nil
+local wordDfa = Dfa.new({Dfa.State.new(false, {})}); -- replaced by loading state
 
 ---For basic scene management
 ---@class Node
@@ -1921,9 +1922,12 @@ end
 -- mixolydian title music starts playing
 -- I like it! It ended up looking pretty good.
 
+
+---@alias SubMenuTransition SubMenu | nil | number # the number is for the new game start level
+
 ---@class SubMenu
 ---@field buttons Button[]
----@field tick fun(self: SubMenu, mouse: MouseState): SubMenu | nil
+---@field tick fun(self: SubMenu, mouse: MouseState): SubMenuTransition
 SubMenu = {}
 
 
@@ -2018,7 +2022,7 @@ function DrawTitleLetters()
 end
 
 ---@return Sub_Title
-function Sub_Title.new()
+function Sub_Title.new(skipFade)
     local state = SubMenu.new() --[[@as Sub_Title]]
 
     local wispellHead = Node.new(
@@ -2053,7 +2057,7 @@ function Sub_Title.new()
     )
 
     for var, val in pairs({
-        fadeInTicks = 0,
+        fadeInTicks = skipFade and MENU_FADE_TICKS or 0,
         nTitleLetters = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
         nWispellHead = wispellHead,
         nWispellBody = wispellBody,
@@ -2208,8 +2212,14 @@ function Sub_NewGame.new()
         level1Width, totalButtonHeight
     )
 
+    local nLevel1 = Node.new(
+        submenu.nButtonRoot, 'level 1 btn node',
+        0, 0,
+        level1Width, TEXT_BUTTON_H_PX
+    )
+
     local level1 = TextButton.new(
-        submenu.nButtonRoot,
+        nLevel1,
         MENU_NEW_LVL1_NAME,
         "Level 1",
         "Start from level 1!",
@@ -2224,10 +2234,16 @@ end
 ---@param mouse MouseState
 function Sub_NewGame:tick(mouse)
     if mouse.rightTrans == 'up' then
-        
+        return Sub_Title.new(true)
     end
 
-    self:updateButtonsAndDetectClick(mouse)
+    local clicked = self:updateButtonsAndDetectClick(mouse)
+
+    if clicked then
+        if clicked.name == MENU_NEW_LVL1_NAME then
+            return 1
+        end
+    end
 end
 
 function Sub_NewGame:draw()
@@ -2271,7 +2287,9 @@ end
 function StMainMenu:tick(mouse)
     local tx = self.curSub:tick(mouse)
 
-    if tx then
+    if type(tx) == "number" then
+        return StInGame.new(tx)
+    elseif tx then
         self.curSub = tx
     end
 end
@@ -4863,13 +4881,18 @@ function SetVolume(vol)
     end
 end
 
+function AppStateTransition(newState)
+    if appState and appState.leave then appState:leave() end
+    appState = newState
+    if appState.enter then appState:enter() end
+end
+
 function BOOT()
     cls(0)
     sync(2, 1, false)
     -- appState = StLoading.new()
     -- appState = StIntro.new()
-    appState = StMainMenu.new()
-    if appState.enter then appState:enter() end
+    AppStateTransition(StMainMenu.new())
     Mouse = MouseState.new()
 
     -- MusicOn()
@@ -4889,9 +4912,11 @@ function TIC()
     local tx = appState:tick(Mouse)
 
     if tx then
-        if appState.leave then appState:leave() end
+        trace(ToStr(tx))
+        AppStateTransition(tx)
+        --[[if appState.leave then appState:leave() end
         if appState.enter then tx:enter() end
-        appState = tx
+        appState = tx ]]
     end
 
     cls(PALETTE.BLACK)
