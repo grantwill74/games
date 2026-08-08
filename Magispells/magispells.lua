@@ -3889,19 +3889,6 @@ function StInGame.new()
         ndBook = ndBook,
         buttons = buttons,
         letterPartEmitter = LetterParticleEmitter.new(),
---        grid = grid,
-        --strand = Strand.new(),
-        --highlight = nil,
-        --dfaState = wordDfa.states[DawgStart],
-        --xp = 0,
-        --level = 1,
-        --nextLevelTarget = TotalXpForLevel(2),
-        --ticks = 0,
-        --nLevelWordsSubmitted = 0,
-        --levelBestWord = "",
-        --levelBestWordScore = 0,
-        --gameBestWord = "",
-        --gameBestWordScore = 0,
     }
 
     setmetatable(state, StInGame)
@@ -3909,6 +3896,14 @@ function StInGame.new()
     state:newGame()
 
     return state
+end
+
+function StInGame:enter()
+    vbank(0)
+    sync(1 | 2, 0)
+    vbank(1)
+    sync(1 | 2, 0)
+    vbank(0)
 end
 
 function StInGame:newGame()
