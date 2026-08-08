@@ -677,7 +677,7 @@ function Button:drawBack()
     h = h + 2 * BTN_VERT_PADDING_PX
 
     if status == 'up' then
-        rect(x, y, w, h, BTN_UP_COLOR)
+        -- rect(x, y, w, h, BTN_UP_COLOR)
     elseif status == 'hover' then
         rect(x, y, w, h, BTN_HOVER_COLOR)
     elseif status == 'down' then
@@ -4397,6 +4397,14 @@ end
 ---
 ---@param mouse MouseState
 function StInGame:tick(mouse)
+    if MusicEnabled then
+        CurrentSongState:tick()
+
+        if CurrentSongState:finished() then
+            PlayNextSong()
+        end
+    end
+
     local cheat = CheatKeyPressed()
     if cheat == 'level_up' then
         self:levelUp()
@@ -4836,7 +4844,7 @@ SongIdx = 1
 PlayList = {1, 2, 3, 4, 5}
 CurrentSongState = SongState.new(Songs[PlayList[SongIdx]])
 
-MusicEnabled = false
+MusicEnabled = true
 
 SFX_VOL_ORIG = 15
 SfxVol = SFX_VOL_ORIG
@@ -4921,15 +4929,6 @@ function BOOT()
 end
 
 function TIC()
-    -- TODO: move this to in-game state
-    if MusicEnabled then
-        CurrentSongState:tick()
-
-        if CurrentSongState:finished() then
-            PlayNextSong()
-        end
-    end
-
     Mouse:poll()
     local tx = appState:tick(Mouse)
 
