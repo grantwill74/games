@@ -1053,6 +1053,10 @@ function Dfa:matchPrefix(str, i)
 
     while i <= len do
         local state = self.states[current]
+        if not state then
+            return nil
+        end
+
         -- START TODO: stop this from crashing if DFA is unloaded
         current = state.tx[str:sub(i, i)]
 
@@ -1066,10 +1070,22 @@ function Dfa:matchPrefix(str, i)
     return self.states[current]
 end
 
+InitStates = {}
+-- Initial run of states that spell out 'test', so that the game can be
+-- tested without loading the word bank (which is slow).
+-- make a single node at DawgStart that recognizes every individual character.
+InitStatesTx = {}
+for i = 0,25 do
+    local ascii = string.char(string.byte('a') + i)
+    InitStatesTx[ascii] = Dfa.State.new(true, {})
+end
+
+InitStates[DawgStart] = Dfa.State.new(false, InitStatesTx)
+
 
 ---Global word dfa. Never unloaded once loaded.
 ---@type Dfa
-local wordDfa = Dfa.new({Dfa.State.new(false, {})}); -- replaced by loading state
+local wordDfa = Dfa.new(InitStates); -- replaced by loading state
 
 ---For basic scene management
 ---@class Node
@@ -2241,6 +2257,9 @@ function Sub_NewGame:tick(mouse)
 
     if clicked then
         if clicked.name == MENU_NEW_LVL1_NAME then
+            -- TODO START: how is it possible that it's freezing if we exit
+            -- before this line
+            exit()
             return 1
         end
     end
@@ -4912,7 +4931,6 @@ function TIC()
     local tx = appState:tick(Mouse)
 
     if tx then
-        trace(ToStr(tx))
         AppStateTransition(tx)
         --[[if appState.leave then appState:leave() end
         if appState.enter then tx:enter() end
