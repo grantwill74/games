@@ -1197,6 +1197,7 @@ end
 ---@field draw fun(self): nil
 ---@field enter (fun(self): nil)|nil
 ---@field leave (fun(self): nil)|nil
+---@field nSyncDelayTicks integer|nil
 IAppState = {}
 
 ---@class StLoading : IAppState
@@ -2725,7 +2726,7 @@ end
 ---@param row integer
 ---@return BestWordInfo|nil
 function LetterGrid:bestWordStartingAt(col, row)
-    if not DawgLoaded then 
+    if not DawgLoaded then
         return {
             word = 'test', 
             {'normal', 'normal', 'normal', 'normal'},
@@ -3791,7 +3792,11 @@ BTN_NOIDEA_HINT = "I'm stumped!"
 
 BONUS_SCORE_PER_CHANCE = 1000
 
-function StInGame.new()
+---comment
+---@param lvlStart integer|nil
+---@return StInGame
+function StInGame.new(lvlStart)
+    lvlStart = lvlStart or 1
     local ndScreen = Node.new(nil, 'screen', 0, 0, SCREEN_W_px, SCREEN_H_px)
     local ndField = ndScreen:addChildFromTopRight(
         'field top left',
@@ -3891,11 +3896,12 @@ function StInGame.new()
         ndBook = ndBook,
         buttons = buttons,
         letterPartEmitter = LetterParticleEmitter.new(),
+        nSyncDelayTicks = 1, -- for switching music
     }
 
     setmetatable(state, StInGame)
 
-    state:newGame()
+    state:newGame(lvlStart)
 
     return state
 end
@@ -3906,15 +3912,29 @@ function StInGame:enter()
     vbank(1)
     sync(1 | 2, 0)
     vbank(0)
+    music()
 end
 
-function StInGame:newGame()
+---determine which song to play based on which level we're starting with
+---@param levelStart integer
+function StartingSongNo(levelStart)
+    local result = (math.floor((levelStart - 1) / 3) % #Songs) + 1
+    
+    if DebugMode then
+        assert(result >= 1 and result <= #Songs)
+    else
+        return 1
+    end
+end
+
+---@param levelStart integer
+function StInGame:newGame(levelStart)
     self.grid = LetterGrid.new(self.ndField)
     self.strand = Strand.new()
     self.highlight = nil
     self.dfaState = wordDfa.states[DawgStart]
     self.score = 0
-    self.level = 1
+    self.level = levelStart
     self.nextLevelTarget = ScoreToReachLevel(2)
     self.ticks = 0
     self.nLevelWordsSubmitted = 0
@@ -3981,6 +4001,7 @@ function StInGame:handleClick(mouse)
         self.subState = nil
         self.wispell:orderArms()
 
+        --- TODO
         self:newGame()
     end
 
@@ -4945,6 +4966,13 @@ function TIC()
     vbank(1)
     cls(PALETTE.BLACK)
     vbank(0)
+
+    -- sync delay is for when entering a new state, if it requires waiting some
+    -- frames to sync data into the proper banks (you can only call sync once
+    -- per frame)
+    if appState.nSyncDelayTicks and appState.nSyncDelayTicks > 0 then
+        appState.nSyncDelayTicks = appState.nSyncDelayTicks - 1
+    end
 
     appState:draw()
 
