@@ -31,6 +31,8 @@ SCREEN_W_tiles = SCREEN_W_px / TILE_W_px
 ---@type integer
 SCREEN_H_tiles = SCREEN_H_px / TILE_H_px
 
+DebugMode = true
+
 
 PALETTE_ADDR = 0x3FC0
 
@@ -4025,10 +4027,10 @@ function StInGame:handleClick(mouse)
 
         local tileSubmitted =
             lastTile and
-            dfaNode and dfaNode.final and
+            ((dfaNode and dfaNode.final) or DebugMode)  and
             self.highlight.col == lastTile.col and
             self.highlight.row == lastTile.row and
-            self.strand:length() >= MIN_WORD_LEN
+            (self.strand:length() >= MIN_WORD_LEN or DebugMode)
 
         if tileSubmitted then
             self:submitWord()
