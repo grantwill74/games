@@ -2729,7 +2729,7 @@ function LetterGrid:bestWordStartingAt(col, row)
         return {
             word = 'test', 
             {'normal', 'normal', 'normal', 'normal'},
-            crs = {{c = 1, r = 1}, {c = 2, r = 1}, {c = 3, r = 1}, {c = 4, r = 1}},
+            crs = {{col = 1, row = 1}, {col = 2, row = 1}, {col = 3, row = 1}, {col = 4, row = 1}},
             score = 100
         }
     end
