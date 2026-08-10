@@ -1198,6 +1198,7 @@ end
 ---@field enter (fun(self): nil)|nil
 ---@field leave (fun(self): nil)|nil
 ---@field nSyncDelayTicks integer|nil
+---@field delayTick (fun(self): nil)|nil
 IAppState = {}
 
 ---@class StLoading : IAppState
@@ -2288,7 +2289,7 @@ function StMainMenu.new()
     local state = {
         subTitle = subTitle,
         curSub = subTitle,
-        nSyncDelayTicks = 1
+        nSyncDelayTicks = 2
     }
 
     return setmetatable(state, {__index = StMainMenu})
@@ -2296,7 +2297,14 @@ end
 
 function StMainMenu:enter()
     sync(1, 1) -- switch tiles to bank 1
-    music(1)
+    -- music(1)
+end
+
+function StMainMenu:delayTick()
+    if self.nSyncDelayTicks == 1 then
+        sync(16, 0)
+        music(1)
+    end
 end
 
 function StMainMenu:leave()
@@ -3769,6 +3777,7 @@ end
 ---@field delayActions DelayAction[]
 ---@field ticksSinceLastPlay integer
 ---@field bookDeployTicks number
+---@field postGameOver boolean
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -3897,6 +3906,7 @@ function StInGame.new(lvlStart)
         ndBook = ndBook,
         buttons = buttons,
         letterPartEmitter = LetterParticleEmitter.new(),
+        postGameOver = false,
         nSyncDelayTicks = 1, -- for switching music
     }
 
@@ -3953,6 +3963,7 @@ function StInGame:newGame(levelStart)
     self.delayActions = {}
     self.ticksSinceLastPlay = 0
     self.bookDeployTicks = 0
+    self.postGameOver = false
 
     self.wispell:restoreInterest()
 
@@ -4001,9 +4012,8 @@ function StInGame:handleClick(mouse)
     if self.subState and self.subState.id == 'game over' then
         self.subState = nil
         self.wispell:orderArms()
-
-        --- TODO
-        self:newGame()
+        self.postGameOver = true
+        return
     end
 
 
@@ -4421,6 +4431,10 @@ end
 ---
 ---@param mouse MouseState
 function StInGame:tick(mouse)
+    if self.postGameOver then
+        return StMainMenu.new()
+    end
+
     if MusicEnabled then
         CurrentSongState:tick()
 
@@ -4938,7 +4952,9 @@ end
 function AppStateTransition(newState)
     if appState and appState.leave then appState:leave() end
     appState = newState
-    if appState.enter then appState:enter() end
+    if appState.enter and not 
+        (appState.nSyncDelayTicks and appState.nSyncDelayTicks > 0) 
+    then appState:enter() end
 end
 
 function BOOT()
@@ -4948,8 +4964,6 @@ function BOOT()
     -- appState = StIntro.new()
     AppStateTransition(StMainMenu.new())
     Mouse = MouseState.new()
-
-    -- MusicOn()
 end
 
 function TIC()
@@ -4973,7 +4987,12 @@ function TIC()
     -- per frame)
     if appState.nSyncDelayTicks and appState.nSyncDelayTicks > 0 then
         appState.nSyncDelayTicks = appState.nSyncDelayTicks - 1
+        if appState.delayTick then appState:delayTick() end
+        if appState.nSyncDelayTicks == 0 then
+            appState:enter()
+        end
     end
+
 
     appState:draw()
 
