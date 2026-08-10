@@ -2203,6 +2203,8 @@ MENU_NEW_N_BUTTONS = 5
 
 MENU_NEW_LVL1_NAME = 'level1'
 MENU_NEW_LVL1_TEXT = 'Level 1'
+MENU_NEW_LVL4_NAME = 'level4'
+MENU_NEW_LVL4_TEXT = 'Level 4'
 
 function Sub_NewGame.new()
     local submenu = SubMenu.new() --[[@as Sub_NewGame]]
@@ -2239,16 +2241,30 @@ function Sub_NewGame.new()
         0, 0,
         level1Width, TEXT_BUTTON_H_PX
     )
+    local nLevel4 = Node.new(
+        nLevel1, 'level 4 btn node',
+        0, TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX,
+        level1Width, TEXT_BUTTON_H_PX
+    )
 
     local level1 = TextButton.new(
         nLevel1,
         MENU_NEW_LVL1_NAME,
-        "Level 1",
+        MENU_NEW_LVL1_TEXT,
         "Start from level 1!",
         PALETTE.WHITE
     )
 
+    local level4 = TextButton.new(
+        nLevel4,
+        MENU_NEW_LVL4_NAME,
+        MENU_NEW_LVL4_TEXT,
+        "Start from level 4!",
+        PALETTE.WHITE
+    )
+
     table.insert(submenu.buttons, level1)
+    table.insert(submenu.buttons, level4)
 
     return setmetatable(submenu, {__index = Sub_NewGame})
 end
@@ -2264,6 +2280,8 @@ function Sub_NewGame:tick(mouse)
     if clicked then
         if clicked.name == MENU_NEW_LVL1_NAME then
             return 1
+        elseif clicked.name == MENU_NEW_LVL4_NAME then
+            return 4
         end
     end
 end
