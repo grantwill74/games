@@ -3944,16 +3944,17 @@ function StInGame:enter()
     music()
 end
 
+function StInGame:delayTick()
+    local song = StartingSongNo(self.level)
+    PlaySongIdx(song)
+end
+
 ---determine which song to play based on which level we're starting with
 ---@param levelStart integer
 function StartingSongNo(levelStart)
     local result = (math.floor((levelStart - 1) / 3) % #Songs) + 1
-    
-    if DebugMode then
-        assert(result >= 1 and result <= #Songs)
-    else
-        return 1
-    end
+    assert(result >= 1 and result <= #Songs)
+    return result
 end
 
 ---@param levelStart integer
