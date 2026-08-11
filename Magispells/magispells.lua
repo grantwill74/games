@@ -2239,6 +2239,9 @@ function Sub_NewGame.new()
         (MENU_NEW_N_BUTTONS - 1) * BTN_VERT_PADDING_PX
 
     local level1Width = print(MENU_NEW_LVL1_TEXT, SCREEN_W_px)
+    local level12Width = print(MENU_NEW_LVL12_TEXT, SCREEN_W_px)
+    local extendedWidth = print(MENU_NEW_EXTENDED_TEXT, SCREEN_W_px)
+    local backWidth = print(MENU_BACK_TEXT, SCREEN_W_px)
 
     -- center the buttons 
     submenu.nButtonRoot = Node.new(
@@ -2265,6 +2268,21 @@ function Sub_NewGame.new()
         0, BUTTON_YOFF,
         level1Width, TEXT_BUTTON_H_PX
     )
+    local nLevel12 = Node.new(
+        nLevel8, 'level 12 btn node',
+        0, BUTTON_YOFF,
+        level12Width, TEXT_BUTTON_H_PX
+    )
+    local nExtended = Node.new(
+        nLevel12, 'extended play btn node',
+        0, BUTTON_YOFF,
+        extendedWidth, TEXT_BUTTON_H_PX
+    )
+    local nBack = Node.new(
+        nExtended, 'back btn node',
+        0, BUTTON_YOFF * 2,
+        backWidth, TEXT_BUTTON_H_PX
+    )
 
     local level1 = TextButton.new(
         nLevel1,
@@ -2287,15 +2305,40 @@ function Sub_NewGame.new()
         "Start from level 8!",
         PALETTE.WHITE
     )
+    local level12 = TextButton.new(
+        nLevel12,
+        MENU_NEW_LVL12_NAME,
+        MENU_NEW_LVL12_TEXT,
+        "Start from level 12!",
+        PALETTE.WHITE
+    )
+    local extendedPlay = TextButton.new(
+        nExtended,
+        MENU_NEW_EXTENDED_NAME,
+        MENU_NEW_EXTENDED_TEXT,
+        "Extended play!",
+        PALETTE.WHITE
+    )
+    local back = TextButton.new(
+        nBack,
+        MENU_BACK_NAME,
+        MENU_BACK_TEXT,
+        "Back",
+        PALETTE.WHITE
+    )
 
     table.insert(submenu.buttons, level1)
     table.insert(submenu.buttons, level4)
     table.insert(submenu.buttons, level8)
+    table.insert(submenu.buttons, level12)
+    table.insert(submenu.buttons, extendedPlay)
+    table.insert(submenu.buttons, back)
 
     return setmetatable(submenu, {__index = Sub_NewGame})
 end
 
 ---@param mouse MouseState
+---@return integer | SubMenuTransition
 function Sub_NewGame:tick(mouse)
     if mouse.rightTrans == 'up' then
         return Sub_Title.new(true)
@@ -2310,6 +2353,12 @@ function Sub_NewGame:tick(mouse)
             return 4
         elseif clicked.name == MENU_NEW_LVL8_NAME then
             return 8
+        elseif clicked.name == MENU_NEW_LVL12_NAME then
+            return 12
+        elseif clicked.name == MENU_NEW_EXTENDED_NAME then
+            return 16
+        elseif clicked.name == MENU_BACK_NAME then
+            return Sub_Title.new(true)
         end
     end
 end
@@ -3982,8 +4031,8 @@ end
 ---determine which song to play based on which level we're starting with
 ---@param levelStart integer
 function StartingSongNo(levelStart)
-    local result = (math.floor((levelStart - 1) / 3) % #Songs) + 1
-    assert(result >= 1 and result <= #Songs)
+    local songBank = math.floor((levelStart - 1) / 3)
+    local result = (songBank - 1) % #Songs + 1
     return result
 end
 
