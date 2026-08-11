@@ -478,6 +478,10 @@ function SongState:play()
     self:nextFragment()
 end
 
+function SongState:rewind()
+    self.curFrag = 0
+end
+
 function SongState:tick()
     -- peek memory and update the current frag
     ---@type SongLoc
@@ -2205,6 +2209,14 @@ MENU_NEW_LVL1_NAME = 'level1'
 MENU_NEW_LVL1_TEXT = 'Level 1'
 MENU_NEW_LVL4_NAME = 'level4'
 MENU_NEW_LVL4_TEXT = 'Level 4'
+MENU_NEW_LVL8_NAME = 'level8'
+MENU_NEW_LVL8_TEXT = 'Level 8'
+MENU_NEW_LVL12_NAME = 'level12'
+MENU_NEW_LVL12_TEXT = 'level 12'
+MENU_NEW_EXTENDED_NAME = 'extendedPlay'
+MENU_NEW_EXTENDED_TEXT = 'Extended Play'
+MENU_BACK_NAME = 'back'
+MENU_BACK_TEXT = 'Back to Menu'
 
 function Sub_NewGame.new()
     local submenu = SubMenu.new() --[[@as Sub_NewGame]]
@@ -2236,6 +2248,8 @@ function Sub_NewGame.new()
         level1Width, totalButtonHeight
     )
 
+    local BUTTON_YOFF = TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX
+
     local nLevel1 = Node.new(
         submenu.nButtonRoot, 'level 1 btn node',
         0, 0,
@@ -2243,7 +2257,12 @@ function Sub_NewGame.new()
     )
     local nLevel4 = Node.new(
         nLevel1, 'level 4 btn node',
-        0, TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX,
+        0, BUTTON_YOFF,
+        level1Width, TEXT_BUTTON_H_PX
+    )
+    local nLevel8 = Node.new(
+        nLevel4, 'level 8 btn node',
+        0, BUTTON_YOFF,
         level1Width, TEXT_BUTTON_H_PX
     )
 
@@ -2254,7 +2273,6 @@ function Sub_NewGame.new()
         "Start from level 1!",
         PALETTE.WHITE
     )
-
     local level4 = TextButton.new(
         nLevel4,
         MENU_NEW_LVL4_NAME,
@@ -2262,9 +2280,17 @@ function Sub_NewGame.new()
         "Start from level 4!",
         PALETTE.WHITE
     )
+    local level8 = TextButton.new(
+        nLevel8,
+        MENU_NEW_LVL8_NAME,
+        MENU_NEW_LVL8_TEXT,
+        "Start from level 8!",
+        PALETTE.WHITE
+    )
 
     table.insert(submenu.buttons, level1)
     table.insert(submenu.buttons, level4)
+    table.insert(submenu.buttons, level8)
 
     return setmetatable(submenu, {__index = Sub_NewGame})
 end
@@ -2282,6 +2308,8 @@ function Sub_NewGame:tick(mouse)
             return 1
         elseif clicked.name == MENU_NEW_LVL4_NAME then
             return 4
+        elseif clicked.name == MENU_NEW_LVL8_NAME then
+            return 8
         end
     end
 end
@@ -3945,8 +3973,10 @@ function StInGame:enter()
 end
 
 function StInGame:delayTick()
-    local song = StartingSongNo(self.level)
-    PlaySongIdx(song)
+    if self.delayTicks == 0 then
+        local song = StartingSongNo(self.level)
+        SetSongIdx(song)
+    end
 end
 
 ---determine which song to play based on which level we're starting with
@@ -4458,7 +4488,7 @@ function StInGame:tick(mouse)
         CurrentSongState:tick()
 
         if CurrentSongState:finished() then
-            PlayNextSong()
+            SetNextSong()
         end
     end
 
@@ -4518,7 +4548,7 @@ function StInGame:tick(mouse)
             if not MusicEnabled then
                 MusicOn()
             else
-                PlayNextSong()
+                SetNextSong()
             end
         elseif clicked.name == BTN_NOIDEA_NAME and self.delayTicks == 0 then
             if not self.grid.bestWord then
@@ -4914,21 +4944,21 @@ end
 
 function MusicOn()
     MusicEnabled = true
-    PlayRandomSong()
+    SetRandomSong()
 end
 
 ---@param number integer
-function PlaySongIdx(number)
+function SetSongIdx(number)
     music()
     SongIdx = number
     local chosen = Songs[PlayList[SongIdx]]
     CurrentSongState = SongState.new(chosen)
-    CurrentSongState:play()
+    -- CurrentSongState:play()
 end
 
-function PlayRandomSong()
+function SetRandomSong()
     local iplaylist = math.random(1, #PlayList)
-    PlaySongIdx(iplaylist)
+    SetSongIdx(iplaylist)
 end
 -- DONE: why is it playing a random song instead of index 1 on boot?
 -- Because songState:play() calls songState:nextFragment(), which 
@@ -4937,12 +4967,12 @@ end
 -- guessing the others were dropped. the result was that the correct song state
 -- was loaded but the fragment data was playing out of the wrong bank.
 
-function PlayNextSong()
+function SetNextSong()
     local next = SongIdx + 1
     if next > #PlayList then
         next = 1
     end
-    PlaySongIdx(next)
+    SetSongIdx(next)
 end
 
 -- addresses of the 4 volume nybbles
@@ -4991,9 +5021,6 @@ function TIC()
 
     if tx then
         AppStateTransition(tx)
-        --[[if appState.leave then appState:leave() end
-        if appState.enter then tx:enter() end
-        appState = tx ]]
     end
 
     cls(PALETTE.BLACK)
