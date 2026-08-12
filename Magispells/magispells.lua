@@ -144,12 +144,12 @@ CHANCE_TO_DRAW_CHARGED = 0.15
 --- The number of regex entries to be processed before yielding (i.e., to
 --- update the loading screen)
 ---@type integer
-LOAD_STATES_PER_YIELD = 210
+LOAD_STATES_PER_YIELD = 2100
 
 --- The number of times we expect to yield before loading is complete. This 
 --- number is the denominator in the loading progress.
 ---@type integer
-EXPECTED_N_YIELDS_TO_LOAD = 100
+EXPECTED_N_YIELDS_TO_LOAD = 10
 
 ---@type table<string, integer>
 LETTER_SPRITES = {
@@ -553,6 +553,7 @@ BTN_SPR_SFX_ON = 355
 BTN_SPR_SFX_OFF = 371
 BTN_SPR_NEXT_BGM = 356
 BTN_SPR_NO_IDEA = 372
+BTN_SPR_LEAVE = 357
 
 --- the amount to extend the highlight left and right
 BTN_HORIZ_PADDING_PX = 1
@@ -1265,7 +1266,7 @@ function StLoading:tick(_)
         wordDfa = results[2] -- loaded the DFA
         DawgLoaded = true
 
-        return  StMainMenu.new() -- StInGame.new()
+        return  StMainMenu.new() 
     else
         self.nYields = self.nYields + 1
     end
@@ -2206,6 +2207,7 @@ Sub_NewGame = {}
 setmetatable(Sub_NewGame, {__index = SubMenu})
 
 MENU_NEW_N_BUTTONS = 5
+MENU_NEW_BUTTONS_OFFX = -10
 
 MENU_NEW_LVL1_NAME = 'level1'
 MENU_NEW_LVL1_TEXT = 'Level 1'
@@ -2248,7 +2250,7 @@ function Sub_NewGame.new()
     -- center the buttons 
     submenu.nButtonRoot = Node.new(
         nil, 'button root',
-        (SCREEN_W_px - level1Width) / 2,
+        (SCREEN_W_px - level1Width) / 2 + MENU_NEW_BUTTONS_OFFX,
         (SCREEN_H_px - totalButtonHeight) / 2,
         level1Width, totalButtonHeight
     )
@@ -3897,6 +3899,10 @@ IN_GAME_BTN_NOIDEA_OFF = {x = 0, y = 56}
 BTN_NOIDEA_NAME = 'btn noidea'
 BTN_NOIDEA_HINT = "I'm stumped!"
 
+IN_GAME_BTN_LEAVE_OFF = {x = 56, y = 56}
+BTN_LEAVE_NAME = 'btn leave'
+BTN_LEAVE_HINT = 'Abandon game!'
+
 BONUS_SCORE_PER_CHANCE = 1000
 
 ---comment
@@ -5436,6 +5442,7 @@ end
 -- 098:0000000000aaaaa000a000a000a000a000a000a00aa00aa00aa00aa000000000
 -- 099:0000000000000a00000a00a00aaa00a00aaa00a0000a00a000000a0000000000
 -- 100:0000000000a0a00000a0aa0000a0aaa000a0aaa000a0aa0000a0a00000000000
+-- 101:0aaaaaa00a0000a00a0000a00a0000a00a0220a00a2222a00a0220a000022000
 -- 109:ccc22ccccc2222ccc222222cc000000ccccccccccccccccccccccccccccccccc
 -- 110:22222ccc22220ccc2220cccc220ccccc20cccccc0ccccccccccccccccccccccc
 -- 111:22222ccc02222cccc0222ccccc022cccccc02ccccccc0ccccccccccccccccccc
