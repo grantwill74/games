@@ -3895,11 +3895,11 @@ IN_GAME_BTN_NEXTBGM_OFF = {x = 8, y = 0}
 BTN_NEXTBGM_NAME = 'btn nextbgm'
 BTN_NEXTBGM_HINT = 'Next Song'
 
-IN_GAME_BTN_NOIDEA_OFF = {x = 0, y = 56}
+IN_GAME_BTN_NOIDEA_OFF = {x = 56, y = 56}
 BTN_NOIDEA_NAME = 'btn noidea'
 BTN_NOIDEA_HINT = "I'm stumped!"
 
-IN_GAME_BTN_LEAVE_OFF = {x = 56, y = 56}
+IN_GAME_BTN_LEAVE_OFF = {x = 0, y = 56}
 BTN_LEAVE_NAME = 'btn leave'
 BTN_LEAVE_HINT = 'Abandon game!'
 
@@ -3963,6 +3963,13 @@ function StInGame.new(lvlStart)
         BTN_SIMPLE_W,
         BTN_SIMPLE_H
     )
+    local ndBtnLeave = ndScreen:addChild(
+        'nd btn leave',
+        IN_GAME_BTN_LEAVE_OFF.x,
+        IN_GAME_BTN_LEAVE_OFF.y,
+        BTN_SIMPLE_W,
+        BTN_SIMPLE_H
+    )
 
     local btnMusic =
         SpriteToggleButton.new(
@@ -3993,12 +4000,20 @@ function StInGame.new(lvlStart)
             {BTN_SPR_NO_IDEA},
             PALETTE.BLACK
         )
+    local btnLeave =
+        SpriteToggleButton.new(
+            ndBtnLeave,
+            BTN_LEAVE_NAME, BTN_LEAVE_HINT,
+            {BTN_SPR_LEAVE},
+            PALETTE.BLACK
+        )
 
     local buttons = {
         btnMusic,
         btnSfx,
         btnNextBgm,
         btnNoIdea,
+        btnLeave,
     }
 
     local state = {
@@ -4119,6 +4134,18 @@ function StInGame:handleClick(mouse)
         self.subState = nil
         self.wispell:orderArms()
         self.postGameOver = true
+        return
+    end
+
+    if self.subState and self.subState.id == 'abandon' then
+        local ss = self.subState --[[@as StInGame_Abandon]]
+        if ss.finished then
+            if ss.btnConfirm then
+                self:gameOver()
+            end
+
+            self.subState = nil
+        end
         return
     end
 
@@ -4620,9 +4647,129 @@ function StInGame:tick(mouse)
             if self.nChances <= 0 then
                 self:delayAction(60, function() self:gameOver() end)
             end
+        elseif clicked.name == BTN_LEAVE_NAME then
+            self.subState = StInGame_Abandon.new()
         end
     end
 end
+
+
+---@class StInGame_Abandon
+---@field id 'abandon'
+---@field reallyLeave boolean
+---@field finished boolean
+---@field btnLeave TextButton
+---@field btnCancel TextButton
+---@field btnConfirm TextButton
+---@field buttons TextButton[]
+StInGame_Abandon = {}
+
+
+ST_ABANDON_TEXT = 'Really abandon game?'
+ST_ABANDON_TEXT_AT = { x = 100, y = 40}
+ST_ABANDON_BUTTON_AT = { x = 120, y = 60 }
+
+ST_ABANDON_BTN_NAME = 'bt_abandon'
+ST_ABANDON_BTN_TEXT = 'Abandon!'
+ST_ABANDON_BTN_HINT = 'Go back to the menu!'
+ST_ABANDON_BTN_CANCEL_NAME = 'abandon_cancel'
+ST_ABANDON_BTN_CANCEL_TEXT = 'Cancel!'
+ST_ABANDON_BTN_CANCEL_HINT = 'Nevermind!'
+ST_ABANDON_BTN_CONFIRM_NAME = 'abandon_confirm'
+ST_ABANDON_BTN_CONFIRM_TEXT = 'Confirm!'
+ST_ABANDON_BTN_CONFIRM_HINT = 'No turning back!'
+
+ST_ABANDON_BTN_CONFIRM_YOFF = TEXT_BUTTON_H_PX * 5
+
+---@return StInGame_Abandon
+function StInGame_Abandon.new()
+    local nBtnLeave = Node.new(
+        nil, 'nd leave',
+        ST_ABANDON_BUTTON_AT.x,
+        ST_ABANDON_BUTTON_AT.y,
+        print(ST_ABANDON_BTN_TEXT, SCREEN_W_px),
+        TEXT_BUTTON_H_PX
+    )
+    local nBtnCancel = Node.new(
+        nBtnLeave, 'nd cancel',
+        0,
+        8,
+        print(ST_ABANDON_BTN_CANCEL_TEXT, SCREEN_W_px),
+        TEXT_BUTTON_H_PX
+    )
+    local nBtnConfirm = Node.new(
+        nBtnCancel, 'nd confirm',
+        0,
+        ST_ABANDON_BTN_CONFIRM_YOFF,
+        print(ST_ABANDON_BTN_CONFIRM_TEXT, SCREEN_W_px),
+        TEXT_BUTTON_H_PX
+    )
+
+    local btnLeave = TextButton.new(
+        nBtnLeave,
+        ST_ABANDON_BTN_NAME,
+        ST_ABANDON_BTN_TEXT,
+        ST_ABANDON_BTN_HINT,
+        PALETTE.WHITE
+    )
+    local btnCancel = TextButton.new(
+        nBtnCancel,
+        ST_ABANDON_BTN_CANCEL_NAME,
+        ST_ABANDON_BTN_CANCEL_TEXT,
+        ST_ABANDON_BTN_CANCEL_HINT,
+        PALETTE.WHITE
+    )
+    local btnConfirm = TextButton.new(
+        nBtnConfirm,
+        ST_ABANDON_BTN_CONFIRM_NAME,
+        ST_ABANDON_BTN_CONFIRM_TEXT,
+        ST_ABANDON_BTN_CONFIRM_HINT,
+        PALETTE.DK_GRAY
+    )
+
+    local state = {
+        id = 'abandon',
+        reallyLeave = false,
+        confirmed = false,
+        btnLeave = btnLeave,
+        btnCancel = btnCancel,
+        btnConfirm = btnConfirm,
+        buttons = {btnLeave, btnCancel, btnConfirm}
+    }
+
+    return setmetatable(state, {__index = StInGame_Abandon})
+end
+
+function StInGame_Abandon:draw()
+    print(ST_ABANDON_TEXT, ST_ABANDON_TEXT_AT.x, ST_ABANDON_TEXT_AT.y, PALETTE.WHITE)
+
+    for _, button in ipairs(self.buttons) do
+        button:draw()
+    end
+end
+
+---@param mouse MouseState
+function StInGame_Abandon:tick(mouse)
+    local clicked = Button.updateButtonsAndDetectClick(
+        self.buttons, mouse.x, mouse.y, mouse.left)
+
+    if clicked == ST_ABANDON_BTN_NAME then
+        self.reallyLeave = true
+        return
+    end
+
+    if clicked == ST_ABANDON_BTN_CANCEL_NAME then
+        self.reallyLeave = false
+        self.finished = true
+        return
+    end
+
+    if clicked == ST_ABANDON_BTN_CONFIRM_NAME then
+        self.finished = true
+        return
+    end
+end
+
 
 ---@class StInGame_LevelUp
 ---@field id 'level up'
@@ -4640,7 +4787,7 @@ end
 StInGame_LevelUp = {}
 
 
----@alias StInGame_SubState nil|StInGame_LevelUp|StInGame_GameOver
+---@alias StInGame_SubState nil|StInGame_LevelUp|StInGame_GameOver|StInGame_Abandon
 
 ---@param table {
 --- scoreGained:integer, newScoreTarget:integer,
