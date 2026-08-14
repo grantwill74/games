@@ -1266,7 +1266,7 @@ function StLoading:tick(_)
         wordDfa = results[2] -- loaded the DFA
         DawgLoaded = true
 
-        return StIntro.new() 
+        return StIntro.new()
     else
         self.nYields = self.nYields + 1
     end
@@ -2040,7 +2040,7 @@ MENU_GESTURE_OFF_X = -4
 MENU_GESTURE_OFF_Y = 4
 MENU_SFX_CHOOSE = 48
 
-MENU_COPYRIGHT = '(c) Grant Williams, 2026. AGPL 3.0 or later.'
+MENU_COPYRIGHT = '(c) Grant Williams, 2026. AGPL 3.0+.'
 MENU_COPYRIGHT_BOTM_OFFY = -8
 
 function DrawTitleLetters()
