@@ -4140,11 +4140,11 @@ function StInGame:handleClick(mouse)
     if self.subState and self.subState.id == 'abandon' then
         local ss = self.subState --[[@as StInGame_Abandon]]
         if ss.finished then
-            if ss.btnConfirm then
+            if ss.reallyLeave then
                 self:gameOver()
+            else
+                self.subState = nil
             end
-
-            self.subState = nil
         end
         return
     end
@@ -4589,6 +4589,8 @@ function StInGame:tick(mouse)
         self.ticks = self.ticks + 1
         self.ticksSinceLastPlay = self.ticksSinceLastPlay + 1
         self.delayTicks = math.max(self.delayTicks - 1, 0)
+    elseif self.subState.id == 'abandon' then
+        (self.subState --[[@as StInGame_Abandon]]):tick(mouse)
     end
 
     self:tickDelayActions()
@@ -4743,9 +4745,19 @@ end
 function StInGame_Abandon:draw()
     print(ST_ABANDON_TEXT, ST_ABANDON_TEXT_AT.x, ST_ABANDON_TEXT_AT.y, PALETTE.WHITE)
 
-    for _, button in ipairs(self.buttons) do
-        button:draw()
+    if self.reallyLeave then
+        self.btnLeave.textColor = PALETTE.RED
+        self.btnCancel.textColor = PALETTE.LT_GRAY
+        self.btnConfirm.textColor = PALETTE.WHITE
+
+        self.btnConfirm:draw()
+    else
+        self.btnConfirm.textColor = PALETTE.WHITE
+        self.btnCancel.textColor = PALETTE.WHITE
     end
+
+    self.btnLeave:draw()
+    self.btnCancel:draw()
 end
 
 ---@param mouse MouseState
@@ -4753,18 +4765,20 @@ function StInGame_Abandon:tick(mouse)
     local clicked = Button.updateButtonsAndDetectClick(
         self.buttons, mouse.x, mouse.y, mouse.left)
 
-    if clicked == ST_ABANDON_BTN_NAME then
+    if not clicked then return end
+
+    if clicked.name == ST_ABANDON_BTN_NAME then
         self.reallyLeave = true
         return
     end
 
-    if clicked == ST_ABANDON_BTN_CANCEL_NAME then
+    if clicked.name == ST_ABANDON_BTN_CANCEL_NAME then
         self.reallyLeave = false
         self.finished = true
         return
     end
 
-    if clicked == ST_ABANDON_BTN_CONFIRM_NAME then
+    if clicked.name == ST_ABANDON_BTN_CONFIRM_NAME then
         self.finished = true
         return
     end
