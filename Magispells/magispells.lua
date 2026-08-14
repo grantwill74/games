@@ -1266,7 +1266,7 @@ function StLoading:tick(_)
         wordDfa = results[2] -- loaded the DFA
         DawgLoaded = true
 
-        return  StMainMenu.new() 
+        return StIntro.new() 
     else
         self.nYields = self.nYields + 1
     end
@@ -4067,7 +4067,7 @@ function StInGame:newGame(levelStart)
     self.dfaState = wordDfa.states[DawgStart]
     self.score = 0
     self.level = levelStart
-    self.nextLevelTarget = ScoreToReachLevel(2)
+    self.nextLevelTarget = ScoreToReachLevel(levelStart + 1)
     self.ticks = 0
     self.nLevelWordsSubmitted = 0
     self.levelBestWord = ""
