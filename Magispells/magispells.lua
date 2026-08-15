@@ -11,6 +11,8 @@
 
 ---------------------------- System constants ----------------------------------
 
+SAVEID = 'Magispells s1'
+
 TAU = math.pi * 2
 SCREEN_W_px = 240
 SCREEN_H_px = 136
@@ -32,6 +34,17 @@ SCREEN_W_tiles = SCREEN_W_px / TILE_W_px
 SCREEN_H_tiles = SCREEN_H_px / TILE_H_px
 
 DebugMode = false
+CheatMode = false
+
+MAX_HIGH_SCORES = 10
+
+function LoadHighScores()
+
+end
+
+function SaveHighScore(points, level, nTicks)
+
+end
 
 
 PALETTE_ADDR = 0x3FC0
