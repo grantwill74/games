@@ -1957,7 +1957,7 @@ end
 ---@class SubMenu
 ---@field buttons Button[]
 ---@field tick fun(self: SubMenu, mouse: MouseState): SubMenuTransition
----@field hoverButton Button # for hints
+---@field hoverButton Button|nil # for hints
 SubMenu = {}
 
 
@@ -3894,7 +3894,7 @@ end
 ---@field levelBestWordScore integer
 ---@field gameBestWord string
 ---@field gameBestWordScore integer
----@field statusMsg nil|StatusMessage
+---@field statusMsg nil|StatusMessage|string
 ---@field statusTicksLeft integer
 ---@field nChances integer
 ---@field currentPar number
@@ -3903,6 +3903,7 @@ end
 ---@field ticksSinceLastPlay integer
 ---@field bookDeployTicks number
 ---@field postGameOver boolean
+---@field hoverButton Button|nil
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -4052,6 +4053,7 @@ function StInGame.new(lvlStart)
         letterPartEmitter = LetterParticleEmitter.new(),
         postGameOver = false,
         nSyncDelayTicks = 1, -- for switching music
+        hoverButton = nil,
     }
 
     setmetatable(state, StInGame)
@@ -4111,6 +4113,7 @@ function StInGame:newGame(levelStart)
     self.ticksSinceLastPlay = 0
     self.bookDeployTicks = 0
     self.postGameOver = false
+    self.hoverButton = nil
 
     self.wispell:restoreInterest()
 
@@ -4637,6 +4640,21 @@ function StInGame:tick(mouse)
     local clicked = Button.updateButtonsAndDetectClick(
         self.buttons, mouse.x, mouse.y, mouse.left)
 
+    -- if the status message is caused by hovering over a button, clear it.
+    -- (it's only a string if it's a temporary hover status, otherwise it will
+    -- be a function)
+    if type(self.statusMsg) == 'string' then
+        self.statusMsg = nil
+    end
+
+    for _, button in ipairs(self.buttons) do
+        if button.hover and type(self.statusMsg) ~= "function" then
+            -- only change the status message if there isn't a higher 
+            -- priority one (a function)
+            self.statusMsg = button.hint
+        end
+    end
+
     if clicked then
         if clicked.name == BTN_MUSIC_NAME then
             local btnMusic = clicked --[[ @as SpriteToggleButton ]]
@@ -4965,7 +4983,7 @@ end
 STATUS_MSG_TICKS = 3 * 60
 
 ---set the current status message and time
----@param msg any
+---@param msg StatusMessage
 function StInGame:setStatus(msg)
     self.statusMsg = msg
     self.statusTicksLeft = STATUS_MSG_TICKS
@@ -5062,7 +5080,7 @@ end
 ---@param next integer
 ---@param maxWords integer
 ---@param par number
----@param message nil|StatusMessage
+---@param message nil|StatusMessage|string
 function DrawStatus(
     node, letters, isWord,
     isCharged, wordScore, mana, level, next,
@@ -5092,7 +5110,11 @@ function DrawStatus(
     print("Chances: " .. ToStr(maxWords), x, y + 48, PALETTE.WHITE)
     print("Par: " .. ToStr(par), x, y + 56, PALETTE.WHITE)
 
-    if message then message(x, y + 64) end
+    if type(message) == 'function' then
+        message(x, y + 64)
+    elseif type(message) == 'string' then
+        print(message, x, y + 64, PALETTE.WHITE)
+    end
 end
 
 ---
