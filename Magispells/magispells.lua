@@ -1957,6 +1957,7 @@ end
 ---@class SubMenu
 ---@field buttons Button[]
 ---@field tick fun(self: SubMenu, mouse: MouseState): SubMenuTransition
+---@field hoverButton Button # for hints
 SubMenu = {}
 
 
@@ -2036,7 +2037,7 @@ MENU_GESTURE_OFF_Y = 4
 MENU_SFX_CHOOSE = 48
 
 MENU_COPYRIGHT = '(c) Grant Williams, 2026. AGPL 3.0+.'
-MENU_COPYRIGHT_BOTM_OFFY = -8
+MENU_COPYRIGHT_OFFY = 40
 
 function DrawTitleLetters()
     for i, node in ipairs(TitleLetterNodes) do
@@ -2072,11 +2073,11 @@ function Sub_Title.new()
         MENU_SPR_HAND_TW, MENU_SPR_HAND_TH
     )
 
-    local copyrightWidth = print(MENU_COPYRIGHT, SCREEN_W_px)
+    local copyrightWidth = print(MENU_COPYRIGHT, SCREEN_W_px, 0, 0, false, 1, true)
     local copyright = Node.new(
         nil, 'copyright',
         (SCREEN_W_px - copyrightWidth) / 2,
-        SCREEN_H_px + MENU_COPYRIGHT_BOTM_OFFY,
+        MENU_COPYRIGHT_OFFY,
         copyrightWidth, TEXT_BUTTON_H_PX
     )
 
@@ -2134,10 +2135,12 @@ function Sub_Title:tick(mouse)
     end
 
     local pointing = false
+    self.hoverButton = nil
     for _, maybeHoverButton in ipairs(self.buttons) do
         if maybeHoverButton.hover then
             self:pointAt(maybeHoverButton.node)
             pointing = true
+            self.hoverButton = maybeHoverButton
         end
     end
 
@@ -2180,7 +2183,7 @@ function Sub_Title:draw()
     self:drawButtons()
 
     local cx, cy = self.nCopyright:pos()
-    print(MENU_COPYRIGHT, cx, cy, PALETTE.LT_GRAY)
+    print(MENU_COPYRIGHT, cx, cy, PALETTE.LT_GRAY, false, 1, true)
 end
 
 ---@class Sub_NewGame : SubMenu
@@ -2224,10 +2227,10 @@ function Sub_NewGame.new()
         MENU_NEW_N_BUTTONS * TEXT_BUTTON_H_PX +
         (MENU_NEW_N_BUTTONS - 1) * BTN_VERT_PADDING_PX
 
-    local level1Width = print(MENU_NEW_LVL1_TEXT, SCREEN_W_px)
-    local level12Width = print(MENU_NEW_LVL12_TEXT, SCREEN_W_px)
-    local extendedWidth = print(MENU_NEW_EXTENDED_TEXT, SCREEN_W_px)
-    local backWidth = print(MENU_BACK_TEXT, SCREEN_W_px)
+    local level1Width = print(MENU_NEW_LVL1_TEXT, SCREEN_W_px, 0)
+    local level12Width = print(MENU_NEW_LVL12_TEXT, SCREEN_W_px, 0)
+    local extendedWidth = print(MENU_NEW_EXTENDED_TEXT, SCREEN_W_px, 0)
+    local backWidth = print(MENU_BACK_TEXT, SCREEN_W_px, 0)
 
     -- center the buttons 
     submenu.nButtonRoot = Node.new(
@@ -2347,6 +2350,13 @@ function Sub_NewGame:tick(mouse)
             return Sub_Title.new()
         end
     end
+
+    self.hoverButton = nil
+    for _, button in ipairs(self.buttons) do
+        if button.hover then
+            self.hoverButton = button
+        end
+    end
 end
 
 function Sub_NewGame:draw()
@@ -2368,6 +2378,8 @@ MENU_FADE_TICKS = .5 * 60
 MENU_FADE_CHUNKS = 6
 MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
 MENU_FADE_TICKS_PER_CHUNK = MENU_FADE_TICKS / MENU_FADE_CHUNKS
+
+MENU_HINT_BTM_OFFY = -8
 
 ---@return StMainMenu
 function StMainMenu.new()
@@ -2427,6 +2439,18 @@ end
 
 function StMainMenu:draw()
     self.curSub:draw()
+
+    local hover = self.curSub.hoverButton
+    if hover then
+        local w = print(hover.hint, SCREEN_W_px, SCREEN_H_px)
+        
+        print(
+            hover.hint,
+            (SCREEN_W_px - w) / 2 ,
+            SCREEN_H_px + MENU_HINT_BTM_OFFY,
+            PALETTE.WHITE
+        )
+    end
 end
 
 
