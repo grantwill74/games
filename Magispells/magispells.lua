@@ -3,7 +3,7 @@
 -- desc:    A word-spelling puzzle game. Inspired by Bookworm.
 -- site:    grantwilliams.info/games
 -- license: AGPL-3.0-or-later
--- version: 0.2
+-- version: 0.3
 -- script:  lua
 -- input: mouse
 
@@ -4429,7 +4429,7 @@ function StInGame:submitWord()
         self.strand:clear()
         self.nextLevelTarget = self.nextLevelTarget - score
 
-        if self.nextLevelTarget < 0 then
+        if self.nextLevelTarget <= 0 then
             self:levelUp()
         elseif self.nChances <= 0 then
             self:gameOver()
