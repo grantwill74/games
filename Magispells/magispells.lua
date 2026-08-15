@@ -1988,7 +1988,6 @@ end
 
 --- The main menu's sub-menu 
 ---@class Sub_Title : SubMenu
----@field fadeInTicks integer
 ---@field finalPalette PalEntry[]
 ---@field nTitleLetters Node
 ---@field nButtons Node
@@ -2021,10 +2020,6 @@ MENU_SPR_LHAND_OFFX = MENU_SPR_BODY_TW * TILE_W_px + 8
 MENU_SPR_LHAND_OFFY = -16
 MENU_SPR_RHAND_OFFX = -TILE_W_px
 MENU_SPR_RHAND_OFFY = TILE_H_px
-MENU_FADE_TICKS = .5 * 60
-MENU_FADE_CHUNKS = 6
-MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
-MENU_FADE_TICKS_PER_CHUNK = MENU_FADE_TICKS / MENU_FADE_CHUNKS
 MENU_WISPELL_HOVER_AMP = 4
 --- seconds
 MENU_WISPELL_HOVER_PERIOD = 4
@@ -2051,7 +2046,7 @@ function DrawTitleLetters()
 end
 
 ---@return Sub_Title
-function Sub_Title.new(skipFade)
+function Sub_Title.new()
     local state = SubMenu.new() --[[@as Sub_Title]]
 
     local wispellHead = Node.new(
@@ -2086,7 +2081,6 @@ function Sub_Title.new(skipFade)
     )
 
     for var, val in pairs({
-        fadeInTicks = skipFade and MENU_FADE_TICKS or 0,
         nTitleLetters = Node.new(nil, 'title letters', 0, MENU_TITLE_OFFY),
         nWispellHead = wispellHead,
         nWispellBody = wispellBody,
@@ -2128,18 +2122,6 @@ function Sub_Title.new(skipFade)
 end
 
 function Sub_Title:tick(mouse)
-    if self.fadeInTicks < MENU_FADE_TICKS then
-        self.fadeInTicks = self.fadeInTicks + 1
-        local brightLevel =
-            math.floor(self.fadeInTicks / MENU_FADE_TICKS_PER_CHUNK) *
-            MENU_FADE_CHUNK_BRIGHTNESS_AMNT
-        FadeInBy(DefaultPalette, brightLevel)
-    elseif self.fadeInTicks == MENU_FADE_CHUNKS then
-        self.fadeInTicks = self.fadeInTicks + 1
-    else
-        CycleCyan()
-    end
-
     self.hoverCycle = (self.hoverCycle + 1) % MENU_WISPELL_HOVER_PERIOD_TICS
 
     local button = self:updateButtonsAndDetectClick(mouse)
@@ -2196,7 +2178,7 @@ function Sub_Title:draw()
     DrawTitleLetters()
 
     self:drawButtons()
-    
+
     local cx, cy = self.nCopyright:pos()
     print(MENU_COPYRIGHT, cx, cy, PALETTE.LT_GRAY)
 end
@@ -2345,7 +2327,7 @@ end
 ---@return integer | SubMenuTransition
 function Sub_NewGame:tick(mouse)
     if mouse.rightTrans == 'up' then
-        return Sub_Title.new(true)
+        return Sub_Title.new()
     end
 
     local clicked = self:updateButtonsAndDetectClick(mouse)
@@ -2362,7 +2344,7 @@ function Sub_NewGame:tick(mouse)
         elseif clicked.name == MENU_NEW_EXTENDED_NAME then
             return 16
         elseif clicked.name == MENU_BACK_NAME then
-            return Sub_Title.new(true)
+            return Sub_Title.new()
         end
     end
 end
@@ -2379,7 +2361,13 @@ end
 ---@class StMainMenu : IAppState
 ---@field subTitle Sub_Title
 ---@field curSub SubMenu
+---@field fadeInTicks integer
 StMainMenu = {}
+
+MENU_FADE_TICKS = .5 * 60
+MENU_FADE_CHUNKS = 6
+MENU_FADE_CHUNK_BRIGHTNESS_AMNT = 1 / MENU_FADE_CHUNKS
+MENU_FADE_TICKS_PER_CHUNK = MENU_FADE_TICKS / MENU_FADE_CHUNKS
 
 ---@return StMainMenu
 function StMainMenu.new()
@@ -2388,7 +2376,8 @@ function StMainMenu.new()
     local state = {
         subTitle = subTitle,
         curSub = subTitle,
-        nSyncDelayTicks = 2
+        nSyncDelayTicks = 2,
+        fadeInTicks = 0,
     }
 
     return setmetatable(state, {__index = StMainMenu})
@@ -2407,13 +2396,26 @@ function StMainMenu:delayTick()
 end
 
 function StMainMenu:leave()
-    -- FadeInBy()
-    -- TODO: reset Cyan?
+    -- if the user is super fast, they could otherwise get into a game before
+    -- the palette has finished cycling. this forces it to finish.
+    FadeInBy(DefaultPalette, 1)
     music()
 end
 
 ---@param mouse MouseState
 function StMainMenu:tick(mouse)
+    if self.fadeInTicks < MENU_FADE_TICKS then
+        self.fadeInTicks = self.fadeInTicks + 1
+        local brightLevel =
+            math.floor(self.fadeInTicks / MENU_FADE_TICKS_PER_CHUNK) *
+            MENU_FADE_CHUNK_BRIGHTNESS_AMNT
+        FadeInBy(DefaultPalette, brightLevel)
+    elseif self.fadeInTicks == MENU_FADE_CHUNKS then
+        self.fadeInTicks = self.fadeInTicks + 1
+    else
+        CycleCyan()
+    end
+
     local tx = self.curSub:tick(mouse)
 
     if type(tx) == "number" then
