@@ -36,15 +36,97 @@ SCREEN_H_tiles = SCREEN_H_px / TILE_H_px
 DebugMode = false
 CheatMode = false
 
-MAX_HIGH_SCORES = 10
+N_HIGH_SCORES = 10
+HIGH_SCORE_PMEM_ADDR = 0
+HIGH_SCORE_STRIDE = 2
 
+---@class Highscore
+---@field points integer
+---@field level integer
+---@field nTicks integer
+Highscore = {}
+
+---@param points integer
+---@param level integer
+---@param ticks integer
+---@return Highscore
+function Highscore.new(points, level, ticks)
+    return setmetatable({
+        points = points,
+        level = level,
+        nTicks = ticks
+    }, {__index = Highscore})
+end
+
+---pack highscore into two integers for saving to persistent memory
+---@return [integer, integer]
+function Highscore:pack()
+    --- points gets a whole integer. ticks and levels share a 24-bit and 8-bit
+    --- field within a 32-bit word. 24-bits of ticks is ~77 hours of gameplay,
+    --- which should be more than enough, because the goal is for time to be low
+    --- rather than high.
+    local points = math.min(self.points, 0xFFFFFFFF)
+    local ticks = math.min(self.nTicks, 0xFFFFFF)
+    local level = math.min(self.level, 0xFF)
+    local level_ticks = (ticks << 24) | level
+
+    return {points, level_ticks}
+end
+
+---@param data [integer, integer]
+function Highscore.unpack(data)
+
+end
+
+---determine whether the given score is high enough to go in the table. if so,
+---save it and push the other scores down, cutting off the lowest.
+---@param hs Highscore
+---@returns boolean # whether it was saved
+function SaveHighScoreIfHighEnough(hs)
+    if hs.points <= 0 then return false end
+
+    local i = 0
+    while i < N_HIGH_SCORES do
+        local which = pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i)
+        if which < hs.points then
+            break
+        end
+        i = i + 1
+    end
+
+    if i >= N_HIGH_SCORES then return false end
+    local saveTo = i
+
+    -- overwrite the highscores below to make room
+    while i < N_HIGH_SCORES - 1 do
+        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i + 1),
+            HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i)
+        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i + 1) + 1,
+            HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1)
+        i = i + 1
+    end
+
+    -- save the high score
+    local packed = hs:pack()
+    pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo, packed[1])
+    pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo + 1, packed[2])
+    return true
+end
+
+function ClearHighScores()
+    for i=0, (N_HIGH_SCORES - 1) do
+        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i, 0)
+        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1, 0)
+    end
+end
+
+---@return Highscore[]
 function LoadHighScores()
-
+    for i=0, (N_HIGH_SCORES - 1) do
+        -- TODO
+    end
 end
 
-function SaveHighScore(points, level, nTicks)
-
-end
 
 
 PALETTE_ADDR = 0x3FC0
