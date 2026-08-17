@@ -2496,6 +2496,25 @@ function Sub_NewGame:draw()
     end
 end
 
+---@class Sub_HighScores : SubMenu
+---@field clearing boolean
+---@field confirmedClear boolean
+Sub_Highscores = {}
+
+MENU_HS_BACK_OFFY = 120
+MENU_HS_BACK_NAME = MENU_BACK_NAME
+MENU_HS_BACK_TEXT = 'Back'
+MENU_HS_BACK_HINT = 'Back to main menu!'
+
+MENU_HS_CLEAR_OFFY = 120
+MENU_HS_CLEAR_NAME = 'clear'
+MENU_HS_CLEAR_TEXT = 'Clear Scores'
+MENU_HS_CLEAR_HINT = 'Delete all high scores. Irreversable!'
+
+function Sub_Highscores.new()
+
+end
+
 ---@class StMainMenu : IAppState
 ---@field subTitle Sub_Title
 ---@field curSub SubMenu
