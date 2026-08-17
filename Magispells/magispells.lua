@@ -2128,6 +2128,7 @@ end
 ---@field nWispellRHand Node
 ---@field hoverCycle integer
 ---@field btnStartGame Button
+---@field btnHighScores Button
 ---@field nCopyright Node
 Sub_Title = {}
 setmetatable(Sub_Title, {__index = SubMenu})
@@ -2156,9 +2157,13 @@ MENU_WISPELL_HOVER_PERIOD_TICS = math.floor(MENU_WISPELL_HOVER_PERIOD * 60)
 --- phase per tick
 MENU_WISPELL_HOVER_FREQ = 1 / MENU_WISPELL_HOVER_PERIOD_TICS
 
-MENU_BTN_NAME_START = 'new game'
-MENU_BTN_NAME_START_TEXT = 'New Game!'
-MENU_BTN_NAME_START_HINT = 'Start a new game!'
+MENU_BTN_START_NAME = 'new game'
+MENU_BTN_START_TEXT = 'New Game!'
+MENU_BTN_START_HINT = 'Start a new game!'
+
+MENU_BTN_HS_NAME = 'high scores'
+MENU_BTN_HS_TEXT = 'High Scores'
+MENU_BTN_HS_HINT = 'Look at your high scores!'
 
 MENU_GESTURE_OFF_X = -4
 MENU_GESTURE_OFF_Y = 4
@@ -2223,7 +2228,8 @@ function Sub_Title.new()
     end
 
     -- print button off screen to get the rendered width
-    local startBtnW = print(MENU_BTN_NAME_START_TEXT, SCREEN_W_px)
+    local startBtnW = print(MENU_BTN_START_TEXT, SCREEN_W_px)
+    local hsBtnW = print(MENU_BTN_HS_TEXT, SCREEN_W_px)
 
     state.nButtons = Node.new(
         nil, 'buttons',
@@ -2235,15 +2241,30 @@ function Sub_Title.new()
         -startBtnW / 2,
         0, startBtnW, TEXT_BUTTON_H_PX
     )
+    local nHsButton = Node.new(
+        state.nButtons, 'highscore btn node',
+        -hsBtnW / 2,
+        (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX * 2),
+        hsBtnW, TEXT_BUTTON_H_PX
+    )
 
     state.btnStartGame = TextButton.new(
         nStartButton,
-        MENU_BTN_NAME_START,
-        MENU_BTN_NAME_START_TEXT,
-        MENU_BTN_NAME_START_HINT,
+        MENU_BTN_START_NAME,
+        MENU_BTN_START_TEXT,
+        MENU_BTN_START_HINT,
         PALETTE.YELLOW
     )
-    table.insert(state.buttons, state.btnStartGame);
+    state.btnHighScores = TextButton.new(
+        nHsButton,
+        MENU_BTN_HS_NAME,
+        MENU_BTN_HS_TEXT,
+        MENU_BTN_HS_HINT,
+        PALETTE.YELLOW
+    )
+
+    table.insert(state.buttons, state.btnStartGame)
+    table.insert(state.buttons, state.btnHighScores)
 
     TitleNode.parent = state.nTitleLetters
 
@@ -2256,7 +2277,7 @@ function Sub_Title:tick(mouse)
     local button = self:updateButtonsAndDetectClick(mouse)
 
     if button then
-        if button.name == MENU_BTN_NAME_START then
+        if button.name == MENU_BTN_START_NAME then
             sfx(MENU_SFX_CHOOSE, 'C-5', 60, SFX_CHANNEL)
             return Sub_NewGame.new()
         end
@@ -2500,19 +2521,64 @@ end
 ---@field clearing boolean
 ---@field confirmedClear boolean
 Sub_Highscores = {}
+setmetatable(Sub_Highscores, {__index = SubMenu})
 
 MENU_HS_BACK_OFFY = 120
 MENU_HS_BACK_NAME = MENU_BACK_NAME
 MENU_HS_BACK_TEXT = 'Back'
 MENU_HS_BACK_HINT = 'Back to main menu!'
 
-MENU_HS_CLEAR_OFFY = 120
+MENU_HS_CLEAR_OFFY = 100
 MENU_HS_CLEAR_NAME = 'clear'
 MENU_HS_CLEAR_TEXT = 'Clear Scores'
 MENU_HS_CLEAR_HINT = 'Delete all high scores. Irreversable!'
 
-function Sub_Highscores.new()
+MENU_HS_TABLE_NODE = Node.new(
+    nil, 'n hs table',
+    40, 20, 100, N_HIGH_SCORES * (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX + 1)
+)
 
+function Sub_Highscores.new()
+    -- it really would have been better if I had made this part of the 
+    -- button class in retrospect, rather than computing the width manually.
+    local backW = print(MENU_HS_BACK_TEXT, SCREEN_W_px)
+    local clearW = print(MENU_HS_CLEAR_TEXT, SCREEN_W_px)
+
+    local nBack = Node.new(
+        nil, 'n back',
+        (SCREEN_W_px - backW) / 2,
+        MENU_HS_BACK_OFFY,
+        backW, TEXT_BUTTON_H_PX
+    )
+    local nClear = Node.new(
+        nil, 'n clear',
+        (SCREEN_W_px - clearW) / 2,
+        MENU_HS_CLEAR_OFFY,
+        clearW, TEXT_BUTTON_H_PX
+    )
+
+    local back = TextButton.new(
+        nBack,
+        MENU_HS_BACK_NAME,
+        MENU_HS_BACK_TEXT,
+        MENU_HS_BACK_HINT,
+        PALETTE.WHITE
+    )
+    local clear = TextButton.new(
+        nClear,
+        MENU_HS_CLEAR_NAME,
+        MENU_HS_CLEAR_TEXT,
+        MENU_HS_BACK_HINT,
+        PALETTE.WHITE
+    )
+
+    local state = {
+        buttons = {back, clear},
+        clearing = false,
+        confirmedClear = false,
+    }
+
+    return setmetatable(state, {__index = Sub_Highscores})
 end
 
 ---@class StMainMenu : IAppState
