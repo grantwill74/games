@@ -65,7 +65,7 @@ function Highscore:pack()
     --- field within a 32-bit word. 24-bits of ticks is ~77 hours of gameplay,
     --- which should be more than enough, because the goal is for time to be low
     --- rather than high.
-    local points = math.min(self.points, 0xFFFFFFFF)
+    local points = math.min(self.points, math.maxinteger)
     local ticks = math.min(self.nTicks, 0xFFFFFF)
     local level = math.min(self.level, 0xFF)
     local level_ticks = (ticks << 24) | level
@@ -75,7 +75,34 @@ end
 
 ---@param data [integer, integer]
 function Highscore.unpack(data)
+    local score = Highscore.new(data[1], data[2] >> 24, data[2] & 0xFF)
+    return score
+end
 
+--- returns the points, time, and level as strings
+---@return string, string, string
+function Highscore:toStr()
+    local points, time, level
+
+    if self.points == math.maxinteger then
+        points = "Tons!"
+    else
+        points = tostring(self.points)
+    end
+
+    if self.nTicks == 0xFFFFFF then
+        time = "Long!"
+    else
+        time = tostring(self.nTicks)
+    end
+
+    if self.level == 0xFF then
+        level = "High!"
+    else
+        level = tostring(self.level)
+    end
+
+    return points, time, level
 end
 
 ---determine whether the given score is high enough to go in the table. if so,
@@ -122,9 +149,15 @@ end
 
 ---@return Highscore[]
 function LoadHighScores()
+    local hs = {}
+
     for i=0, (N_HIGH_SCORES - 1) do
-        -- TODO
+        local lo = pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i)
+        local hi = pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1)
+        table.insert(hs, Highscore.unpack({lo, hi}))
     end
+
+    return hs
 end
 
 
