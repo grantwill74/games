@@ -2277,9 +2277,12 @@ function Sub_Title:tick(mouse)
     local button = self:updateButtonsAndDetectClick(mouse)
 
     if button then
+        sfx(MENU_SFX_CHOOSE, 'C-5', 60, SFX_CHANNEL)
+        
         if button.name == MENU_BTN_START_NAME then
-            sfx(MENU_SFX_CHOOSE, 'C-5', 60, SFX_CHANNEL)
             return Sub_NewGame.new()
+        elseif button.name == MENU_BTN_HS_NAME then
+            return Sub_Highscores.new()
         end
     end
 
@@ -2520,6 +2523,7 @@ end
 ---@class Sub_HighScores : SubMenu
 ---@field clearing boolean
 ---@field confirmedClear boolean
+---@field scores Highscore[]
 Sub_Highscores = {}
 setmetatable(Sub_Highscores, {__index = SubMenu})
 
@@ -2528,10 +2532,10 @@ MENU_HS_BACK_NAME = MENU_BACK_NAME
 MENU_HS_BACK_TEXT = 'Back'
 MENU_HS_BACK_HINT = 'Back to main menu!'
 
-MENU_HS_CLEAR_OFFY = 100
+MENU_HS_CLEAR_OFFY = 0
 MENU_HS_CLEAR_NAME = 'clear'
-MENU_HS_CLEAR_TEXT = 'Clear Scores'
-MENU_HS_CLEAR_HINT = 'Delete all high scores. Irreversable!'
+MENU_HS_CLEAR_TEXT = 'Clear Saved Data'
+MENU_HS_CLEAR_HINT = 'Delete all high scores and level clear data. Irreversable!'
 
 MENU_HS_TABLE_NODE = Node.new(
     nil, 'n hs table',
@@ -2576,9 +2580,62 @@ function Sub_Highscores.new()
         buttons = {back, clear},
         clearing = false,
         confirmedClear = false,
+        scores = LoadHighScores(),
     }
 
     return setmetatable(state, {__index = Sub_Highscores})
+end
+
+function Sub_Highscores:draw()
+    for _, button in ipairs(self.buttons) do
+        button:draw()
+    end
+end
+
+---@param mouse MouseState
+function Sub_Highscores:tick(mouse)
+    local clicked = self:updateButtonsAndDetectClick(mouse)
+
+    if clicked then
+        if clicked.name == MENU_HS_BACK_NAME then
+            return Sub_Title.new()
+        elseif clicked.name == MENU_HS_CLEAR_NAME then
+            return Sub_ClearScores.new()
+        end
+    end
+end
+
+
+---@class Sub_ClearScores
+---@field confirmed boolean
+Sub_ClearScores = {}
+
+MENU_CLEAR_REALLY_TEXT_OFFY = 40
+MENU_CLEAR_WHAT_TEXT_OFFY = 48
+MENU_CLEAR_IRREVERSABLE_TEXT_OFFY = 56
+
+MENU_CLEAR_CLEAR_BTN_OFFY = 72
+MENU_CLEAR_CLEAR_BTN_NAME = 'clear'
+MENU_CLEAR_CLEAR_BTN_TEXT = 'Really Clear'
+MENU_CLEAR_CLEAR_BTN_HINT = 'Confirm that you want to clear all data'
+
+MENU_CLEAR_CANCEL_BTN_NAME = 'cancel'
+MENU_CLEAR_CANCEL_BTN_TEXT = 'Cancel'
+MENU_CLEAR_CANCEL_BTN_HINT = 'Go back without clearing'
+
+MENU_CLEAR_CONFIRM_BTN_NAME = 'confirm'
+MENU_CLEAR_CONFIRM_BTN_TEXT = 'Confirm'
+MENU_CLEAR_CONFIRM_BTN_HINT = 'No turning back once you clear!'
+
+-- it would be better factoring to share code with the "really abandon"
+-- code for the in game state.
+
+function Sub_ClearScores.new()
+    local state = {
+        confirmed = false
+    }
+
+    return setmetatable(state, {__index = Sub_ClearScores})
 end
 
 ---@class StMainMenu : IAppState
