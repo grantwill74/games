@@ -2606,17 +2606,24 @@ function Sub_Highscores:tick(mouse)
 end
 
 
----@class Sub_ClearScores
+---@class Sub_ClearScores : SubMenu
 ---@field confirmed boolean
+---@field lines string[]
+---@field widths integer[]
 Sub_ClearScores = {}
 
 MENU_CLEAR_REALLY_TEXT_OFFY = 40
 MENU_CLEAR_WHAT_TEXT_OFFY = 48
 MENU_CLEAR_IRREVERSABLE_TEXT_OFFY = 56
+MENU_CLEAR_TEXT_OFFS = {
+    MENU_CLEAR_REALLY_TEXT_OFFY,
+    MENU_CLEAR_WHAT_TEXT_OFFY,
+    MENU_CLEAR_IRREVERSABLE_TEXT_OFFY
+}
 
 MENU_CLEAR_CLEAR_BTN_OFFY = 72
 MENU_CLEAR_CLEAR_BTN_NAME = 'clear'
-MENU_CLEAR_CLEAR_BTN_TEXT = 'Really Clear'
+MENU_CLEAR_CLEAR_BTN_TEXT = 'Confirm Clear'
 MENU_CLEAR_CLEAR_BTN_HINT = 'Confirm that you want to clear all data'
 
 MENU_CLEAR_CANCEL_BTN_NAME = 'cancel'
@@ -2631,11 +2638,96 @@ MENU_CLEAR_CONFIRM_BTN_HINT = 'No turning back once you clear!'
 -- code for the in game state.
 
 function Sub_ClearScores.new()
+    local lines = {
+        'Do you really want to clear all saved data:',
+        'high scores, unlocked songs and stages.',
+        'This action is irreversable!'
+    }
+
+    local widths = {}
+    for i, line in ipairs(lines) do
+        widths[i] = print(line, SCREEN_W_px)
+    end
+
+    local clearW = print(MENU_CLEAR_CLEAR_BTN_TEXT, SCREEN_W_px)
+    local cancelW = print(MENU_CLEAR_CANCEL_BTN_TEXT, SCREEN_W_px)
+    local confirmW = print(MENU_CLEAR_CONFIRM_BTN_TEXT, SCREEN_W_px)
+
+    local nClear = Node.new(
+        nil, 'nd clear',
+        (SCREEN_W_px - clearW) / 2,
+        MENU_CLEAR_CLEAR_BTN_OFFY,
+        clearW, TEXT_BUTTON_H_PX
+    )
+
+    local nCancel = Node.new(
+        nClear, 'nd cancel',
+        (SCREEN_W_px - cancelW) / 2,
+        TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX,
+        cancelW, TEXT_BUTTON_H_PX
+    )
+
+    local nConfirm = Node.new(
+        nCancel, 'nd confirm',
+        (SCREEN_W_px - confirmW) / 2,
+        TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX,
+        confirmW, TEXT_BUTTON_H_PX
+    )
+
+    local btnClear = TextButton.new(
+        nClear,
+        MENU_CLEAR_CLEAR_BTN_NAME,
+        MENU_CLEAR_CLEAR_BTN_TEXT,
+        MENU_CLEAR_CLEAR_BTN_HINT,
+        PALETTE.WHITE
+    )
+    
+    local btnCancel = TextButton.new(
+        nCancel,
+        MENU_CLEAR_CANCEL_BTN_NAME,
+        MENU_CLEAR_CANCEL_BTN_TEXT,
+        MENU_CLEAR_CANCEL_BTN_HINT,
+        PALETTE.WHITE
+    )
+    
+    local btnConfirm = TextButton.new(
+        nConfirm,
+        MENU_CLEAR_CONFIRM_BTN_NAME,
+        MENU_CLEAR_CONFIRM_BTN_TEXT,
+        MENU_CLEAR_CONFIRM_BTN_HINT,
+        PALETTE.WHITE
+    )
+
+    local buttons = {
+        btnClear,
+        btnCancel,
+        btnConfirm
+    }
+
+
     local state = {
-        confirmed = false
+        confirmed = false,
+        lines = lines,
+        widths = widths,
+        buttons = buttons,
     }
 
     return setmetatable(state, {__index = Sub_ClearScores})
+end
+
+function Sub_ClearScores:draw()
+    for i, line in ipairs(self.lines) do
+        local offX = (SCREEN_W_px - self.widths[i]) / 2
+        print(line, offX, MENU_CLEAR_TEXT_OFFS[i], PALETTE.WHITE)
+    end
+
+    for _, button in ipairs(self.buttons) do
+        button:draw()
+    end
+end
+
+function Sub_ClearScores:tick(mouse)
+
 end
 
 ---@class StMainMenu : IAppState
