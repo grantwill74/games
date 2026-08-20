@@ -299,6 +299,7 @@ SFX = {
     bestWord = 54,
     cant = 55,
     blockBreak = 56,
+    clearData = 57,
 }
 
 
@@ -2521,8 +2522,6 @@ function Sub_NewGame:draw()
 end
 
 ---@class Sub_HighScores : SubMenu
----@field clearing boolean
----@field confirmedClear boolean
 ---@field scores Highscore[]
 Sub_Highscores = {}
 setmetatable(Sub_Highscores, {__index = SubMenu})
@@ -2610,7 +2609,10 @@ end
 ---@field confirmed boolean
 ---@field lines string[]
 ---@field widths integer[]
+---@field btnClear TextButton
+---@field btnConfirm TextButton
 Sub_ClearScores = {}
+setmetatable(Sub_ClearScores, {__index = SubMenu})
 
 MENU_CLEAR_REALLY_TEXT_OFFY = 40
 MENU_CLEAR_WHAT_TEXT_OFFY = 48
@@ -2623,7 +2625,7 @@ MENU_CLEAR_TEXT_OFFS = {
 
 MENU_CLEAR_CLEAR_BTN_OFFY = 72
 MENU_CLEAR_CLEAR_BTN_NAME = 'clear'
-MENU_CLEAR_CLEAR_BTN_TEXT = 'Confirm Clear'
+MENU_CLEAR_CLEAR_BTN_TEXT = 'Clear'
 MENU_CLEAR_CLEAR_BTN_HINT = 'Confirm that you want to clear all data'
 
 MENU_CLEAR_CANCEL_BTN_NAME = 'cancel'
@@ -2633,6 +2635,7 @@ MENU_CLEAR_CANCEL_BTN_HINT = 'Go back without clearing'
 MENU_CLEAR_CONFIRM_BTN_NAME = 'confirm'
 MENU_CLEAR_CONFIRM_BTN_TEXT = 'Confirm'
 MENU_CLEAR_CONFIRM_BTN_HINT = 'No turning back once you clear!'
+MENU_CLEAR_CONFIRM_GAPY = 5 * (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX)
 
 -- it would be better factoring to share code with the "really abandon"
 -- code for the in game state.
@@ -2653,24 +2656,31 @@ function Sub_ClearScores.new()
     local cancelW = print(MENU_CLEAR_CANCEL_BTN_TEXT, SCREEN_W_px)
     local confirmW = print(MENU_CLEAR_CONFIRM_BTN_TEXT, SCREEN_W_px)
 
-    local nClear = Node.new(
-        nil, 'nd clear',
-        (SCREEN_W_px - clearW) / 2,
+    local nButtons = Node.new(
+        nil, 'nd buttons',
+        SCREEN_W_px / 2,
         MENU_CLEAR_CLEAR_BTN_OFFY,
+        0, 0
+    )
+
+    local nClear = Node.new(
+        nButtons, 'nd clear',
+        -clearW / 2,
+        0,
         clearW, TEXT_BUTTON_H_PX
     )
 
     local nCancel = Node.new(
-        nClear, 'nd cancel',
-        (SCREEN_W_px - cancelW) / 2,
+        nButtons, 'nd cancel',
+        -cancelW / 2,
         TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX,
         cancelW, TEXT_BUTTON_H_PX
     )
 
     local nConfirm = Node.new(
-        nCancel, 'nd confirm',
-        (SCREEN_W_px - confirmW) / 2,
-        TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX,
+        nButtons, 'nd confirm',
+        -confirmW / 2,
+        MENU_CLEAR_CONFIRM_GAPY,
         confirmW, TEXT_BUTTON_H_PX
     )
 
@@ -2681,7 +2691,7 @@ function Sub_ClearScores.new()
         MENU_CLEAR_CLEAR_BTN_HINT,
         PALETTE.WHITE
     )
-    
+
     local btnCancel = TextButton.new(
         nCancel,
         MENU_CLEAR_CANCEL_BTN_NAME,
@@ -2689,13 +2699,13 @@ function Sub_ClearScores.new()
         MENU_CLEAR_CANCEL_BTN_HINT,
         PALETTE.WHITE
     )
-    
+
     local btnConfirm = TextButton.new(
         nConfirm,
         MENU_CLEAR_CONFIRM_BTN_NAME,
         MENU_CLEAR_CONFIRM_BTN_TEXT,
         MENU_CLEAR_CONFIRM_BTN_HINT,
-        PALETTE.WHITE
+        PALETTE.DK_GRAY
     )
 
     local buttons = {
@@ -2704,13 +2714,15 @@ function Sub_ClearScores.new()
         btnConfirm
     }
 
+    local state = SubMenu.new() --[[@as Sub_ClearScores]]
 
-    local state = {
-        confirmed = false,
-        lines = lines,
-        widths = widths,
-        buttons = buttons,
-    }
+    state.confirmed = false
+    state.lines = lines
+    state.widths = widths
+    state.buttons = buttons
+    state.btnClear = btnClear
+    state.btnConfirm = btnConfirm
+
 
     return setmetatable(state, {__index = Sub_ClearScores})
 end
@@ -2727,7 +2739,22 @@ function Sub_ClearScores:draw()
 end
 
 function Sub_ClearScores:tick(mouse)
+    local clicked = self:updateButtonsAndDetectClick(mouse)
 
+    if clicked then
+        if clicked.name == MENU_CLEAR_CLEAR_BTN_NAME then
+            self.confirmed = true
+            self.btnClear.textColor = PALETTE.RED
+            self.btnConfirm.textColor = PALETTE.WHITE
+        elseif clicked.name == MENU_CLEAR_CANCEL_BTN_NAME then
+            self.confirmed = false
+            return Sub_Highscores.new()
+        elseif clicked.name == MENU_CLEAR_CONFIRM_BTN_NAME then
+            sfx(SFX.clearData, 'C-6', 150, SFX_CHANNEL)
+            ClearHighScores()
+            return Sub_Highscores.new()
+        end
+    end
 end
 
 ---@class StMainMenu : IAppState
@@ -6355,6 +6382,7 @@ end
 -- 054:1010102010601090208020a030c040e050f060006010702080309050a070a080b090b0b0c0f0c0f0d0d0d010d030d060d070e080e0a0e0c0e0e0f0f0500000000000
 -- 055:01e021d331c541b641b651a76196619681859173a172a160b17fc16dc15cd14ce14ce13cf13bf12bf12bf11af11af11bf10df100f102f105f106f107310000000000
 -- 056:03100340030003b0033003c0032013d0130023f0232033e0431053e0530063b0730083c08320839093809310931093609300a340b330c320d300f300300000000000
+-- 057:00f010f020a020a0305030504000400040d050d050805080503060306000600060a060a060606060501050105000500060f070f080f090f0a0f0b0f0440000000000
 -- </SFX>
 
 -- <SFX1>
