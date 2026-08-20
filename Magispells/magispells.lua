@@ -2575,12 +2575,10 @@ function Sub_Highscores.new()
         PALETTE.WHITE
     )
 
-    local state = {
-        buttons = {back, clear},
-        clearing = false,
-        confirmedClear = false,
-        scores = LoadHighScores(),
-    }
+
+    local state = SubMenu.new() --[[@as Sub_HighScores]]
+    state.buttons = {back, clear}
+    state.scores = LoadHighScores()
 
     return setmetatable(state, {__index = Sub_Highscores})
 end
@@ -2588,6 +2586,15 @@ end
 function Sub_Highscores:draw()
     for _, button in ipairs(self.buttons) do
         button:draw()
+    end
+
+    local scorex, scorey = MENU_HS_TABLE_NODE:pos()
+    if #self.scores == 0 then
+
+    end
+
+    for i, score in ipairs(self.scores) do
+
     end
 end
 
