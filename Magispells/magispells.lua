@@ -2523,6 +2523,10 @@ end
 
 ---@class Sub_HighScores : SubMenu
 ---@field scores Highscore[]
+---@field nRank Node
+---@field nScore Node
+---@field nLevel Node
+---@field nTime Node
 Sub_Highscores = {}
 setmetatable(Sub_Highscores, {__index = SubMenu})
 
@@ -2536,12 +2540,47 @@ MENU_HS_CLEAR_NAME = 'clear'
 MENU_HS_CLEAR_TEXT = 'Clear Saved Data'
 MENU_HS_CLEAR_HINT = 'Delete all high scores and level clear data. Irreversable!'
 
+MENU_HS_RANK_W = 24
+MENU_HS_SCORE_W = 80
+MENU_HS_LEVEL_W = 24
+MENU_HS_TIME_W = 40
+MENU_HS_TOTAL_W = MENU_HS_RANK_W + MENU_HS_SCORE_W + MENU_HS_LEVEL_W + MENU_HS_TIME_W
+MENU_HS_TOTAL_H = 
+    (N_HIGH_SCORES + 1) * (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX + 1)
 MENU_HS_TABLE_NODE = Node.new(
     nil, 'n hs table',
-    40, 20, 100, N_HIGH_SCORES * (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX + 1)
+    40, 20,
+    MENU_HS_TOTAL_W,
+    MENU_HS_TOTAL_H
 )
 
 function Sub_Highscores.new()
+    local nRank = Node.new(
+        MENU_HS_TABLE_NODE, 'n rank',
+        0, 0,
+        MENU_HS_RANK_W,
+        MENU_HS_TOTAL_H
+    )
+    local nScore = Node.new(
+        nRank, 'n score',
+        MENU_HS_RANK_W, 0,
+        MENU_HS_SCORE_W,
+        MENU_HS_TOTAL_H
+    )
+    local nLevel = Node.new(
+        nScore, 'n level',
+        MENU_HS_SCORE_W, 0,
+        MENU_HS_LEVEL_W,
+        MENU_HS_TOTAL_H
+    )
+    local nTime = Node.new(
+        nLevel, 'n time',
+        MENU_HS_LEVEL_W, 0,
+        MENU_HS_TIME_W,
+        MENU_HS_TOTAL_H
+    )
+
+
     -- it really would have been better if I had made this part of the 
     -- button class in retrospect, rather than computing the width manually.
     local backW = print(MENU_HS_BACK_TEXT, SCREEN_W_px)
@@ -2579,6 +2618,15 @@ function Sub_Highscores.new()
     local state = SubMenu.new() --[[@as Sub_HighScores]]
     state.buttons = {back, clear}
     state.scores = LoadHighScores()
+    state.nRank = nRank;
+    state.nScore = nScore;
+    state.nLevel = nLevel;
+    state.nTime = nTime;
+
+    -- remove zero scores
+    while #state.scores > 0 and state.scores[#state.scores].points == 0 do
+        table.remove(state.scores)
+    end
 
     return setmetatable(state, {__index = Sub_Highscores})
 end
@@ -2588,9 +2636,22 @@ function Sub_Highscores:draw()
         button:draw()
     end
 
-    local scorex, scorey = MENU_HS_TABLE_NODE:pos()
-    if #self.scores == 0 then
+    -- score header
+    local rankx, ranky = self.nRank:pos()
+    print('#', rankx, ranky, PALETTE.WHITE)
+    local scorex, scorey = self.nScore:pos()
+    print('Score', scorex, scorey, PALETTE.WHITE)
 
+    if #self.scores == 0 then
+        local msg = 'No high scores set!'
+        local w = print(msg, SCREEN_W_px, SCREEN_H_px)
+        print(msg, (SCREEN_W_px - w) / 2, (SCREEN_H_px - 6) / 2, PALETTE.WHITE)
+        return
+    end
+
+
+    for i=1, N_HIGH_SCORES do
+        
     end
 
     for i, score in ipairs(self.scores) do
