@@ -1302,6 +1302,13 @@ function Node:pos()
     return px + self.xoffpx, py + self.yoffpx
 end
 
+--- Align a value from the node's right.
+--- Return's relative x value.
+function Node:xRight(amount)
+    local r = self.xoffpx + (self.hpx or 0)
+    return r - amount
+end
+
 ---compute the vector between the node's absolute position and the given point.
 ---returns the vector <node.x, node.y> - <x, y> 
 ---@param x number
@@ -2541,12 +2548,13 @@ MENU_HS_CLEAR_TEXT = 'Clear Saved Data'
 MENU_HS_CLEAR_HINT = 'Delete all high scores and level clear data. Irreversable!'
 
 MENU_HS_RANK_W = 24
-MENU_HS_SCORE_W = 80
-MENU_HS_LEVEL_W = 24
-MENU_HS_TIME_W = 40
+MENU_HS_PAD = -12
+MENU_HS_SCORE_W = 60
+MENU_HS_LEVEL_W = 50
+MENU_HS_TIME_W = 60
 MENU_HS_TOTAL_W = MENU_HS_RANK_W + MENU_HS_SCORE_W + MENU_HS_LEVEL_W + MENU_HS_TIME_W
-MENU_HS_TOTAL_H = 
-    (N_HIGH_SCORES + 1) * (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX + 1)
+MENU_HS_ROW_H = 8
+MENU_HS_TOTAL_H = (N_HIGH_SCORES + 1) * MENU_HS_ROW_H
 MENU_HS_TABLE_NODE = Node.new(
     nil, 'n hs table',
     40, 20,
@@ -2614,6 +2622,13 @@ function Sub_Highscores.new()
         PALETTE.WHITE
     )
 
+    -- debugging
+    ClearHighScores()
+    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 9999999))
+    SaveHighScoreIfHighEnough(Highscore.new(999999, 2, 9999999))
+    SaveHighScoreIfHighEnough(Highscore.new(999999, 100, 99999))
+    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 999999))
+
 
     local state = SubMenu.new() --[[@as Sub_HighScores]]
     state.buttons = {back, clear}
@@ -2622,6 +2637,8 @@ function Sub_Highscores.new()
     state.nScore = nScore;
     state.nLevel = nLevel;
     state.nTime = nTime;
+
+    trace(ToStr(state.scores))
 
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
@@ -2636,11 +2653,17 @@ function Sub_Highscores:draw()
         button:draw()
     end
 
+    local headerColor = ((#self.scores == 0) and PALETTE.DK_GRAY) or PALETTE.WHITE
+
     -- score header
     local rankx, ranky = self.nRank:pos()
-    print('#', rankx, ranky, PALETTE.WHITE)
+    print('#', rankx, ranky, headerColor)
     local scorex, scorey = self.nScore:pos()
-    print('Score', scorex, scorey, PALETTE.WHITE)
+    print('Score', scorex, scorey, headerColor)
+    local levelx, levely = self.nLevel:pos()
+    print('Level', levelx, levely, headerColor)
+    local timex, timey = self.nTime:pos()
+    print('Time', timex, timey, headerColor)
 
     if #self.scores == 0 then
         local msg = 'No high scores set!'
@@ -2649,13 +2672,49 @@ function Sub_Highscores:draw()
         return
     end
 
+    for i=1, #self.scores do
+        local score = self.scores[i]
+        if not score then goto continue end
+        local color = PALETTE.WHITE
 
-    for i=1, N_HIGH_SCORES do
+        local rx, ry = self.nRank:pos()
+        local y = ry + i * MENU_HS_ROW_H
+        local rw = print(tostring(i), SCREEN_W_px, SCREEN_H_px)
+        print(tostring(i), rx + MENU_HS_RANK_W - rw + MENU_HS_PAD, y, color)
+
+        local sx, _ = self.nScore:pos()
+        local sw = print(tostring(score.points), SCREEN_W_px, SCREEN_H_px)
+        print(tostring(score.points), sx + MENU_HS_SCORE_W + MENU_HS_PAD - sw, y, color)
+
+        local lx, _ = self.nLevel:pos()
+        local lw = print(tostring(score.level), SCREEN_W_px, SCREEN_H_px)
+        print(tostring(score.level), lx + MENU_HS_LEVEL_W + MENU_HS_PAD - lw, y, color)
+
+        local hours, mins, secs, ticks = HoursMinsSecs(score.nTicks)
+        local time
         
-    end
+        if hours >= 10 then
+            time = 'Long!'
+        else
+            local format = '%02d,%02d'
+            local args = {secs, ticks}
+            if mins > 0 then
+                format = '%02d:' + format
+                table.insert(args, 1, mins)
+                if hours > 0 then
+                    format = '%d:'
+                    table.insert(args, 1, hours)
+                end
+            end
+            -- trace(ToStr(args))
+            time = string.format(format, table.unpack(args))
+        end
 
-    for i, score in ipairs(self.scores) do
-
+       
+        local tx, _ = self.nTime:pos()
+        local tw = print(time, SCREEN_W_px, SCREEN_H_px)
+        print(time, tx + MENU_HS_TIME_W + MENU_HS_PAD - tw, y, color)
+        ::continue::
     end
 end
 
