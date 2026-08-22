@@ -4589,7 +4589,7 @@ end
 ---@param levelStart integer
 function StartingSongNo(levelStart)
     local songBank0 = math.floor(levelStart / 4)
-    local wrapped = songBank0 % #Songs
+    local wrapped = songBank0 % #PlayList
     return wrapped + 1
 end
 
@@ -4988,7 +4988,7 @@ function StInGame:levelUp()
     self.level = self.level + 1
     UpdateMaxLevelReachedIfHigher(self.level)
     local newSong = UnlockNextSongIfAble(self.level)
-    
+
     if newSong then
         SetNextSong()
     end
