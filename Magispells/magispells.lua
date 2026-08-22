@@ -121,9 +121,6 @@ function SaveHighScoreIfHighEnough(hs)
         i = i + 1
     end
 
-    trace(ToStr(hs))
-    trace(i)
-
     if i >= N_HIGH_SCORES then return false end
     local saveTo = i
 
@@ -4780,7 +4777,7 @@ function StInGame:handleClick(mouse)
     end
 
     -- add.wav
-    sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL, SfxVol)
+    sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL, SfxVo/l)
     self.strand:add(col, row)
 end
 
@@ -4988,7 +4985,6 @@ function StInGame:levelUp()
     self.level = self.level + 1
     UpdateMaxLevelReachedIfHigher(self.level)
     local newSong = UnlockNextSongIfAble(self.level)
-
     if newSong then
         SetNextSong()
     end
@@ -5743,6 +5739,11 @@ end
 function ClearData()
     ClearHighScores()
     ClearUnlockedSongs()
+
+    -- hardcoded: game is feature complete
+    SongUnlockLevels = {16, 12, 8, 4}
+    UnlockableSongs = {5, 4, 3, 2}
+    -- TODO: if you add more songs, need to change in two places
 end
 
 ---@type IAppState
@@ -6559,7 +6560,7 @@ end
 -- 054:1010102010601090208020a030c040e050f060006010702080309050a070a080b090b0b0c0f0c0f0d0d0d010d030d060d070e080e0a0e0c0e0e0f0f0500000000000
 -- 055:01e021d331c541b641b651a76196619681859173a172a160b17fc16dc15cd14ce14ce13cf13bf12bf12bf11af11af11bf10df100f102f105f106f107310000000000
 -- 056:03100340030003b0033003c0032013d0130023f0232033e0431053e0530063b0730083c08320839093809310931093609300a340b330c320d300f300300000000000
--- 057:00f010f020a020a0305030504000400040d050d050805080503060306000600060a060a060606060501050105000500060f070f080f090f0a0f0b0f0440000000000
+-- 057:00f010f020a020a0305030504000400040d050d050805080503060306000600060a060a060606060501050105000500060f070f080f090f0a0f0b0a0440000000000
 -- </SFX>
 
 -- <SFX1>
