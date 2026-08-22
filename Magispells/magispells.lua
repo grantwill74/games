@@ -65,17 +65,17 @@ function Highscore:pack()
     --- field within a 32-bit word. 24-bits of ticks is ~77 hours of gameplay,
     --- which should be more than enough, because the goal is for time to be low
     --- rather than high.
-    local points = math.min(self.points, math.maxinteger)
+    local points = math.min(self.points, 0xFFFFFFFF)
     local ticks = math.min(self.nTicks, 0xFFFFFF)
     local level = math.min(self.level, 0xFF)
-    local level_ticks = (ticks << 24) | level
+    local level_ticks = (ticks << 8) | level
 
     return {points, level_ticks}
 end
 
 ---@param data [integer, integer]
 function Highscore.unpack(data)
-    local score = Highscore.new(data[1], data[2] >> 24, data[2] & 0xFF)
+    local score = Highscore.new(data[1], data[2] & 0xFF, data[2] >> 8)
     return score
 end
 
@@ -121,18 +121,20 @@ function SaveHighScoreIfHighEnough(hs)
         i = i + 1
     end
 
+    trace(ToStr(hs))
+    trace(i)
+
     if i >= N_HIGH_SCORES then return false end
     local saveTo = i
 
     -- overwrite the highscores below to make room
-    while i < N_HIGH_SCORES - 1 do
-        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i + 1),
-            HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i)
-        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i + 1) + 1,
-            HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1)
-        i = i + 1
+    for i=(N_HIGH_SCORES - 1), saveTo + 1, -1 do
+        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i,
+            pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i - 1)))
+        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1,
+            pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i - 1) + 1))
     end
-
+    
     -- save the high score
     local packed = hs:pack()
     pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo, packed[1])
@@ -2623,12 +2625,18 @@ function Sub_Highscores.new()
     )
 
     -- debugging
-    ClearHighScores()
-    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 9999999))
-    SaveHighScoreIfHighEnough(Highscore.new(999999, 2, 9999999))
-    SaveHighScoreIfHighEnough(Highscore.new(999999, 100, 99999))
-    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 999999))
-
+    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 9999))
+    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 9999))
+    SaveHighScoreIfHighEnough(Highscore.new(99999, 2, 9999999))
+    SaveHighScoreIfHighEnough(Highscore.new(9999999, 100, 99999))
+    SaveHighScoreIfHighEnough(Highscore.new(99999999, 10, 999999))
+    SaveHighScoreIfHighEnough(Highscore.new(9999, 10, 999999))
+    SaveHighScoreIfHighEnough(Highscore.new(9999, 3, 999999))
+    SaveHighScoreIfHighEnough(Highscore.new(99999, 2, 9999999))
+    SaveHighScoreIfHighEnough(Highscore.new(9999999, 100, 99999))
+    SaveHighScoreIfHighEnough(Highscore.new(99999999, 10, 999999))
+    SaveHighScoreIfHighEnough(Highscore.new(9999, 10, 999999))
+    SaveHighScoreIfHighEnough(Highscore.new(9999, 3, 999999))
 
     local state = SubMenu.new() --[[@as Sub_HighScores]]
     state.buttons = {back, clear}
@@ -2637,8 +2645,6 @@ function Sub_Highscores.new()
     state.nScore = nScore;
     state.nLevel = nLevel;
     state.nTime = nTime;
-
-    trace(ToStr(state.scores))
 
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
@@ -2690,23 +2696,22 @@ function Sub_Highscores:draw()
         local lw = print(tostring(score.level), SCREEN_W_px, SCREEN_H_px)
         print(tostring(score.level), lx + MENU_HS_LEVEL_W + MENU_HS_PAD - lw, y, color)
 
-        local hours, mins, secs, ticks = HoursMinsSecs(score.nTicks)
+        local hours, mins, secs, _ticks = HoursMinsSecs(score.nTicks)
         local time
         
         if hours >= 10 then
             time = 'Long!'
         else
-            local format = '%02d,%02d'
-            local args = {secs, ticks}
+            local format = '%02d'
+            local args = {secs}
             if mins > 0 then
-                format = '%02d:' + format
+                format = '%02d:' .. format
                 table.insert(args, 1, mins)
                 if hours > 0 then
-                    format = '%d:'
+                    format = '%d:' .. format
                     table.insert(args, 1, hours)
                 end
             end
-            -- trace(ToStr(args))
             time = string.format(format, table.unpack(args))
         end
 
