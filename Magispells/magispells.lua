@@ -2624,20 +2624,6 @@ function Sub_Highscores.new()
         PALETTE.WHITE
     )
 
-    -- debugging
-    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 9999))
-    SaveHighScoreIfHighEnough(Highscore.new(999999, 10, 9999))
-    SaveHighScoreIfHighEnough(Highscore.new(99999, 2, 9999999))
-    SaveHighScoreIfHighEnough(Highscore.new(9999999, 100, 99999))
-    SaveHighScoreIfHighEnough(Highscore.new(99999999, 10, 999999))
-    SaveHighScoreIfHighEnough(Highscore.new(9999, 10, 999999))
-    SaveHighScoreIfHighEnough(Highscore.new(9999, 3, 999999))
-    SaveHighScoreIfHighEnough(Highscore.new(99999, 2, 9999999))
-    SaveHighScoreIfHighEnough(Highscore.new(9999999, 100, 99999))
-    SaveHighScoreIfHighEnough(Highscore.new(99999999, 10, 999999))
-    SaveHighScoreIfHighEnough(Highscore.new(9999, 10, 999999))
-    SaveHighScoreIfHighEnough(Highscore.new(9999, 3, 999999))
-
     local state = SubMenu.new() --[[@as Sub_HighScores]]
     state.buttons = {back, clear}
     state.scores = LoadHighScores()
@@ -2698,7 +2684,7 @@ function Sub_Highscores:draw()
 
         local hours, mins, secs, _ticks = HoursMinsSecs(score.nTicks)
         local time
-        
+
         if hours >= 10 then
             time = 'Long!'
         else
@@ -2715,7 +2701,6 @@ function Sub_Highscores:draw()
             time = string.format(format, table.unpack(args))
         end
 
-       
         local tx, _ = self.nTime:pos()
         local tw = print(time, SCREEN_W_px, SCREEN_H_px)
         print(time, tx + MENU_HS_TIME_W + MENU_HS_PAD - tw, y, color)
@@ -2883,7 +2868,7 @@ function Sub_ClearScores:tick(mouse)
             return Sub_Highscores.new()
         elseif clicked.name == MENU_CLEAR_CONFIRM_BTN_NAME then
             sfx(SFX.clearData, 'C-6', 150, SFX_CHANNEL)
-            ClearHighScores()
+            ClearData()
             return Sub_Highscores.new()
         end
     end
@@ -5001,6 +4986,13 @@ end
 
 function StInGame:levelUp()
     self.level = self.level + 1
+    UpdateMaxLevelReachedIfHigher(self.level)
+    local newSong = UnlockNextSongIfAble(self.level)
+    
+    if newSong then
+        SetNextSong()
+    end
+
     self.nextLevelTarget = ScoreToReachLevel(self.level + 1)
     local wordScoreGained = self.score - self.levelStartScore
     local chanceScoreGained = self.nChances * BONUS_SCORE_PER_CHANCE
@@ -5014,7 +5006,8 @@ function StInGame:levelUp()
             wordsSubmitted = self.nLevelWordsSubmitted,
             bestWord = self.levelBestWord,
             bestWordScore = self.levelBestWordScore,
-            chancesLeft = self.nChances
+            chancesLeft = self.nChances,
+            newSongUnlocked = newSong
     }
     sfx(SFX.levelUp, 'C-5', 60, SFX_CHANNEL, SfxVol)
     self:setStatus(HeyLevelUp())
@@ -5029,6 +5022,7 @@ function StInGame:levelUp()
 
     self.grid:clearAllTiles()
     self:spawnTiles()
+
 end
 
 ---make it so that every gap has everything above it fall down
@@ -5363,6 +5357,7 @@ end
 ---@field bestWord string
 ---@field bestWordScore integer
 ---@field chancesLeft integer
+---@field newSongUnlocked boolean
 StInGame_LevelUp = {}
 
 
@@ -5371,7 +5366,7 @@ StInGame_LevelUp = {}
 ---@param table {
 --- scoreGained:integer, newScoreTarget:integer,
 --- ticksTaken:integer, newLevel:integer, wordsSubmitted:integer,
---- bestWord:string, bestWordScore:integer,
+--- bestWord:string, bestWordScore:integer, newSongUnlocked: boolean,
 --- [any]:any,
 ---}
 ---@return any
@@ -5422,6 +5417,9 @@ function StInGame_LevelUp:draw(node)
         print("Time: > 1 hour", x + 8, y + 72, PALETTE.WHITE)
     end
 
+    if self.newSongUnlocked then
+        print("New BGM unlocked!", x, y + 90, PALETTE.GREEN)
+    end
 
     print("Click/tap anywhere", x, y + 104, PALETTE.WHITE)
     print("to continue!", x, y + 112, PALETTE.WHITE)
@@ -5708,14 +5706,60 @@ function StInGame:draw()
     vbank(0)
 end
 
+MAX_LVL_REACHED_PMEM_ADDR = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * N_HIGH_SCORES
+
+function LoadUnlockedSongs()
+    local maxLevel = pmem(MAX_LVL_REACHED_PMEM_ADDR)
+    while UnlockNextSongIfAble(maxLevel) do
+        -- nothing else
+    end
+end
+
+function UpdateMaxLevelReachedIfHigher(curLevel)
+    local old = pmem(MAX_LVL_REACHED_PMEM_ADDR)
+    local new = math.max(old, curLevel)
+    pmem(MAX_LVL_REACHED_PMEM_ADDR, new)
+end
+
+function ClearUnlockedSongs()
+    pmem(MAX_LVL_REACHED_PMEM_ADDR, 1)
+end
+
+---@param curLevel integer
+---@return boolean # whether any songs were unlocked
+function UnlockNextSongIfAble(curLevel)
+    if #SongUnlockLevels == 0 then
+        return false
+    end
+
+    local top = SongUnlockLevels[#SongUnlockLevels]
+    if top > curLevel then return false end
+
+    table.remove(SongUnlockLevels)
+    table.insert(PlayList, table.remove(UnlockableSongs))
+    return true
+end
+
+function ClearData()
+    ClearHighScores()
+    ClearUnlockedSongs()
+end
+
 ---@type IAppState
 local appState = nil
 
 ---@type MouseState
 Mouse = nil
 
+-- playlists were originally going to be a bit more involved. this vestigal
+-- system is a little more complex than needed.
+
 SongIdx = 1
-PlayList = {1, 2, 3, 4, 5}
+-- PlayList = {1, 2, 3, 4, 5}
+N_SONGS = #Songs
+PlayList = { 1 }
+SongUnlockLevels = {16, 12, 8, 4}
+UnlockableSongs = {5, 4, 3, 2}
 CurrentSongState = SongState.new(Songs[PlayList[SongIdx]])
 
 MusicEnabled = true
@@ -5794,6 +5838,7 @@ function AppStateTransition(newState)
 end
 
 function BOOT()
+    LoadUnlockedSongs()
     cls(0)
     sync(2, 1, false)
     appState = StLoading.new()
