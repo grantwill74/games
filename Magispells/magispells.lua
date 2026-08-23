@@ -2366,6 +2366,13 @@ MENU_NEW_EXTENDED_TEXT = 'Extended Play'
 MENU_BACK_NAME = 'back'
 MENU_BACK_TEXT = 'Back to Menu'
 
+MENU_NEW_LVL1_HINT = 'Start from Level 1!'
+MENU_NEW_LVL4_HINT = 'Start from Level 4!'
+MENU_NEW_LVL8_HINT = 'Start from Level 8!'
+MENU_NEW_LVL12_HINT = 'Start from Level 12!'
+MENU_NEW_EXTENDED_HINT = 'Keep playing after the end!'
+MENU_NEW_NOT_UNLOCKED_HINT = 'Must reach this level to start from here!'
+
 function Sub_NewGame.new()
     local submenu = SubMenu.new() --[[@as Sub_NewGame]]
 
@@ -2436,42 +2443,42 @@ function Sub_NewGame.new()
         nLevel1,
         MENU_NEW_LVL1_NAME,
         MENU_NEW_LVL1_TEXT,
-        "Start from level 1!",
+        MENU_NEW_LVL1_HINT,
         PALETTE.WHITE
     )
     local level4 = TextButton.new(
         nLevel4,
         MENU_NEW_LVL4_NAME,
         MENU_NEW_LVL4_TEXT,
-        "Start from level 4!",
+        MENU_NEW_LVL4_HINT,
         PALETTE.WHITE
     )
     local level8 = TextButton.new(
         nLevel8,
         MENU_NEW_LVL8_NAME,
         MENU_NEW_LVL8_TEXT,
-        "Start from level 8!",
+        MENU_NEW_LVL8_HINT,
         PALETTE.WHITE
     )
     local level12 = TextButton.new(
         nLevel12,
         MENU_NEW_LVL12_NAME,
         MENU_NEW_LVL12_TEXT,
-        "Start from level 12!",
+        MENU_NEW_LVL12_HINT,
         PALETTE.WHITE
     )
     local extendedPlay = TextButton.new(
         nExtended,
         MENU_NEW_EXTENDED_NAME,
         MENU_NEW_EXTENDED_TEXT,
-        "Extended play!",
+        MENU_NEW_EXTENDED_HINT,
         PALETTE.WHITE
     )
     local back = TextButton.new(
         nBack,
         MENU_BACK_NAME,
         MENU_BACK_TEXT,
-        "Back",
+        "Return to previous menu",
         PALETTE.WHITE
     )
 
@@ -2485,6 +2492,27 @@ function Sub_NewGame.new()
     return setmetatable(submenu, {__index = Sub_NewGame})
 end
 
+---maps new game buttons to which level they start on
+---@type table<string, integer>
+ButtonLevels = {
+    [MENU_NEW_LVL1_NAME] = 1,
+    [MENU_NEW_LVL4_NAME] = 4,
+    [MENU_NEW_LVL8_NAME] = 8,
+    [MENU_NEW_LVL12_NAME] = 12,
+    [MENU_NEW_EXTENDED_NAME] = 16,
+}
+
+---maps new game buttons to their hints (so we can swap them out
+---with the hint that says the level must be unlocked)
+---@type table<string, string>
+ButtonLevelHints = {
+    [MENU_NEW_LVL1_NAME] = MENU_NEW_LVL1_HINT,
+    [MENU_NEW_LVL4_NAME] = MENU_NEW_LVL4_HINT,
+    [MENU_NEW_LVL8_NAME] = MENU_NEW_LVL8_HINT,
+    [MENU_NEW_LVL12_NAME] = MENU_NEW_LVL12_HINT,
+    [MENU_NEW_EXTENDED_NAME] = MENU_NEW_EXTENDED_HINT,
+}
+
 ---@param mouse MouseState
 ---@return integer | SubMenuTransition
 function Sub_NewGame:tick(mouse)
@@ -2492,21 +2520,31 @@ function Sub_NewGame:tick(mouse)
         return Sub_Title.new()
     end
 
+    -- update buttons based on which levels have been reached
+    for _, button in ipairs(self.buttons) do
+        local level = ButtonLevels[button.name]
+        local btn = (button --[[@as TextButton]])
+        if level and pmem(MAX_LVL_REACHED_PMEM_ADDR) < level then
+            btn.textColor = PALETTE.DK_GRAY
+            btn.hint = MENU_NEW_NOT_UNLOCKED_HINT
+        else
+            btn.hint = ButtonLevelHints[level] or btn.hint
+        end
+    end
+
     local clicked = self:updateButtonsAndDetectClick(mouse)
 
     if clicked then
-        if clicked.name == MENU_NEW_LVL1_NAME then
-            return 1
-        elseif clicked.name == MENU_NEW_LVL4_NAME then
-            return 4
-        elseif clicked.name == MENU_NEW_LVL8_NAME then
-            return 8
-        elseif clicked.name == MENU_NEW_LVL12_NAME then
-            return 12
-        elseif clicked.name == MENU_NEW_EXTENDED_NAME then
-            return 16
-        elseif clicked.name == MENU_BACK_NAME then
+        if clicked.name == MENU_BACK_NAME then
             return Sub_Title.new()
+        end
+
+        local level = ButtonLevels[clicked.name]
+
+        if not level or pmem(MAX_LVL_REACHED_PMEM_ADDR) < level then
+            sfx(SFX.cant, 'C-4', 120, SFX_CHANNEL, SfxVol)
+        else
+            return level
         end
     end
 
