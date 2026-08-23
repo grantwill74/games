@@ -2522,12 +2522,14 @@ function Sub_NewGame:tick(mouse)
 
     -- update buttons based on which levels have been reached
     for _, button in ipairs(self.buttons) do
+
         local level = ButtonLevels[button.name]
         local btn = (button --[[@as TextButton]])
         if level and pmem(MAX_LVL_REACHED_PMEM_ADDR) < level then
             btn.textColor = PALETTE.DK_GRAY
             btn.hint = MENU_NEW_NOT_UNLOCKED_HINT
         else
+            btn.textColor = PALETTE.WHITE
             btn.hint = ButtonLevelHints[level] or btn.hint
         end
     end
@@ -2745,6 +2747,10 @@ end
 
 ---@param mouse MouseState
 function Sub_Highscores:tick(mouse)
+    if mouse.rightTrans == 'up' then
+        return Sub_Title.new()
+    end
+
     local clicked = self:updateButtonsAndDetectClick(mouse)
 
     if clicked then
@@ -2902,7 +2908,7 @@ function Sub_ClearScores:tick(mouse)
             self.confirmed = false
             return Sub_Highscores.new()
         elseif clicked.name == MENU_CLEAR_CONFIRM_BTN_NAME then
-            sfx(SFX.clearData, 'C-6', 150, SFX_CHANNEL)
+            sfx(SFX.clearData, 'C-5', 85, SFX_CHANNEL)
             ClearData()
             return Sub_Highscores.new()
         end
@@ -2957,6 +2963,15 @@ end
 
 ---@param mouse MouseState
 function StMainMenu:tick(mouse)
+    local cheat = CheatKeyPressed()
+    if cheat == 'unlock_stages' then
+        sfx(SFX.levelUp, 'C-5', 120, SFX_CHANNEL, SfxVol)
+        local reached = pmem(MAX_LVL_REACHED_PMEM_ADDR)
+        if reached < MAX_LEVEL + 1 then
+            pmem(MAX_LVL_REACHED_PMEM_ADDR, MAX_LEVEL + 1)
+        end
+    end
+
     if self.fadeInTicks < MENU_FADE_TICKS then
         self.fadeInTicks = self.fadeInTicks + 1
         local brightLevel =
@@ -4932,14 +4947,7 @@ function StInGame:submitWord()
         end
     end
 
-    -- ?TODO? change to only compare with starting tile of word?
-    -- local randomComparison = RandomComparisonWord(self.grid.allBestWords)
-
-    -- Changed: now we just use par value
     local comparisonScore = self.currentPar
-    -- randomComparison and randomComparison.score or 0
-
-    -- assert(self.grid.bestWord, "no word exists despite being in submit word.")
 
     if score < comparisonScore then
         self:freezeBestWord("better")
@@ -5527,8 +5535,10 @@ CHEAT_KEYMAP = {}
 CHEAT_KEYMAP[13] = 'mem_profile' -- M
 CHEAT_KEYMAP[12] = 'level_up' -- L
 CHEAT_KEYMAP[2] = 'cycle_best_word' -- B
+CHEAT_KEYMAP[21] = 'unlock_stages' -- U
 
----@alias Cheat nil|'level_up'|'cycle_best_word'|'mem_profile'
+---@alias Cheat 'level_up'|'cycle_best_word'|'mem_profile'|'unlock_stages'
+---@return Cheat|nil
 function CheatKeyPressed()
     if not CHEATS_ENABLED then
         return
@@ -6609,7 +6619,7 @@ end
 -- 054:1010102010601090208020a030c040e050f060006010702080309050a070a080b090b0b0c0f0c0f0d0d0d010d030d060d070e080e0a0e0c0e0e0f0f0500000000000
 -- 055:01e021d331c541b641b651a76196619681859173a172a160b17fc16dc15cd14ce14ce13cf13bf12bf12bf11af11af11bf10df100f102f105f106f107310000000000
 -- 056:03100340030003b0033003c0032013d0130023f0232033e0431053e0530063b0730083c08320839093809310931093609300a340b330c320d300f300300000000000
--- 057:00f010f020a020a0305030504000400040d050d050805080503060306000600060a060a060606060501050105000500060f070f080f090f0a0f0b0a0440000000000
+-- 057:00f010f020a020a0305030504000400040d050d050805080503060306000600060a060a060606060501050105000500060f070f080f090f0a0f0b0a0460000000000
 -- </SFX>
 
 -- <SFX1>
