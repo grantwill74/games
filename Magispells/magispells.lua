@@ -108,9 +108,9 @@ end
 ---determine whether the given score is high enough to go in the table. if so,
 ---save it and push the other scores down, cutting off the lowest.
 ---@param hs Highscore
----@returns boolean # whether it was saved
+---@returns interger|nil # final rank (1-based) or nil
 function SaveHighScoreIfHighEnough(hs)
-    if hs.points <= 0 then return false end
+    if hs.points <= 0 then return nil end
 
     local i = 0
     while i < N_HIGH_SCORES do
@@ -121,7 +121,7 @@ function SaveHighScoreIfHighEnough(hs)
         i = i + 1
     end
 
-    if i >= N_HIGH_SCORES then return false end
+    if i >= N_HIGH_SCORES then return nil end
     local saveTo = i
 
     -- overwrite the highscores below to make room
@@ -131,12 +131,12 @@ function SaveHighScoreIfHighEnough(hs)
         pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1,
             pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i - 1) + 1))
     end
-    
+
     -- save the high score
     local packed = hs:pack()
     pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo, packed[1])
     pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo + 1, packed[2])
-    return true
+    return saveTo + 1
 end
 
 function ClearHighScores()
@@ -2556,7 +2556,7 @@ MENU_HS_ROW_H = 8
 MENU_HS_TOTAL_H = (N_HIGH_SCORES + 1) * MENU_HS_ROW_H
 MENU_HS_TABLE_NODE = Node.new(
     nil, 'n hs table',
-    40, 20,
+    32, 20,
     MENU_HS_TOTAL_W,
     MENU_HS_TOTAL_H
 )
@@ -2646,13 +2646,17 @@ function Sub_Highscores:draw()
 
     -- score header
     local rankx, ranky = self.nRank:pos()
-    print('#', rankx, ranky, headerColor)
+    local rw = print('#', SCREEN_H_px, SCREEN_W_px)
+    print('#', rankx + MENU_HS_RANK_W - rw + MENU_HS_PAD, ranky, headerColor)
     local scorex, scorey = self.nScore:pos()
-    print('Score', scorex, scorey, headerColor)
+    local scorew = print('Score', SCREEN_W_px, SCREEN_H_px)
+    print('Score', scorex + MENU_HS_SCORE_W - scorew + MENU_HS_PAD, scorey, headerColor)
     local levelx, levely = self.nLevel:pos()
-    print('Level', levelx, levely, headerColor)
+    local levelw = print('Level', SCREEN_W_px, SCREEN_H_px)
+    print('Level', levelx + MENU_HS_LEVEL_W - levelw + MENU_HS_PAD, levely, headerColor)
     local timex, timey = self.nTime:pos()
-    print('Time', timex, timey, headerColor)
+    local timew = print('Time', SCREEN_W_px, SCREEN_H_px)
+    print('Time', timex + MENU_HS_TIME_W - timew + MENU_HS_PAD, timey, headerColor)
 
     if #self.scores == 0 then
         local msg = 'No high scores set!'
@@ -2685,15 +2689,11 @@ function Sub_Highscores:draw()
         if hours >= 10 then
             time = 'Long!'
         else
-            local format = '%02d'
-            local args = {secs}
-            if mins > 0 then
-                format = '%02d:' .. format
-                table.insert(args, 1, mins)
-                if hours > 0 then
-                    format = '%d:' .. format
-                    table.insert(args, 1, hours)
-                end
+            local format = '%02d:%02d'
+            local args = {mins, secs}
+            if hours > 0 then
+                format = '%d:' .. format
+                table.insert(args, 1, hours)
             end
             time = string.format(format, table.unpack(args))
         end
@@ -4777,7 +4777,7 @@ function StInGame:handleClick(mouse)
     end
 
     -- add.wav
-    sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL, SfxVo/l)
+    sfx(SFX.tileSelect, 'C-5', 120, SFX_CHANNEL, SfxVol)
     self.strand:add(col, row)
 end
 
@@ -4868,9 +4868,12 @@ end
 
 function StInGame:gameOver()
     self.wispell:presentArms()
+    local hs = Highscore.new(self.score, self.level, self.ticks)
+    local rank = SaveHighScoreIfHighEnough(hs)
+
     self.subState = StInGame_GameOver.new(60,
         self.gameBestWord, self.gameBestWordScore,
-        self.score, self.ticks, self.level
+        self.score, self.ticks, self.level, rank
     )
     sfx(SFX.gameOver, 'C-5', 60, SFX_CHANNEL, SfxVol)
 end
@@ -5429,6 +5432,7 @@ end
 ---@field totalScore integer
 ---@field ticksTaken integer
 ---@field levelAchieved integer
+---@field hsRank integer|nil
 StInGame_GameOver = {}
 
 ---@param delay integer
@@ -5437,8 +5441,9 @@ StInGame_GameOver = {}
 ---@param score integer
 ---@param ticks integer
 ---@param level integer
+---@param hsRank integer|nil
 ---@return StInGame_GameOver
-function StInGame_GameOver.new(delay, bestWord, bestScore, score, ticks, level)
+function StInGame_GameOver.new(delay, bestWord, bestScore, score, ticks, level, hsRank)
     local state = {
         id = 'game over',
         delayTicks = delay,
@@ -5447,6 +5452,7 @@ function StInGame_GameOver.new(delay, bestWord, bestScore, score, ticks, level)
         totalScore = score,
         ticksTaken = ticks,
         levelAchieved = level,
+        hsRank = hsRank,
     }
 
     return setmetatable(state, {__index = StInGame_GameOver})
@@ -5469,6 +5475,11 @@ function StInGame_GameOver:draw(node)
     else
         local time = string.format("%d:%02d:%02d,%02d", hours, mins, secs, ticks)
         print("Time: " .. time, x + 8, y + 56, c)
+    end
+
+    if self.hsRank then
+        local msg = string.format("#%d High Score!", self.hsRank)
+        print(msg, x + 8, y + 72, PALETTE.GREEN)
     end
 end
 
