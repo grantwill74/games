@@ -6,6 +6,7 @@
 -- version: 0.4
 -- script:  lua
 -- input: mouse
+-- saveid: Magispells_Save0
 
 -- see here for annotation language: https://luals.github.io/wiki/annotations/
 
@@ -38,28 +39,34 @@ CheatMode = false
 
 N_HIGH_SCORES = 10
 HIGH_SCORE_PMEM_ADDR = 0
-HIGH_SCORE_STRIDE = 2
+HIGH_SCORE_STRIDE = 4
 
 ---@class Highscore
 ---@field points integer
 ---@field level integer
 ---@field nTicks integer
+---@field bestWord string
+---@field bestWordScore integer
 Highscore = {}
 
 ---@param points integer
 ---@param level integer
 ---@param ticks integer
+---@param bestWord string
+---@param bestWordScore integer
 ---@return Highscore
-function Highscore.new(points, level, ticks)
+function Highscore.new(points, level, ticks, bestWord, bestWordScore)
     return setmetatable({
         points = points,
         level = level,
-        nTicks = ticks
+        nTicks = ticks,
+        bestWord = bestWord,
+        bestWordSCore = bestWordScore,
     }, {__index = Highscore})
 end
 
 ---pack highscore into two integers for saving to persistent memory
----@return [integer, integer]
+---@return [integer, integer, integer, integer]
 function Highscore:pack()
     --- points gets a whole integer. ticks and levels share a 24-bit and 8-bit
     --- field within a 32-bit word. 24-bits of ticks is ~77 hours of gameplay,
@@ -70,7 +77,52 @@ function Highscore:pack()
     local level = math.min(self.level, 0xFF)
     local level_ticks = (ticks << 8) | level
 
-    return {points, level_ticks}
+    -- in theory we could store words as integers using the Dawg to enumerate
+    -- them. It's a cool idea, but it seems easier to store the letters.
+    -- Especially because I keep adding and removing words from the Dawg, and 
+    -- it would be nice if doing that wouldn't break the high scores.
+
+    --- packing letters: 
+    --- words have between 3 and 8 letters, and an optional '!' at the end
+    --- encode each letter as an 5-bit integer. 0 means no letter, 1 is a, 26 is z.
+    --- the exclamation point is a single bit in the last packed word. 
+    --- the lower 4 bits of each letter are in Word 3, first letter in MSB.
+    --- the MSB byte of word 4 is the upper bit of each letter.
+    --- The next bit is whether there's an exclamation point
+    --- the next 7 bits are unused
+    --- the lower 16 bits are word score
+    --- Diagram, assume word is ABCDEFGH!:
+    --- word 3: aaaabbbbccccddddeeeeffffgggghhhh
+    --- word 4: ABCDEFGH!0000000SSSSSSSSSSSSSSSS
+
+    ---@type integer
+    local word3 = 0
+    local word4 = 0
+    for i=1, 8 do
+        local c = self.bestWord:byte(i, i)
+        if not c then break end
+        c = c - ('a'):byte(1, 1) + 1
+
+        word3 = word3 << 4
+        word3 = word3 | (c & 0xF)
+        word4 = word4 << 1
+        word4 = word4 | (c & 0x10)
+    end
+
+    -- handle '!'
+    word4 = word4 << 1
+    if self.bestWord:sub(#self.bestWord, #self.bestWord) == '!' then
+        word4 = word4 | 1
+    end
+
+    -- 7 empty bits
+    word4 = word4 << 7
+
+    -- load score into word4
+    local score = math.min(self.bestWordScore, 0xFFFF)
+    word4 = word4 | score
+
+    return {points, level_ticks, word3, word4}
 end
 
 ---@param data [integer, integer]
@@ -4410,9 +4462,7 @@ function LetterParticleEmitter:tick()
     self.particles = alive
 end
 
----@alias ActionFun fun(self: StInGame): nil
----@class DelayAction
----@field ticsLeft integer
+---@alias ActionFun fun(self: ---@field ticsLeft integer
 ---@field action ActionFun
 DelayAction = {}
 
@@ -4921,7 +4971,10 @@ end
 
 function StInGame:gameOver()
     self.wispell:presentArms()
-    local hs = Highscore.new(self.score, self.level, self.ticks)
+    local hs = Highscore.new(
+        self.score, self.level, self.ticks,
+        self.gameBestWord, self.gameBestWordScore
+    )
     local rank = SaveHighScoreIfHighEnough(hs)
 
     self.subState = StInGame_GameOver.new(60,
