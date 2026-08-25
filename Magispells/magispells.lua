@@ -61,7 +61,7 @@ function Highscore.new(points, level, ticks, bestWord, bestWordScore)
         level = level,
         nTicks = ticks,
         bestWord = bestWord,
-        bestWordSCore = bestWordScore,
+        bestWordScore = bestWordScore,
     }, {__index = Highscore})
 end
 
@@ -125,9 +125,34 @@ function Highscore:pack()
     return {points, level_ticks, word3, word4}
 end
 
----@param data [integer, integer]
+---see Highscore:pack() for info on how highscores are stored in persistent
+---memory.
+---@param data [integer, integer, integer, integer]
 function Highscore.unpack(data)
-    local score = Highscore.new(data[1], data[2] & 0xFF, data[2] >> 8)
+    local points = data[1]
+    local level = data[2] & 0xFF
+    local ticks = data[2] >> 8
+    local word3 = data[3]
+    local word4 = data[4]
+    local letters = {}
+
+    for i=1, 8 do
+        local lo = (word3 >> (32 - i * 4)) & 0xF
+        local hi = (word4 >> (24 + (8 - i))) & 1
+        local enc = (hi << 4) | lo
+        if enc == 0 then break end
+        local c = string.char(enc - 1 + ('a'):byte())
+        table.insert(letters, c)
+    end
+
+    if word4 & (1 << 23) > 0 then
+        table.insert(letters, '!')
+    end
+
+    local hsWord = table.concat(letters)
+    local wordScore = word4 & 0xFFFF
+
+    local score = Highscore.new(points, level, ticks, hsWord, wordScore)
     return score
 end
 
@@ -178,23 +203,25 @@ function SaveHighScoreIfHighEnough(hs)
 
     -- overwrite the highscores below to make room
     for i=(N_HIGH_SCORES - 1), saveTo + 1, -1 do
-        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i,
-            pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i - 1)))
-        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1,
-            pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i - 1) + 1))
+        for j=0, (HIGH_SCORE_STRIDE - 1) do
+            local dest = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + j
+            local value = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i - 1) + j
+            trace('write to ' .. tostring(dest) .. ' from ' .. tostring(value))
+            pmem(dest, pmem(value))
+        end
     end
 
     -- save the high score
     local packed = hs:pack()
-    pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo, packed[1])
-    pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo + 1, packed[2])
+    for j = 0, (HIGH_SCORE_STRIDE - 1) do
+       pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * saveTo + j, packed[j + 1])
+    end
     return saveTo + 1
 end
 
 function ClearHighScores()
-    for i=0, (N_HIGH_SCORES - 1) do
-        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i, 0)
-        pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1, 0)
+    for i=0, (N_HIGH_SCORES - 1) * HIGH_SCORE_STRIDE do
+        pmem(HIGH_SCORE_PMEM_ADDR + i, 0)
     end
 end
 
@@ -203,9 +230,12 @@ function LoadHighScores()
     local hs = {}
 
     for i=0, (N_HIGH_SCORES - 1) do
-        local lo = pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i)
-        local hi = pmem(HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + 1)
-        table.insert(hs, Highscore.unpack({lo, hi}))
+        local data = {}
+        for j=0, (HIGH_SCORE_STRIDE - 1) do
+            local word = pmem(HIGH_SCORE_PMEM_ADDR + j)
+            table.insert(data, word)
+        end
+        table.insert(hs, Highscore.unpack(data))
     end
 
     return hs
@@ -2720,6 +2750,15 @@ function Sub_Highscores.new()
     state.nScore = nScore;
     state.nLevel = nLevel;
     state.nTime = nTime;
+
+    -- testing
+    local hs1 = Highscore.new(1000, 2, 55555, "hello", 1234)
+    local hs2 = Highscore.new(2000, 5, 4444, "goodbye", 54321)
+    local hs3 = Highscore.new(3333, 3, 51525, "bork", 99999)
+    ClearHighScores()
+    SaveHighScoreIfHighEnough(hs1)
+    SaveHighScoreIfHighEnough(hs2)
+    SaveHighScoreIfHighEnough(hs3)
 
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
