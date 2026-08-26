@@ -2659,6 +2659,7 @@ end
 ---@field nScore Node
 ---@field nLevel Node
 ---@field nTime Node
+---@field nBestWord Node
 Sub_Highscores = {}
 setmetatable(Sub_Highscores, {__index = SubMenu})
 
@@ -2675,14 +2676,16 @@ MENU_HS_CLEAR_HINT = 'Delete all high scores and level clear data. Irreversable!
 MENU_HS_RANK_W = 24
 MENU_HS_PAD = -12
 MENU_HS_SCORE_W = 60
-MENU_HS_LEVEL_W = 50
-MENU_HS_TIME_W = 60
+MENU_HS_LEVEL_W = 30
+MENU_HS_TIME_W = 40
+MENU_HS_BESTWORD_W = 60
+MENU_HS_BESTWORD_SCORE_W = 40
 MENU_HS_TOTAL_W = MENU_HS_RANK_W + MENU_HS_SCORE_W + MENU_HS_LEVEL_W + MENU_HS_TIME_W
 MENU_HS_ROW_H = 8
 MENU_HS_TOTAL_H = (N_HIGH_SCORES + 1) * MENU_HS_ROW_H
 MENU_HS_TABLE_NODE = Node.new(
     nil, 'n hs table',
-    32, 20,
+    4, 20,
     MENU_HS_TOTAL_W,
     MENU_HS_TOTAL_H
 )
@@ -2710,6 +2713,12 @@ function Sub_Highscores.new()
         nLevel, 'n time',
         MENU_HS_LEVEL_W, 0,
         MENU_HS_TIME_W,
+        MENU_HS_TOTAL_H
+    )
+    local nBestWord = Node.new(
+        nTime, 'n best',
+        MENU_HS_TIME_W, 0,
+        MENU_HS_BESTWORD_W,
         MENU_HS_TOTAL_H
     )
 
@@ -2748,7 +2757,7 @@ function Sub_Highscores.new()
     )
 
     -- testing
-    local hs1 = Highscore.new(1000, 2, 55555, "hello", 1234)
+    local hs1 = Highscore.new(999999999, 2, 999999, "hello", 1234)
     local hs2 = Highscore.new(2000, 5, 4444, "goodbye", 54321)
     local hs3 = Highscore.new(3333, 3, 51525, "bork", 99999)
     ClearHighScores()
@@ -2765,6 +2774,7 @@ function Sub_Highscores.new()
     state.nScore = nScore;
     state.nLevel = nLevel;
     state.nTime = nTime;
+    state.nBestWord = nBestWord
 
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
@@ -2789,11 +2799,14 @@ function Sub_Highscores:draw()
     local scorew = print('Score', SCREEN_W_px, SCREEN_H_px)
     print('Score', scorex + MENU_HS_SCORE_W - scorew + MENU_HS_PAD, scorey, headerColor)
     local levelx, levely = self.nLevel:pos()
-    local levelw = print('Level', SCREEN_W_px, SCREEN_H_px)
-    print('Level', levelx + MENU_HS_LEVEL_W - levelw + MENU_HS_PAD, levely, headerColor)
+    local levelw = print('Lvl', SCREEN_W_px, SCREEN_H_px)
+    print('Lvl', levelx + MENU_HS_LEVEL_W - levelw + MENU_HS_PAD, levely, headerColor)
     local timex, timey = self.nTime:pos()
     local timew = print('Time', SCREEN_W_px, SCREEN_H_px)
     print('Time', timex + MENU_HS_TIME_W - timew + MENU_HS_PAD, timey, headerColor)
+    local bstwrdx, bstwrdy = self.nBestWord:pos()
+    local bstwrdw = print('Best Word', SCREEN_W_px, SCREEN_H_px)
+    print('Best Word', bstwrdx + MENU_HS_BESTWORD_W - bstwrdw + MENU_HS_PAD, bstwrdy, headerColor)
 
     if #self.scores == 0 then
         local msg = 'No high scores set!'
@@ -2813,8 +2826,10 @@ function Sub_Highscores:draw()
         print(tostring(i), rx + MENU_HS_RANK_W - rw + MENU_HS_PAD, y, color)
 
         local sx, _ = self.nScore:pos()
-        local sw = print(tostring(score.points), SCREEN_W_px, SCREEN_H_px)
-        print(tostring(score.points), sx + MENU_HS_SCORE_W + MENU_HS_PAD - sw, y, color)
+        local scorestr = tostring(score.points)
+        if score.points > 999999999 then scorestr = 'High!' end
+        local sw = print(scorestr, SCREEN_W_px, SCREEN_H_px)
+        print(scorestr, sx + MENU_HS_SCORE_W + MENU_HS_PAD - sw, y, color)
 
         local lx, _ = self.nLevel:pos()
         local lw = print(tostring(score.level), SCREEN_W_px, SCREEN_H_px)
