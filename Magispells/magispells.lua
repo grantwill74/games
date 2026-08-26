@@ -203,11 +203,11 @@ function SaveHighScoreIfHighEnough(hs)
 
     -- overwrite the highscores below to make room
     for i=(N_HIGH_SCORES - 1), saveTo + 1, -1 do
+        local base = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i
         for j=0, (HIGH_SCORE_STRIDE - 1) do
-            local dest = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * i + j
-            local value = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * (i - 1) + j
-            trace('write to ' .. tostring(dest) .. ' from ' .. tostring(value))
-            pmem(dest, pmem(value))
+            local dest = base + j
+            local value = pmem(dest - HIGH_SCORE_STRIDE)
+            pmem(dest, value)
         end
     end
 
@@ -232,10 +232,14 @@ function LoadHighScores()
     for i=0, (N_HIGH_SCORES - 1) do
         local data = {}
         for j=0, (HIGH_SCORE_STRIDE - 1) do
-            local word = pmem(HIGH_SCORE_PMEM_ADDR + j)
+            local word = pmem(HIGH_SCORE_PMEM_ADDR + i * HIGH_SCORE_STRIDE + j)
             table.insert(data, word)
         end
-        table.insert(hs, Highscore.unpack(data))
+        local unpacked = Highscore.unpack(data)
+
+        if unpacked.points == 0 then break end
+
+        table.insert(hs, unpacked)
     end
 
     return hs
@@ -2743,14 +2747,6 @@ function Sub_Highscores.new()
         PALETTE.WHITE
     )
 
-    local state = SubMenu.new() --[[@as Sub_HighScores]]
-    state.buttons = {back, clear}
-    state.scores = LoadHighScores()
-    state.nRank = nRank;
-    state.nScore = nScore;
-    state.nLevel = nLevel;
-    state.nTime = nTime;
-
     -- testing
     local hs1 = Highscore.new(1000, 2, 55555, "hello", 1234)
     local hs2 = Highscore.new(2000, 5, 4444, "goodbye", 54321)
@@ -2759,6 +2755,16 @@ function Sub_Highscores.new()
     SaveHighScoreIfHighEnough(hs1)
     SaveHighScoreIfHighEnough(hs2)
     SaveHighScoreIfHighEnough(hs3)
+    SaveHighScoreIfHighEnough(hs1)
+    SaveHighScoreIfHighEnough(hs2)
+
+    local state = SubMenu.new() --[[@as Sub_HighScores]]
+    state.buttons = {back, clear}
+    state.scores = LoadHighScores()
+    state.nRank = nRank;
+    state.nScore = nScore;
+    state.nLevel = nLevel;
+    state.nTime = nTime;
 
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
