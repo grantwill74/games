@@ -2775,7 +2775,7 @@ function Sub_Highscores.new()
     state.nLevel = nLevel;
     state.nTime = nTime;
     state.nBestWord = nBestWord
-
+    
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
         table.remove(state.scores)
@@ -2853,6 +2853,11 @@ function Sub_Highscores:draw()
         local tx, _ = self.nTime:pos()
         local tw = print(time, SCREEN_W_px, SCREEN_H_px)
         print(time, tx + MENU_HS_TIME_W + MENU_HS_PAD - tw, y, color)
+
+        local bx, _ = self.nBestWord:pos()
+        local bw = print(score.bestWord, SCREEN_W_px, SCREEN_H_px)
+        print(score.bestWord, bx + MENU_HS_BESTWORD_W + MENU_HS_PAD - bw, y, color)
+
         ::continue::
     end
 end
