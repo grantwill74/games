@@ -99,16 +99,20 @@ function Highscore:pack()
     local word3 = 0
     local word4 = 0
     for i=1, 8 do
+        if self.bestWord:sub(i, i) == '!' then break end
+
         local c = self.bestWord:byte(i, i)
         if not c then break end
         c = c - ('a'):byte(1, 1) + 1
 
+        -- assert(c > 0 and c < 27)
+
         word3 = word3 << 4
         word3 = word3 | (c & 0xF)
         word4 = word4 << 1
-        word4 = word4 | (c & 0x10)
+        word4 = word4 | ((c >> 4) & 1)
     end
-
+    
     -- handle '!'
     word4 = word4 << 1
     if self.bestWord:sub(#self.bestWord, #self.bestWord) == '!' then
@@ -117,6 +121,9 @@ function Highscore:pack()
 
     -- 7 empty bits
     word4 = word4 << 7
+
+    -- make room for the high score
+    word4 = word4 << 16
 
     -- load score into word4
     local score = math.min(self.bestWordScore, 0xFFFF)
@@ -136,10 +143,14 @@ function Highscore.unpack(data)
     local word4 = data[4]
     local letters = {}
 
+    trace(ToStr(data))
+    trace(string.format("%x %x", word3, word4))
+
     for i=1, 8 do
         local lo = (word3 >> (32 - i * 4)) & 0xF
         local hi = (word4 >> (24 + (8 - i))) & 1
         local enc = (hi << 4) | lo
+        trace(string.format('3, 4, l, h: %x %x %x %x', word3, word4, lo, hi))
         if enc == 0 then break end
         local c = string.char(enc - 1 + ('a'):byte())
         table.insert(letters, c)
@@ -2758,7 +2769,7 @@ function Sub_Highscores.new()
 
     -- testing
     local hs1 = Highscore.new(999999999, 2, 999999, "hello", 1234)
-    local hs2 = Highscore.new(2000, 5, 4444, "goodbye", 54321)
+    local hs2 = Highscore.new(2000, 5, 4444, "goodbye!", 54321)
     local hs3 = Highscore.new(3333, 3, 51525, "bork", 99999)
     ClearHighScores()
     SaveHighScoreIfHighEnough(hs1)
@@ -2775,7 +2786,7 @@ function Sub_Highscores.new()
     state.nLevel = nLevel;
     state.nTime = nTime;
     state.nBestWord = nBestWord
-    
+
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
         table.remove(state.scores)
