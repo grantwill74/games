@@ -92,8 +92,8 @@ function Highscore:pack()
     --- the next 7 bits are unused
     --- the lower 16 bits are word score
     --- Diagram, assume word is ABCDEFGH!:
-    --- word 3: aaaabbbbccccddddeeeeffffgggghhhh
-    --- word 4: ABCDEFGH!0000000SSSSSSSSSSSSSSSS
+    --- word 3: hhhhggggffffeeeeddddccccbbbbaaaa
+    --- word 4: HGFEDCBA!0000000SSSSSSSSSSSSSSSS
 
     ---@type integer
     local word3 = 0
@@ -107,23 +107,14 @@ function Highscore:pack()
 
         -- assert(c > 0 and c < 27)
 
-        word3 = word3 << 4
-        word3 = word3 | (c & 0xF)
-        word4 = word4 << 1
-        word4 = word4 | ((c >> 4) & 1)
+        word3 = word3 | ((c & 0xf) << (i - 1) * 4)
+        word4 = word4 | (((c >> 4) & 1) << (24 + i - 1))
     end
     
     -- handle '!'
-    word4 = word4 << 1
     if self.bestWord:sub(#self.bestWord, #self.bestWord) == '!' then
-        word4 = word4 | 1
+        word4 = word4 | (1 << 23)
     end
-
-    -- 7 empty bits
-    word4 = word4 << 7
-
-    -- make room for the high score
-    word4 = word4 << 16
 
     -- load score into word4
     local score = math.min(self.bestWordScore, 0xFFFF)
@@ -143,14 +134,10 @@ function Highscore.unpack(data)
     local word4 = data[4]
     local letters = {}
 
-    trace(ToStr(data))
-    trace(string.format("%x %x", word3, word4))
-
     for i=1, 8 do
-        local lo = (word3 >> (32 - i * 4)) & 0xF
-        local hi = (word4 >> (24 + (8 - i))) & 1
+        local lo = (word3 >> ((i - 1) * 4)) & 0xF
+        local hi = (word4 >> (24 + i - 1)) & 1
         local enc = (hi << 4) | lo
-        trace(string.format('3, 4, l, h: %x %x %x %x', word3, word4, lo, hi))
         if enc == 0 then break end
         local c = string.char(enc - 1 + ('a'):byte())
         table.insert(letters, c)
