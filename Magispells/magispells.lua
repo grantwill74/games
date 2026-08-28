@@ -2658,6 +2658,7 @@ end
 ---@field nLevel Node
 ---@field nTime Node
 ---@field nBestWord Node
+---@field nBestWordWorth Node
 Sub_Highscores = {}
 setmetatable(Sub_Highscores, {__index = SubMenu})
 
@@ -2673,7 +2674,7 @@ MENU_HS_CLEAR_HINT = 'Delete all high scores and level clear data. Irreversable!
 
 MENU_HS_RANK_W = 24
 MENU_HS_PAD = -12
-MENU_HS_SCORE_W = 60
+MENU_HS_SCORE_W = 58
 MENU_HS_LEVEL_W = 30
 MENU_HS_TIME_W = 40
 MENU_HS_BESTWORD_W = 60
@@ -2683,7 +2684,7 @@ MENU_HS_ROW_H = 8
 MENU_HS_TOTAL_H = (N_HIGH_SCORES + 1) * MENU_HS_ROW_H
 MENU_HS_TABLE_NODE = Node.new(
     nil, 'n hs table',
-    4, 20,
+    0, 20,
     MENU_HS_TOTAL_W,
     MENU_HS_TOTAL_H
 )
@@ -2717,6 +2718,12 @@ function Sub_Highscores.new()
         nTime, 'n best',
         MENU_HS_TIME_W, 0,
         MENU_HS_BESTWORD_W,
+        MENU_HS_TOTAL_H
+    )
+    local nBestWordWorth = Node.new(
+        nBestWord, 'n best worth',
+        MENU_HS_BESTWORD_W, 0,
+        MENU_HS_BESTWORD_SCORE_W,
         MENU_HS_TOTAL_H
     )
 
@@ -2758,21 +2765,16 @@ function Sub_Highscores.new()
     local hs1 = Highscore.new(999999999, 2, 999999, "hello", 1234)
     local hs2 = Highscore.new(2000, 5, 4444, "goodbye!", 54321)
     local hs3 = Highscore.new(3333, 3, 51525, "bork", 99999)
-    ClearHighScores()
-    SaveHighScoreIfHighEnough(hs1)
-    SaveHighScoreIfHighEnough(hs2)
-    SaveHighScoreIfHighEnough(hs3)
-    SaveHighScoreIfHighEnough(hs1)
-    SaveHighScoreIfHighEnough(hs2)
 
     local state = SubMenu.new() --[[@as Sub_HighScores]]
     state.buttons = {back, clear}
     state.scores = LoadHighScores()
-    state.nRank = nRank;
-    state.nScore = nScore;
-    state.nLevel = nLevel;
-    state.nTime = nTime;
+    state.nRank = nRank
+    state.nScore = nScore
+    state.nLevel = nLevel
+    state.nTime = nTime
     state.nBestWord = nBestWord
+    state.nBestWordWorth = nBestWordWorth
 
     -- remove zero scores
     while #state.scores > 0 and state.scores[#state.scores].points == 0 do
@@ -2805,6 +2807,9 @@ function Sub_Highscores:draw()
     local bstwrdx, bstwrdy = self.nBestWord:pos()
     local bstwrdw = print('Best Word', SCREEN_W_px, SCREEN_H_px)
     print('Best Word', bstwrdx + MENU_HS_BESTWORD_W - bstwrdw + MENU_HS_PAD, bstwrdy, headerColor)
+    local worthx, worthy = self.nBestWordWorth:pos()
+    local worthw = print('Worth', SCREEN_W_px, SCREEN_H_px)
+    print('Pts.', worthx + MENU_HS_BESTWORD_SCORE_W - worthw + MENU_HS_PAD, worthy, headerColor)
 
     if #self.scores == 0 then
         local msg = 'No high scores set!'
@@ -2853,8 +2858,19 @@ function Sub_Highscores:draw()
         print(time, tx + MENU_HS_TIME_W + MENU_HS_PAD - tw, y, color)
 
         local bx, _ = self.nBestWord:pos()
-        local bw = print(score.bestWord, SCREEN_W_px, SCREEN_H_px)
-        print(score.bestWord, bx + MENU_HS_BESTWORD_W + MENU_HS_PAD - bw, y, color)
+        -- local bw = print(score.bestWord, SCREEN_W_px, SCREEN_H_px)
+        print(score.bestWord, bx, y, color)
+
+        local wx, _ = self.nBestWordWorth:pos()
+        local wordScore
+        if score.bestWordScore >= 0xFFFF then
+            wordScore = "Max!"
+        else
+            wordScore = tostring(score.bestWordScore)
+        end
+        local ww = print(wordScore, SCREEN_W_px, SCREEN_H_px)
+        print(wordScore, wx + MENU_HS_BESTWORD_SCORE_W
+            + MENU_HS_PAD - ww, y, color)
 
         ::continue::
     end
