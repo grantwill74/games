@@ -5901,13 +5901,44 @@ end
 ---@field dy number
 ---@field launchTime integer
 ---@field detoTime integer
+---@field kind 'launching'|'exploding'
 
+END_SPR_FIREWORK_LAUNCH = 26
+END_SPR_EXPLOSION_START = 27
+END_SPR_EXPLOSION_N_FRAMES = 5
+MAX_FIREWORKS = 4
 
 ---@class StEnding : IAppState
 ---@field fireworkStates FireworkState[]
+---@field nFireworks integer # not the same as the number of states, which include fragments
 StEnding = {}
+setmetatable(StEnding, {__index = IAppState})
 
+---@return StEnding
+function StEnding.new()
+    local state = {
+        fireworkStates = {}, 
+        nFireworks = 0
+    }
 
+    setmetatable(state, {__index = StEnding})
+
+    state.nSyncDelayTicks = 1
+
+    return state
+end
+
+function StEnding:enter()
+    sync(4 | 1, 2) -- change map and tiles
+end
+
+function StEnding:draw()
+    map(0, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0, nil, 1)
+end
+
+function StEnding:tick(mouse)
+
+end
 
 MAX_LVL_REACHED_PMEM_ADDR = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * N_HIGH_SCORES
 
@@ -6049,9 +6080,10 @@ function BOOT()
     LoadUnlockedSongs()
     cls(0)
     sync(2, 1, false)
-    appState = StLoading.new()
+    -- appState = StLoading.new()
     -- appState = StIntro.new()
     -- AppStateTransition(StMainMenu.new())
+    appState = StEnding.new()
     Mouse = MouseState.new()
 end
 
