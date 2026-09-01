@@ -5906,11 +5906,24 @@ end
 END_SPR_FIREWORK_LAUNCH = 26
 END_SPR_EXPLOSION_START = 27
 END_SPR_EXPLOSION_N_FRAMES = 5
-MAX_FIREWORKS = 4
+END_MAX_FIREWORKS = 4
+END_CONGRATULATIONS_TIME = 60 * 3.6
+
+END_SONG_FANFARE = 3
+END_SONG_HAPPY = 4
+END_TEXT = {
+    "Congratulations!",
+    "You are a word wizard!",
+    "Wispell finally gets to relax..."
+}
+END_TEXT_TOP_OFFY = 48
+END_TEXT_LINE_VSPACE = 12
 
 ---@class StEnding : IAppState
 ---@field fireworkStates FireworkState[]
 ---@field nFireworks integer # not the same as the number of states, which include fragments
+---@field congratsTicks integer
+---@field textLineWidths integer[]
 StEnding = {}
 setmetatable(StEnding, {__index = IAppState})
 
@@ -5918,25 +5931,55 @@ setmetatable(StEnding, {__index = IAppState})
 function StEnding.new()
     local state = {
         fireworkStates = {}, 
-        nFireworks = 0
+        nFireworks = 0,
+        congratsTicks = END_CONGRATULATIONS_TIME,
+        textLineWidths = {}
     }
 
     setmetatable(state, {__index = StEnding})
 
     state.nSyncDelayTicks = 1
 
+    for _, line in ipairs(END_TEXT) do
+        table.insert(state.textLineWidths, print(line, SCREEN_W_px, SCREEN_H_px))
+    end
+
     return state
 end
 
 function StEnding:enter()
     sync(4 | 1, 2) -- change map and tiles
+    music(END_SONG_FANFARE)
 end
 
 function StEnding:draw()
+    if self.congratsTicks > 0 then
+        for i, line in ipairs(END_TEXT) do
+            local y = END_TEXT_TOP_OFFY + (i - 1) * END_TEXT_LINE_VSPACE
+            local x = (SCREEN_W_px - self.textLineWidths[i]) / 2
+            print(line, x, y, PALETTE.WHITE)
+        end
+
+        return
+    end
+
     map(0, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0, nil, 1)
 end
 
+---@param mouse MouseState
 function StEnding:tick(mouse)
+    if self.congratsTicks > 0 then
+        self.congratsTicks = math.max(0, self.congratsTicks - 1)
+
+        -- falling edge: change music
+        if self.congratsTicks == 0 or mouse.left then
+            self.congratsTicks = 0 -- if left down, skip congrats
+            music(END_SONG_HAPPY)
+        end
+
+        return
+    end
+
 
 end
 
