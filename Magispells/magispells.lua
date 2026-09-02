@@ -5919,6 +5919,21 @@ END_TEXT = {
 END_TEXT_TOP_OFFY = 48
 END_TEXT_LINE_VSPACE = 12
 
+-- firework mean time to happen
+END_FIREWORK_MTTH = 60 * 2
+END_FIREWORK_CHANCE = 1 / END_FIREWORK_MTTH
+
+-- rectangular area that fireworks can target
+END_FIREWORK_TARGET_TL = {x = SCREEN_W_px / 4, y = 8}
+END_FIREWORK_TARGET_DIM = {x = SCREEN_W_px / 2, y = SCREEN_H_px / 4}
+END_FIREWORK_SOURCE_TL = {x = SCREEN_W_px / 4, y = SCREEN_H_px / 3}
+END_FIREWORK_SOURCE_DIM = {x = SCREEN_W_px / 2, y = 0}
+
+-- pixels per second
+END_FIREWORK_SPEED = 10
+-- pixels per tick
+END_FIREWORK_SPEED_PT = END_FIREWORK_SPEED / 60
+
 ---@class StEnding : IAppState
 ---@field fireworkStates FireworkState[]
 ---@field nFireworks integer # not the same as the number of states, which include fragments
@@ -5930,7 +5945,7 @@ setmetatable(StEnding, {__index = IAppState})
 ---@return StEnding
 function StEnding.new()
     local state = {
-        fireworkStates = {}, 
+        fireworkStates = {},
         nFireworks = 0,
         congratsTicks = END_CONGRATULATIONS_TIME,
         textLineWidths = {}
@@ -5952,6 +5967,18 @@ function StEnding:enter()
     music(END_SONG_FANFARE)
 end
 
+function StEnding:fire()
+    local destX = END_FIREWORK_TARGET_TL.x + math.random() * END_FIREWORK_TARGET_DIM.x
+    local destY = END_FIREWORK_TARGET_TL.y + math.random() * END_FIREWORK_TARGET_DIM.y
+
+    local sourceX = END_FIREWORK_SOURCE_TL.x + math.random() * END_FIREWORK_SOURCE_DIM.x
+    local sourceY = END_FIREWORK_SOURCE_TL.y + math.random() * END_FIREWORK_SOURCE_DIM.y
+
+    local vecX = destX - sourceX
+    local vecY = destY - sourceY
+    
+end
+
 function StEnding:draw()
     if self.congratsTicks > 0 then
         for i, line in ipairs(END_TEXT) do
@@ -5963,7 +5990,10 @@ function StEnding:draw()
         return
     end
 
-    map(0, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0, nil, 1)
+
+
+    map(SCREEN_W_tiles, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0)
+    map(0, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0)
 end
 
 ---@param mouse MouseState
@@ -6589,8 +6619,8 @@ end
 -- 212:eeeeeeeeffffffffffffffffeeeeeeeeffffffffffffffffeeeeeeeeffffffff
 -- 213:eeeeee00ffffe000ffffe000eeee0000fffe0000ffe00000eee00000fe000000
 -- 218:00000000000000000000000000000000000eeeee0ee0000000eee00000e00ee0
--- 219:00000000000000000000000c000000cce77772cd07999ccc0779cccc0077cc02
--- 220:00001000cccc1000ccdcc100dcccc100ccddc110dccc7711ccc77771c227ffff
+-- 219:00000000000000000000000c000000cce77772ce07999ccc0779cccc0077cc02
+-- 220:00001000cccc1000ccecc100ecccc100cceec110eccc7711ccc77771c227ffff
 -- 221:101000101001111001000100001110000000000000000001100000111111111f
 -- 222:101000000110000011100000101000001000000010000000eee00000ffe00000
 -- 225:000ee00e00000ee000000e0e00000e0000000e0000000e000000000000000000
