@@ -6041,16 +6041,22 @@ function StEnding:draw()
 
     self:drawStars()
     self:drawTrees()
-    
+
     for _, firework in ipairs(self.fireworkStates) do
         local sprite
         if firework.kind == 'launching' then
             sprite = END_SPR_FIREWORK_LAUNCH
         else
             sprite = END_SPR_EXPLOSION_START
+            local detoLeft = END_FIREWORK_FLARE_TIME - firework.detoTime
+            local frame = math.floor(
+                    detoLeft / END_FIREWORK_FLARE_TIME *
+                    END_SPR_EXPLOSION_N_FRAMES
+                )
+            sprite = sprite + frame
         end
 
-        spr(END_SPR_FIREWORK_LAUNCH, firework.x, firework.y, PALETTE.BLACK)
+        spr(sprite, firework.x, firework.y, PALETTE.BLACK)
     end
 
     self:drawHill()
