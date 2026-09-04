@@ -5953,6 +5953,7 @@ END_FIREWORK_SPEED_PT = END_FIREWORK_SPEED / 60
 ---@class StEnding : IAppState
 ---@field fireworkStates FireworkState[]
 ---@field nFireworks integer # not the same as the number of states, which include fragments
+---@field ticksSinceLastFirework integer
 ---@field congratsTicks integer
 ---@field textLineWidths integer[]
 StEnding = {}
@@ -5963,6 +5964,7 @@ function StEnding.new()
     local state = {
         fireworkStates = {},
         nFireworks = 0,
+        ticksSinceLastFirework = 0,
         congratsTicks = END_CONGRATULATIONS_TIME,
         textLineWidths = {}
     }
@@ -5984,6 +5986,9 @@ function StEnding:enter()
 end
 
 function StEnding:fire()
+    self.ticksSinceLastFirework = 0
+    self.nFireworks = self.nFireworks + 1
+
     local destX = END_FIREWORK_TARGET_TL.x + math.random() * END_FIREWORK_TARGET_DIM.x
     local destY = END_FIREWORK_TARGET_TL.y + math.random() * END_FIREWORK_TARGET_DIM.y
 
@@ -6076,6 +6081,10 @@ function StEnding:tick(mouse)
         return
     end
 
+    if self.nFireworks < END_MAX_FIREWORKS and math.random() < END_FIREWORK_CHANCE then
+        self:fire()
+    end
+
     -- seems like bad memory management but lua's GC seems good enough that
     -- this has worked fine so far (copy over live ones every frame to let
     -- GC eat the dead ones--saves having to delete from beginning/mid of list,
@@ -6089,6 +6098,7 @@ function StEnding:tick(mouse)
         end
 
         if firework.detoTime <= 0 then
+            self.nFireworks = self.nFireworks - 1
             firework.kind = 'exploding'
             local sx = END_FIREWORK_FLARE_SPEED / math.sqrt(2)
             local sh = END_FIREWORK_FLARE_SPEED
@@ -6109,7 +6119,7 @@ function StEnding:tick(mouse)
         end
 
         table.insert(liveFireworks, firework)
-        
+
         firework.x = firework.x + firework.dx
         firework.y = firework.y + firework.dy
 
