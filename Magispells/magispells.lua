@@ -5911,7 +5911,7 @@ function FireworkState:cloneWithSpeed(dx, dy)
         y = self.y,
         dx = dx,
         dy = dy,
-        detotime = END_FIREWORK_FLARE_TIME,
+        detoTime = END_FIREWORK_FLARE_TIME,
         kind = self.kind
     }
 end
@@ -5946,7 +5946,7 @@ END_FIREWORK_SOURCE_TL = {x = SCREEN_W_px / 4, y = SCREEN_H_px / 3}
 END_FIREWORK_SOURCE_DIM = {x = SCREEN_W_px / 2, y = 0}
 
 -- pixels per second
-END_FIREWORK_SPEED = 10
+END_FIREWORK_SPEED = 50
 -- pixels per tick
 END_FIREWORK_SPEED_PT = END_FIREWORK_SPEED / 60
 
@@ -6007,6 +6007,8 @@ function StEnding:fire()
         kind = 'launching',
     }
 
+    setmetatable(firework, {__index = FireworkState})
+
     table.insert(self.fireworkStates, firework)
 end
 
@@ -6023,7 +6025,6 @@ function StEnding:draw()
 
     map(SCREEN_W_tiles, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0)
     map(0, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0, PALETTE.BLACK)
-    trace(ToStr(self.fireworkStates))
     for _, firework in ipairs(self.fireworkStates) do
         local sprite
         if firework.kind == 'launching' then
@@ -6058,12 +6059,11 @@ function StEnding:tick(mouse)
     for _, firework in ipairs(self.fireworkStates) do
         firework.detoTime = firework.detoTime - 1
 
-        local exploded = firework.detoTime == 0
-        if exploded and firework.kind == 'exploding' then
+        if firework.detoTime <= 0 and firework.kind == 'exploding' then
             goto continue
         end
 
-        if exploded == 0 then
+        if firework.detoTime <= 0 then
             firework.kind = 'exploding'
             local sx = END_FIREWORK_FLARE_SPEED / math.sqrt(2)
             firework.dx = sx
