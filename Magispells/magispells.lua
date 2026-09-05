@@ -5922,6 +5922,9 @@ END_SPR_EXPLOSION_N_FRAMES = 5
 END_MAX_FIREWORKS = 4
 END_CONGRATULATIONS_TIME = 60 * 3.6
 
+END_SFX_FIREWORK_LAUNCH = 60
+END_SFX_FIREWORK_DETO = 61
+
 END_SONG_FANFARE = 3
 END_SONG_HAPPY = 4
 END_TEXT = {
@@ -5962,6 +5965,8 @@ END_SPR_TOWEL_TW = 6
 END_SPR_TOWEL_TH = 2
 END_SPR_TOWEL_OFFX = -8
 END_SPR_TOWEL_OFFY = 16
+
+END_FIREWORK_GUARANTEE_TIME = 60 * 4
 
 ---@class StEnding : IAppState
 ---@field fireworkStates FireworkState[]
@@ -6034,6 +6039,8 @@ function StEnding:fire()
 
     setmetatable(firework, {__index = FireworkState})
 
+    sfx(END_SFX_FIREWORK_LAUNCH, 'C-7', tics, SFX_CHANNEL, 15)
+
     table.insert(self.fireworkStates, firework)
 end
 
@@ -6043,10 +6050,6 @@ end
 
 function StEnding:drawTrees()
     map(SCREEN_W_tiles, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0, PALETTE.BLACK)
-end
-
-function StEnding:drawTower()
-
 end
 
 function StEnding:drawWispell()
@@ -6129,7 +6132,9 @@ function StEnding:tick(mouse)
         return
     end
 
-    if self.nFireworks < END_MAX_FIREWORKS and math.random() < END_FIREWORK_CHANCE then
+    if self.nFireworks < END_MAX_FIREWORKS and 
+        math.random() < END_FIREWORK_CHANCE or
+        self.ticksSinceLastFirework >= END_FIREWORK_GUARANTEE_TIME then
         self:fire()
     end
 
@@ -6165,6 +6170,8 @@ function StEnding:tick(mouse)
             table.insert(liveFireworks, firework:cloneWithSpeed(-sh, 0))
             self.anyDetonating = true
 
+            sfx(END_SFX_FIREWORK_DETO, 'c-5')
+
             goto continue
         end
 
@@ -6178,6 +6185,10 @@ function StEnding:tick(mouse)
     end
 
     self.fireworkStates = liveFireworks
+
+    if #liveFireworks == 0 then
+        self.ticksSinceLastFirework = self.ticksSinceLastFirework + 1
+    end
 
     if self.congratsTicks == 0 then
         self.congratsTicks = -1
@@ -7228,6 +7239,8 @@ end
 -- 055:01e021d331c541b641b651a76196619681859173a172a160b17fc16dc15cd14ce14ce13cf13bf12bf12bf11af11af11bf10df100f102f105f106f107310000000000
 -- 056:03100340030003b0033003c0032013d0130023f0232033e0431053e0530063b0730083c08320839093809310931093609300a340b330c320d300f300300000000000
 -- 057:00f010f020a020a0305030504000400040d050d050805080503060306000600060a060a060606060501050105000500060f070f080f090f0a0f0b0a0460000000000
+-- 060:0300230f330f430f530e630d630c730a83088310831f931f931fa31ea31ea31fb31eb31cb31ac320c320c32fc32ed32ed32dd328d33fe33ee33cf33a6f0000000000
+-- 061:0300130d331c531b631a732a432a532963298349933a834a535b635b735c936ca36ec37f93809390a392a3a3b3b4b3c5c3d5d3d5e3e4e3f3e3e0f3ee400000000000
 -- </SFX>
 
 -- <SFX1>
