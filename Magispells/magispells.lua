@@ -5901,9 +5901,10 @@ end
 ---@field dy number
 ---@field detoTime integer
 ---@field kind 'launching'|'exploding'
+---@field palIndex integer
 FireworkState = {}
 
---- Used when spawning 3 identical flares upon detonation
+--- Used when spawning identical flares upon detonation
 ---@return FireworkState
 function FireworkState:cloneWithSpeed(dx, dy)
     return {
@@ -5912,7 +5913,8 @@ function FireworkState:cloneWithSpeed(dx, dy)
         dx = dx,
         dy = dy,
         detoTime = END_FIREWORK_FLARE_TIME,
-        kind = self.kind
+        kind = self.kind,
+        palIndex = self.palIndex
     }
 end
 
@@ -5965,6 +5967,17 @@ END_SPR_TOWEL_TW = 6
 END_SPR_TOWEL_TH = 2
 END_SPR_TOWEL_OFFX = -8
 END_SPR_TOWEL_OFFY = 16
+
+-- the firework only uses a particular color in the sprite data.
+END_FIREWORK_BASE_PALETTE = PALETTE.ORANGE
+-- the base color can be swapped with any of these
+END_FIREWORK_PALETTE_SWAPS = {
+    PALETTE.YELLOW,
+    PALETTE.ORANGE,
+    PALETTE.LIME,
+    PALETTE.GREEN,
+    PALETTE.RED
+}
 
 END_FIREWORK_GUARANTEE_TIME = 60 * 4
 
@@ -6026,6 +6039,8 @@ function StEnding:fire()
     local tics = math.floor(0.5 + dist / END_FIREWORK_SPEED_PT)
     local dx = vecX / tics
     local dy = vecY / tics
+    local palSwapIndex = math.random(1, #END_FIREWORK_PALETTE_SWAPS)
+    local palSwap = END_FIREWORK_PALETTE_SWAPS[palSwapIndex]
 
     ---@type FireworkState
     local firework = {
@@ -6035,6 +6050,7 @@ function StEnding:fire()
         x = sourceX,
         y = sourceY,
         kind = 'launching',
+        palIndex = palSwap
     }
 
     setmetatable(firework, {__index = FireworkState})
@@ -6081,7 +6097,7 @@ function StEnding:drawHill()
     map(0, 0, SCREEN_W_tiles, SCREEN_H_tiles, 0, 0, PALETTE.BLACK)
 end
 
-function StEnding:draw()
+function StEnding:draw()    
     vbank(self.anyDetonating and 1 or 0) -- use brighter palette if detonating
 
     if self.congratsTicks > 0 then
@@ -6111,11 +6127,19 @@ function StEnding:draw()
             sprite = sprite + frame
         end
 
+        -- poke the palette swap
+        local PALETTE_SWAP_ADDR = 0x3FF0 * 2 + END_FIREWORK_BASE_PALETTE
+        poke4(PALETTE_SWAP_ADDR, firework.palIndex)
+
         spr(sprite, firework.x, firework.y, PALETTE.BLACK)
+
+        poke4(PALETTE_SWAP_ADDR, END_FIREWORK_BASE_PALETTE)
     end
 
     self:drawHill()
     self:drawWispell()
+
+    -- TODO: thank you for playing!
 end
 
 ---@param mouse MouseState
@@ -6170,7 +6194,7 @@ function StEnding:tick(mouse)
             table.insert(liveFireworks, firework:cloneWithSpeed(-sh, 0))
             self.anyDetonating = true
 
-            sfx(END_SFX_FIREWORK_DETO, 'c-5')
+            sfx(END_SFX_FIREWORK_DETO, 'c-5', 60, SFX_CHANNEL, 15)
 
             goto continue
         end
@@ -6722,11 +6746,11 @@ end
 -- 023:0000d8880000d888000d8899000d888800d8888800d899880d8888880d888888
 -- 024:899d0000888d00008888d0008888d00089988d0088888d00888888d0888888d0
 -- 026:0c000000ccc000000c0000000000000000000000000000000000000000000000
--- 027:4004400400044000004444004444444444444444004444000004400040044004
--- 028:4004400400444400044444404440044444400444044444400044440040044004
--- 029:4004400400444400040000404400004444000044040000400044440040044004
--- 030:0004400000400400040000404000000440000004040000400040040000044000
--- 031:0004400000000000000000004000000440000004000000000000000000044000
+-- 027:3003300300033000003333003333333333333333003333000003300030033003
+-- 028:3003300300333300033333303330033333300333033333300033330030033003
+-- 029:3003300300333300030000303300003333000033030000300033330030033003
+-- 030:0003300000300300030000303000000330000003030000300030030000033000
+-- 031:0003300000000000000000003000000330000003000000000000000000033000
 -- 032:0000000000770000070770770770777707077707777777777777770707707077
 -- 033:0777000070707007770707077770707777770770777070777777077777777070
 -- 034:7000000077070000770770000770700070707700777077017770777077077770
