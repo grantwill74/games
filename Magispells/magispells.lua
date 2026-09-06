@@ -6170,18 +6170,25 @@ function StEnding:draw()
 end
 
 ---@param mouse MouseState
+---@returns AppState|nil
 function StEnding:tick(mouse)
     if self.congratsTicks > 0 then
         self.congratsTicks = math.max(0, self.congratsTicks - 1)
 
         -- falling edge: change music
-        if self.congratsTicks == 0 or mouse.left then
+        if self.congratsTicks == 0 or mouse.leftTrans == 'down' then
             self.congratsTicks = 0 -- if left down, skip congrats
             music(END_SONG_HAPPY)
         end
 
         return
     end
+
+    
+    if mouse.leftTrans == 'down' then
+        return StMainMenu.new()
+    end
+    
 
     if self.nFireworks < END_MAX_FIREWORKS and 
         math.random() < END_FIREWORK_CHANCE or
