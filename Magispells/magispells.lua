@@ -5947,17 +5947,17 @@ END_FIREWORK_FLARE_SPEED = 0.5
 -- rectangular area that fireworks can target
 END_FIREWORK_TARGET_TL = {x = SCREEN_W_px / 4, y = 8}
 END_FIREWORK_TARGET_DIM = {x = SCREEN_W_px / 2, y = SCREEN_H_px / 4}
-END_FIREWORK_SOURCE_TL = {x = SCREEN_W_px / 4, y = SCREEN_H_px / 3}
+END_FIREWORK_SOURCE_TL = {x = SCREEN_W_px / 4, y = 3 * SCREEN_H_px / 2}
 END_FIREWORK_SOURCE_DIM = {x = SCREEN_W_px / 2, y = 0}
 
 -- pixels per second
-END_FIREWORK_SPEED = 50
+END_FIREWORK_SPEED = 100
 -- pixels per tick
 END_FIREWORK_SPEED_PT = END_FIREWORK_SPEED / 60
 
 END_SPR_WISPELL_ID = 202
 END_WISPELL_BOOK_OFF_TX = 1
-END_WISPELL_BOOK_OFF_TX = 1
+END_WISPELL_BOOK_OFF_TY = 1
 END_WISPELL_TW = 5
 END_WISPELL_TH = 4
 END_WISPELL_TX = 20
@@ -5967,6 +5967,15 @@ END_SPR_TOWEL_TW = 6
 END_SPR_TOWEL_TH = 2
 END_SPR_TOWEL_OFFX = -8
 END_SPR_TOWEL_OFFY = 16
+END_SPR_BOOK_ANIM_ID = 176
+END_SPR_BOOK_TW = 2
+END_SPR_BOOK_TH = 2
+
+--- how long between the start of Wispell turning the page on his book
+END_PAGE_INTERVAL = 60 * 4
+END_PAGE_N_FRAMES = 3
+END_PAGE_TIME = 40
+END_PAGE_FRAME_TIME = END_PAGE_TIME / END_PAGE_N_FRAMES
 
 -- the firework only uses a particular color in the sprite data.
 END_FIREWORK_BASE_PALETTE = PALETTE.ORANGE
@@ -5981,6 +5990,11 @@ END_FIREWORK_PALETTE_SWAPS = {
 
 END_FIREWORK_GUARANTEE_TIME = 60 * 4
 
+END_THANKYOU_OFFY = 4
+END_THANKYOU_TEXT = "Thank you for playing!"
+END_THANKYOU_W = print(END_THANKYOU_TEXT, SCREEN_W_px, SCREEN_H_px)
+END_THANKYOU_OFFX = (SCREEN_W_px - END_THANKYOU_W) / 2
+
 ---@class StEnding : IAppState
 ---@field fireworkStates FireworkState[]
 ---@field nFireworks integer # not the same as the number of states, which include fragments
@@ -5988,6 +6002,7 @@ END_FIREWORK_GUARANTEE_TIME = 60 * 4
 ---@field anyDetonating boolean
 ---@field congratsTicks integer
 ---@field textLineWidths integer[]
+---@field pageTimer integer
 StEnding = {}
 setmetatable(StEnding, {__index = IAppState})
 
@@ -5999,7 +6014,8 @@ function StEnding.new()
         ticksSinceLastFirework = 0,
         anyDetonating = false,
         congratsTicks = END_CONGRATULATIONS_TIME,
-        textLineWidths = {}
+        textLineWidths = {},
+        pageTimer = 60
     }
 
     setmetatable(state, {__index = StEnding})
@@ -6091,6 +6107,17 @@ function StEnding:drawWispell()
         END_WISPELL_TW,
         END_WISPELL_TH
     )
+
+    if self.pageTimer < END_PAGE_TIME then
+        local whichPage = math.floor(self.pageTimer / END_PAGE_FRAME_TIME)
+        local pageSpr = whichPage * END_SPR_BOOK_TW + END_SPR_BOOK_ANIM_ID
+        spr(
+            pageSpr,
+            wispellX + END_WISPELL_BOOK_OFF_TX * TILE_W_px,
+            wispellY + END_WISPELL_BOOK_OFF_TY * TILE_H_px,
+            PALETTE.BLACK
+        )
+    end
 end
 
 function StEnding:drawHill()
@@ -6139,7 +6166,7 @@ function StEnding:draw()
     self:drawHill()
     self:drawWispell()
 
-    -- TODO: thank you for playing!
+    print(END_THANKYOU_TEXT, END_THANKYOU_OFFX, END_THANKYOU_OFFY, PALETTE.WHITE)
 end
 
 ---@param mouse MouseState
@@ -6219,7 +6246,7 @@ function StEnding:tick(mouse)
         self:fire()
     end
 
-
+    self.pageTimer = (self.pageTimer + 1) % END_PAGE_INTERVAL
 end
 
 MAX_LVL_REACHED_PMEM_ADDR = HIGH_SCORE_PMEM_ADDR + HIGH_SCORE_STRIDE * N_HIGH_SCORES
