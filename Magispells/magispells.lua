@@ -4589,6 +4589,7 @@ end
 ---@field bookDeployTicks number
 ---@field postGameOver boolean
 ---@field hoverButton Button|nil
+---@field levelStart
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -4799,6 +4800,7 @@ function StInGame:newGame(levelStart)
     self.bookDeployTicks = 0
     self.postGameOver = false
     self.hoverButton = nil
+    self.startLevel = levelStart
 
     self.wispell:restoreInterest()
 
@@ -5286,6 +5288,10 @@ end
 ---@param mouse MouseState
 function StInGame:tick(mouse)
     if self.postGameOver then
+        if self.level > MAX_LEVEL and self.startLevel < MAX_LEVEL then
+            return StEnding.new()
+        end
+
         return StMainMenu.new()
     end
 
@@ -5810,7 +5816,9 @@ function DrawStatus(
     print(letters, x, y + 8, color)
     print(score, x, y + 16, color)
 
-    print("Lvl: " .. ToStr(level) .. '/' .. ToStr(MAX_LEVEL), x, y + 24, PALETTE.WHITE)
+    local lvlText = 'Lvl: ' .. ToStr(level)
+    if level <= MAX_LEVEL then lvlText = lvlText .. '/' .. ToStr(MAX_LEVEL) end
+    print(lvlText, x, y + 24, PALETTE.WHITE)
     print("Score: " .. ToStr(mana), x, y + 32, PALETTE.WHITE)
     print("Next: " .. ToStr(next), x, y + 40, PALETTE.WHITE)
     print("Chances: " .. ToStr(maxWords), x, y + 48, PALETTE.WHITE)
@@ -6184,11 +6192,9 @@ function StEnding:tick(mouse)
         return
     end
 
-    
     if mouse.leftTrans == 'down' then
         return StMainMenu.new()
     end
-    
 
     if self.nFireworks < END_MAX_FIREWORKS and 
         math.random() < END_FIREWORK_CHANCE or
@@ -6271,7 +6277,7 @@ function UpdateMaxLevelReachedIfHigher(curLevel)
     pmem(MAX_LVL_REACHED_PMEM_ADDR, new)
 end
 
-function ClearUnlockedSongs()
+function ClearMaxLevelReached()
     pmem(MAX_LVL_REACHED_PMEM_ADDR, 1)
 end
 
@@ -6290,9 +6296,11 @@ function UnlockNextSongIfAble(curLevel)
     return true
 end
 
+
+
 function ClearData()
     ClearHighScores()
-    ClearUnlockedSongs()
+    ClearMaxLevelReached()
 
     -- hardcoded: game is feature complete
     SongUnlockLevels = {16, 12, 8, 4}
@@ -6396,10 +6404,10 @@ function BOOT()
     LoadUnlockedSongs()
     cls(0)
     sync(2, 1, false)
-    -- appState = StLoading.new()
+    appState = StLoading.new()
     -- appState = StIntro.new()
     -- AppStateTransition(StMainMenu.new())
-    appState = StEnding.new()
+    -- appState = StEnding.new()
     Mouse = MouseState.new()
 end
 
