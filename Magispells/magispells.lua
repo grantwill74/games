@@ -3074,14 +3074,13 @@ function StMainMenu.new()
 end
 
 function StMainMenu:enter()
-    sync(1, 1) -- switch tiles to bank 1
-    -- music(1)
+    sync(16, 0)
+    music(1)
 end
 
 function StMainMenu:delayTick()
     if self.nSyncDelayTicks == 1 then
-        sync(16, 0)
-        music(1)
+        sync(1, 1) -- switch tiles to bank 1
     end
 end
 
@@ -4738,7 +4737,7 @@ function StInGame.new(lvlStart)
         buttons = buttons,
         letterPartEmitter = LetterParticleEmitter.new(),
         postGameOver = false,
-        nSyncDelayTicks = 1, -- for switching music
+        nSyncDelayTicks = 2, -- for switching music
         hoverButton = nil,
     }
 
@@ -4750,18 +4749,20 @@ function StInGame.new(lvlStart)
 end
 
 function StInGame:enter()
-    vbank(0)
-    sync(1 | 2, 0)
-    vbank(1)
-    sync(1 | 2, 0)
-    vbank(0)
-    music()
+    local song = StartingSongNo(self.level)
+    SetSongIdx(song)
 end
 
 function StInGame:delayTick()
-    if self.delayTicks == 0 then
-        local song = StartingSongNo(self.level)
-        SetSongIdx(song)
+    if self.nSyncDelayTicks == 2 then
+        vbank(0)
+        sync(1 | 2, 0)
+    elseif self.nSyncDelayTicks == 1 then
+        vbank(1)
+        sync(1 | 2, 0)
+        vbank(0)
+    elseif self.nSyncDelayTicks == 0 then
+        music()
     end
 end
 
@@ -6028,7 +6029,7 @@ function StEnding.new()
 
     setmetatable(state, {__index = StEnding})
 
-    state.nSyncDelayTicks = 1
+    state.nSyncDelayTicks = 2
 
     for _, line in ipairs(END_TEXT) do
         table.insert(state.textLineWidths, print(line, SCREEN_W_px, SCREEN_H_px))
@@ -6037,8 +6038,15 @@ function StEnding.new()
     return state
 end
 
+function StEnding:delayTick()
+    if self.nSyncDelayTicks == 2 then
+        sync(16 | 8, 0) -- change music and sfx
+    elseif self.nSyncDelayTicks == 1 then
+        sync(32 | 4 | 1, 2) -- change palette, map, tiles
+    end
+end
+
 function StEnding:enter()
-    sync(32 | 4 | 1, 2) -- change palette, map, and tiles
     music(END_SONG_FANFARE)
 end
 
@@ -6395,8 +6403,8 @@ end
 function AppStateTransition(newState)
     if appState and appState.leave then appState:leave() end
     appState = newState
-    if appState.enter and not 
-        (appState.nSyncDelayTicks and appState.nSyncDelayTicks > 0) 
+    if appState.enter and not
+        (appState.nSyncDelayTicks and appState.nSyncDelayTicks > 0)
     then appState:enter() end
 end
 
@@ -6428,11 +6436,12 @@ function TIC()
     -- frames to sync data into the proper banks (you can only call sync once
     -- per frame)
     if appState.nSyncDelayTicks and appState.nSyncDelayTicks > 0 then
-        appState.nSyncDelayTicks = appState.nSyncDelayTicks - 1
         if appState.delayTick then appState:delayTick() end
-        if appState.nSyncDelayTicks == 0 then
-            appState:enter()
-        end
+        appState.nSyncDelayTicks = appState.nSyncDelayTicks - 1
+        return
+    elseif appState.nSyncDelayTicks and appState.nSyncDelayTicks == 0 then
+        appState:enter()
+        appState.nSyncDelayTicks = nil    
     end
 
 
