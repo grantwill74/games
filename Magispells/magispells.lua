@@ -2171,7 +2171,7 @@ end
 -- I like it! It ended up looking pretty good.
 
 
----@alias SubMenuTransition SubMenu | nil | number # the number is for the new game start level
+---@alias SubMenuTransition SubMenu | nil | number | string # the number is for the new game start level, the string is for other app states
 
 ---@class SubMenu
 ---@field buttons Button[]
@@ -2218,8 +2218,11 @@ end
 ---@field nWispellLHandSaved Node
 ---@field nWispellRHand Node
 ---@field hoverCycle integer
----@field btnStartGame Button
----@field btnHighScores Button
+---@field btnStartGame TextButton
+---@field btnHighScores TextButton
+---@field btnEnding TextButton
+---@field btnMusic SpriteToggleButton
+---@field btnSfx SpriteToggleButton
 ---@field nCopyright Node
 Sub_Title = {}
 setmetatable(Sub_Title, {__index = SubMenu})
@@ -2256,12 +2259,27 @@ MENU_BTN_HS_NAME = 'high scores'
 MENU_BTN_HS_TEXT = 'High Scores'
 MENU_BTN_HS_HINT = 'Look at your high scores!'
 
+MENU_BTN_ENDING_NAME = 'view ending'
+MENU_BTN_ENDING_TEXT = 'View Ending!'
+MENU_BTN_ENDING_HINT = 'See the ending again!'
+
+MENU_BTN_SFX_NAME = 'toggle sfx'
+MENU_BTN_SFX_HINT = 'Toggle sound effects'
+
+MENU_BTN_MUSIC_NAME = 'toggle music'
+MENU_BTN_MUSIC_HINT = 'Toggle music'
+
 MENU_GESTURE_OFF_X = -4
 MENU_GESTURE_OFF_Y = 4
 MENU_SFX_CHOOSE = 48
 
 MENU_COPYRIGHT = '(c) Grant Williams, 2026. AGPL 3.0+.'
 MENU_COPYRIGHT_OFFY = 40
+
+MENU_TOGGLE_SFX_OFFX = SCREEN_W_px - BTN_SIMPLE_W
+MENU_TOGGLE_SFX_OFFY = SCREEN_H_px - BTN_SIMPLE_H
+MENU_TOGGLE_MUSIC_OFFX = MENU_TOGGLE_SFX_OFFX - BTN_SIMPLE_W
+MENU_TOGGLE_MUSIC_OFFY = MENU_TOGGLE_SFX_OFFY
 
 function DrawTitleLetters()
     for i, node in ipairs(TitleLetterNodes) do
@@ -2319,8 +2337,9 @@ function Sub_Title.new()
     end
 
     -- print button off screen to get the rendered width
-    local startBtnW = print(MENU_BTN_START_TEXT, SCREEN_W_px)
-    local hsBtnW = print(MENU_BTN_HS_TEXT, SCREEN_W_px)
+    local startBtnW = print(MENU_BTN_START_TEXT, SCREEN_W_px, SCREEN_H_px)
+    local hsBtnW = print(MENU_BTN_HS_TEXT, SCREEN_W_px, SCREEN_H_px)
+    local endingBtnW = print(MENU_BTN_ENDING_TEXT, SCREEN_W_px, SCREEN_H_px)
 
     state.nButtons = Node.new(
         nil, 'buttons',
@@ -2335,8 +2354,26 @@ function Sub_Title.new()
     local nHsButton = Node.new(
         state.nButtons, 'highscore btn node',
         -hsBtnW / 2,
-        (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX * 2),
+        TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX * 2,
         hsBtnW, TEXT_BUTTON_H_PX
+    )
+    local nEndingButton = Node.new(
+        state.nButtons, 'view ending btn node',
+        -endingBtnW / 2,
+        (TEXT_BUTTON_H_PX + BTN_VERT_PADDING_PX * 2) * 2,
+        endingBtnW, TEXT_BUTTON_H_PX
+    )
+    local nMusicButton = Node.new(
+        nil, 'music toggle btn node',
+        MENU_TOGGLE_MUSIC_OFFX,
+        MENU_TOGGLE_MUSIC_OFFY,
+        BTN_SIMPLE_W, BTN_SIMPLE_H
+    )
+    local nSfxButton = Node.new(
+        nil, 'sfx toggle btn node',
+        MENU_TOGGLE_SFX_OFFX,
+        MENU_TOGGLE_SFX_OFFY,
+        BTN_SIMPLE_W, BTN_SIMPLE_H
     )
 
     state.btnStartGame = TextButton.new(
@@ -2353,9 +2390,37 @@ function Sub_Title.new()
         MENU_BTN_HS_HINT,
         PALETTE.YELLOW
     )
+    state.btnEnding = TextButton.new(
+        nEndingButton,
+        MENU_BTN_ENDING_NAME,
+        MENU_BTN_ENDING_TEXT,
+        MENU_BTN_ENDING_HINT,
+        PALETTE.YELLOW
+    )
+
+    state.btnSfx = SpriteToggleButton.new(
+        nSfxButton,
+        MENU_BTN_SFX_NAME,
+        MENU_BTN_SFX_HINT,
+        (SfxVol > 0) and {BTN_SPR_SFX_ON, BTN_SPR_SFX_OFF} or
+            {BTN_SPR_SFX_OFF, BTN_SPR_SFX_ON},
+        PALETTE.BLACK
+    )
+    state.btnMusic = SpriteToggleButton.new(
+        nMusicButton,
+        MENU_BTN_MUSIC_NAME,
+        MENU_BTN_MUSIC_HINT,
+        MusicEnabled and {BTN_SPR_MUSIC_ON, BTN_SPR_MUSIC_OFF} or
+            {BTN_SPR_MUSIC_OFF, BTN_SPR_MUSIC_ON},
+        PALETTE.BLACK
+    )
+
 
     table.insert(state.buttons, state.btnStartGame)
     table.insert(state.buttons, state.btnHighScores)
+    table.insert(state.buttons, state.btnEnding)
+    table.insert(state.buttons, state.btnSfx)
+    table.insert(state.buttons, state.btnMusic)
 
     TitleNode.parent = state.nTitleLetters
 
@@ -2374,6 +2439,11 @@ function Sub_Title:tick(mouse)
             return Sub_NewGame.new()
         elseif button.name == MENU_BTN_HS_NAME then
             return Sub_Highscores.new()
+        elseif button.name == MENU_BTN_ENDING_NAME then
+            return 'ending'
+        elseif button.name == MENU_BTN_MUSIC_NAME then
+            -- TODO
+            -- ToggleMusic()
         end
     end
 
@@ -2381,7 +2451,9 @@ function Sub_Title:tick(mouse)
     self.hoverButton = nil
     for _, maybeHoverButton in ipairs(self.buttons) do
         if maybeHoverButton.hover then
-            self:pointAt(maybeHoverButton.node)
+            if maybeHoverButton.node.parent == self.nButtons then
+                self:pointAt(maybeHoverButton.node)
+            end
             pointing = true
             self.hoverButton = maybeHoverButton
         end
@@ -3118,6 +3190,10 @@ function StMainMenu:tick(mouse)
 
     if type(tx) == "number" then
         return StInGame.new(tx)
+    elseif type(tx) == "string" then
+        if tx == "ending" then
+            return StEnding.new()
+        end
     elseif tx then
         self.curSub = tx
     end
@@ -7094,8 +7170,15 @@ end
 -- </SPRITES>
 
 -- <SPRITES1>
+-- 098:0000000000aaaaa000a000a000a000a000a000a00aa00aa00aa00aa000000000
+-- 099:0000000000000a00000a00a00aaa00a00aaa00a0000a00a000000a0000000000
+-- 100:0000000000a0a00000a0aa0000a0aaa000a0aaa000a0aa0000a0a00000000000
+-- 101:0aaaaaa00a0000a00a0000a00a0000a00a0220a00a2222a00a0220a000022000
 -- 110:0444443044444443444444434444444344444443444444433444443303333330
 -- 111:0555556055555556555555565555555655555556555555566555556606666660
+-- 114:2000000202aaaa20002002a000a020a000a200a00a2002a002a00a2020000002
+-- 115:2000000202000a20002a02a00aaa20a00aa200a0002a02a002000a2020000002
+-- 116:0000000000a0aa0000a000a000a00a0000a0a0000000000000a0a00000000000
 -- 126:0bbbbba0bbbbbbbabbbbbbbabbbbbbbabbbbbbbabbbbbbbaabbbbbaa0aaaaaa0
 -- 128:ccccccccccccccc1cccccc11cccccc11ccccc111ccccc11ccccc111ccccc11cc
 -- 129:cccccccccccccccc1ccccccc1ccccccc11cccccc11cccccc111cccccc11ccccc
