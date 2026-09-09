@@ -2368,7 +2368,7 @@ function Sub_Title:tick(mouse)
     local button = self:updateButtonsAndDetectClick(mouse)
 
     if button then
-        sfx(MENU_SFX_CHOOSE, 'C-5', 60, SFX_CHANNEL)
+        sfx(MENU_SFX_CHOOSE, 'C-5', 60, SFX_CHANNEL, SfxVol)
         
         if button.name == MENU_BTN_START_NAME then
             return Sub_NewGame.new()
@@ -3039,7 +3039,7 @@ function Sub_ClearScores:tick(mouse)
             self.confirmed = false
             return Sub_Highscores.new()
         elseif clicked.name == MENU_CLEAR_CONFIRM_BTN_NAME then
-            sfx(SFX.clearData, 'C-5', 85, SFX_CHANNEL)
+            sfx(SFX.clearData, 'C-5', 85, SFX_CHANNEL, SfxVol)
             ClearData()
             return Sub_Highscores.new()
         end
@@ -3075,7 +3075,7 @@ end
 
 function StMainMenu:enter()
     sync(16, 0)
-    music(1)
+    if MusicEnabled then music(1) end
 end
 
 function StMainMenu:delayTick()
@@ -6047,7 +6047,7 @@ function StEnding:delayTick()
 end
 
 function StEnding:enter()
-    music(END_SONG_FANFARE)
+    if MusicEnabled then music(END_SONG_FANFARE) end
 end
 
 function StEnding:leave()
@@ -6087,7 +6087,7 @@ function StEnding:fire()
 
     setmetatable(firework, {__index = FireworkState})
 
-    sfx(END_SFX_FIREWORK_LAUNCH, 'C-7', tics, SFX_CHANNEL, 15)
+    sfx(END_SFX_FIREWORK_LAUNCH, 'C-7', tics, SFX_CHANNEL, SfxVol)
 
     table.insert(self.fireworkStates, firework)
 end
@@ -6194,7 +6194,7 @@ function StEnding:tick(mouse)
         -- falling edge: change music
         if self.congratsTicks == 0 or mouse.leftTrans == 'down' then
             self.congratsTicks = 0 -- if left down, skip congrats
-            music(END_SONG_HAPPY)
+            if MusicEnabled then music(END_SONG_HAPPY) end
         end
 
         return
@@ -6242,7 +6242,7 @@ function StEnding:tick(mouse)
             table.insert(liveFireworks, firework:cloneWithSpeed(-sh, 0))
             self.anyDetonating = true
 
-            sfx(END_SFX_FIREWORK_DETO, 'c-5', 60, SFX_CHANNEL, 15)
+            sfx(END_SFX_FIREWORK_DETO, 'c-5', 60, SFX_CHANNEL, SfxVol)
 
             goto continue
         end
