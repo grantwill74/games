@@ -2102,7 +2102,7 @@ end
 
 function StIntro:enter()
     sync(1, 1) -- switch tiles to bank 1
-    music(0, 0, 0, false)
+    if MusicEnabled then music(0, 0, 0, false) end
 end
 
 function StIntro:leave()
@@ -2402,16 +2402,14 @@ function Sub_Title.new()
         nSfxButton,
         MENU_BTN_SFX_NAME,
         MENU_BTN_SFX_HINT,
-        (SfxVol > 0) and {BTN_SPR_SFX_ON, BTN_SPR_SFX_OFF} or
-            {BTN_SPR_SFX_OFF, BTN_SPR_SFX_ON},
+        {BTN_SPR_SFX_ON, BTN_SPR_SFX_OFF},
         PALETTE.BLACK
     )
     state.btnMusic = SpriteToggleButton.new(
         nMusicButton,
         MENU_BTN_MUSIC_NAME,
         MENU_BTN_MUSIC_HINT,
-        MusicEnabled and {BTN_SPR_MUSIC_ON, BTN_SPR_MUSIC_OFF} or
-            {BTN_SPR_MUSIC_OFF, BTN_SPR_MUSIC_ON},
+        {BTN_SPR_MUSIC_ON, BTN_SPR_MUSIC_OFF},
         PALETTE.BLACK
     )
 
@@ -2434,7 +2432,6 @@ function Sub_Title:tick(mouse)
 
     if button then
         sfx(MENU_SFX_CHOOSE, 'C-5', 60, SFX_CHANNEL, SfxVol)
-        
         if button.name == MENU_BTN_START_NAME then
             return Sub_NewGame.new()
         elseif button.name == MENU_BTN_HS_NAME then
@@ -2442,8 +2439,12 @@ function Sub_Title:tick(mouse)
         elseif button.name == MENU_BTN_ENDING_NAME then
             return 'ending'
         elseif button.name == MENU_BTN_MUSIC_NAME then
-            -- TODO
-            -- ToggleMusic()
+            ToggleMusic()
+            if MusicEnabled then
+                music(1)
+            end
+        elseif button.name == MENU_BTN_SFX_NAME then
+            ToggleSfx()
         end
     end
 
@@ -2458,6 +2459,9 @@ function Sub_Title:tick(mouse)
             self.hoverButton = maybeHoverButton
         end
     end
+
+    self.btnMusic.toggleState = MusicEnabled and 1 or 2
+    self.btnSfx.toggleState = SfxVol == 0 and 2 or 1
 
     if not pointing then self:stopPointing() end
 end
@@ -4638,6 +4642,8 @@ end
 ---@field ndWispell Node
 ---@field ndBook Node
 ---@field buttons Button[]
+---@field btnMusic SpriteToggleButton
+---@field btnSfx SpriteToggleButton
 ---@field wispell Wispell
 ---@field grid LetterGrid
 ---@field highlight Cr | nil
@@ -4664,7 +4670,7 @@ end
 ---@field bookDeployTicks number
 ---@field postGameOver boolean
 ---@field hoverButton Button|nil
----@field levelStart
+---@field levelStart integer
 StInGame = {}
 StInGame.__index = StInGame
 
@@ -4811,6 +4817,8 @@ function StInGame.new(lvlStart)
         ndWispell = ndWispell,
         ndBook = ndBook,
         buttons = buttons,
+        btnMusic = btnMusic,
+        btnSfx = btnSfx,
         letterPartEmitter = LetterParticleEmitter.new(),
         postGameOver = false,
         nSyncDelayTicks = 2, -- for switching music
@@ -5430,25 +5438,12 @@ function StInGame:tick(mouse)
         end
     end
 
+
     if clicked then
         if clicked.name == BTN_MUSIC_NAME then
-            local btnMusic = clicked --[[ @as SpriteToggleButton ]]
-            if not MusicEnabled then
-                MusicOn()
-                btnMusic.toggleState = 1
-            else
-                MusicOff()
-                btnMusic.toggleState = 2
-            end
+            ToggleMusic()
         elseif clicked.name == BTN_SFX_NAME then
-            local btnSfx = clicked --[[ @as SpriteToggleButton ]]
-            if SfxVol == 0 then
-                SfxVol = SFX_VOL_ORIG
-                btnSfx.toggleState = 1
-            else
-                SfxVol = 0
-                btnSfx.toggleState = 2
-            end
+            ToggleSfx()
         elseif clicked.name == BTN_NEXTBGM_NAME then
             if not MusicEnabled then
                 MusicOn()
@@ -5472,6 +5467,9 @@ function StInGame:tick(mouse)
             self.subState = StInGame_Abandon.new()
         end
     end
+
+    self.btnMusic.toggleState = MusicEnabled and 1 or 2
+    self.btnSfx.toggleState = (SfxVol == 0) and 2 or 1
 end
 
 
@@ -6415,14 +6413,61 @@ SFX_VOL_ORIG = 15
 SfxVol = SFX_VOL_ORIG
 MuseVol = 1
 
+MUSIC_ENABLED_PMEM_ADDR = MAX_LVL_REACHED_PMEM_ADDR + 1
+SFX_ENABLED_PMEM_ADDR = MUSIC_ENABLED_PMEM_ADDR + 1
+PMEM_ON = 2
+PMEM_OFF = 1
+-- 0 is the default PMEM value, so we need to distinguish it
+
 function MusicOff()
     MusicEnabled = false
     music()
+    pmem(MUSIC_ENABLED_PMEM_ADDR, PMEM_OFF)
 end
 
 function MusicOn()
     MusicEnabled = true
-    SetRandomSong()
+    pmem(MUSIC_ENABLED_PMEM_ADDR, PMEM_ON)
+end
+
+function ToggleMusic()
+    if MusicEnabled then
+        MusicOff()
+    else
+        MusicOn()
+    end
+end
+
+function SfxOff()
+    SfxVol = 0
+    pmem(SFX_ENABLED_PMEM_ADDR, PMEM_OFF)
+end
+
+function SfxOn()
+    SfxVol = 15
+    pmem(SFX_ENABLED_PMEM_ADDR, PMEM_ON)
+end
+
+function ToggleSfx()
+    if SfxVol == 0 then
+        SfxOn()
+    else
+        SfxOff()
+    end
+end
+
+
+function LoadMusicAndSoundState()
+    local pmemMusic = pmem(MUSIC_ENABLED_PMEM_ADDR)
+    local pmemSfx = pmem(SFX_ENABLED_PMEM_ADDR)
+
+    MusicEnabled = pmemMusic == PMEM_ON or pmemMusic == 0
+    SfxVol = (pmemSfx == PMEM_ON or pmemSfx == 0) and SFX_VOL_ORIG or 0
+
+    -- not really required, but I want it to be clear when the default value
+    -- was overwritten.
+    pmem(MUSIC_ENABLED_PMEM_ADDR, MusicEnabled and PMEM_ON or PMEM_OFF)
+    pmem(SFX_ENABLED_PMEM_ADDR, (SfxVol == 0) and PMEM_OFF or PMEM_ON)
 end
 
 ---@param number integer
@@ -6485,6 +6530,7 @@ function AppStateTransition(newState)
 end
 
 function BOOT()
+    LoadMusicAndSoundState()
     LoadUnlockedSongs()
     cls(0)
     sync(2, 1, false)
@@ -6517,7 +6563,7 @@ function TIC()
         return
     elseif appState.nSyncDelayTicks and appState.nSyncDelayTicks == 0 then
         appState:enter()
-        appState.nSyncDelayTicks = nil    
+        appState.nSyncDelayTicks = nil
     end
 
 
