@@ -2137,7 +2137,7 @@ end
 ---@param mouse MouseState
 ---@return StMainMenu|nil
 function StIntro:tick(mouse)
-    local mouseClicked = mouse.left or mouse.middle or mouse.right
+    local mouseClicked = mouse.leftTrans == 'down'
     local cur = self.scenes[self.curScene]
 
     cur:tick()
@@ -2189,7 +2189,7 @@ end
 ---@return Button|nil
 function SubMenu:updateButtonsAndDetectClick(mouse)
     return Button.updateButtonsAndDetectClick(
-        self.buttons, mouse.x, mouse.y, mouse.left)
+        self.buttons, mouse.x, mouse.y, mouse.leftTrans == 'down')
 end
 
 function SubMenu:drawButtons()
