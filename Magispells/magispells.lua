@@ -360,7 +360,7 @@ LOAD_STATES_PER_YIELD = 2100
 --- The number of times we expect to yield before loading is complete. This 
 --- number is the denominator in the loading progress.
 ---@type integer
-EXPECTED_N_YIELDS_TO_LOAD = 10
+EXPECTED_N_YIELDS_TO_LOAD = 9
 
 ---@type table<string, integer>
 LETTER_SPRITES = {
@@ -1432,6 +1432,7 @@ IAppState = {}
 ---@field loadingText { text: Text, xPx: number, yPx: number }
 ---@field loadingPercent { text: Text, xPx: number, yPx: number }
 ---@field nYields integer
+---@field finishedLoading boolean
 StLoading = {}
 StLoading.__index = StLoading
 
@@ -1439,7 +1440,7 @@ function StLoading.new()
     local loadingText = { text = Text.new("Unpacking words...") }
     local loadingPercent = { text = Text.new("99%", 'fixed') }
 
-    loadingText.xPx, loadingText.yPx =
+    loadingText.xPx, _ =
         CenterRect(
             SCREEN_W_px,
             SCREEN_H_px,
@@ -1447,10 +1448,10 @@ function StLoading.new()
             loadingText.text.width,
             TILE_H_px
         )
-    -- shift up by one tile
-    loadingText.yPx = loadingText.yPx - TILE_H_px
 
-    loadingPercent.xPx =
+    loadingText.yPx = SCREEN_H_px - TILE_H_px * 4
+
+    loadingPercent.xPx, _ =
         CenterRect(
             SCREEN_W_px,
             SCREEN_H_px,
@@ -1468,12 +1469,24 @@ function StLoading.new()
         loadingPercent = loadingPercent,
 
         nYields = 0,
+        finishedLoading = false
     }, StLoading)
 
     return state
 end
 
-function StLoading:tick(_)
+---@param mouse MouseState
+---@return StIntro|nil
+function StLoading:tick(mouse)
+    if self.finishedLoading then
+
+        if mouse.leftTrans == 'down' then
+            return StIntro.new()
+        end
+
+        return
+    end
+
     local results = table.pack(coroutine.resume(self.dawgThread))
 
     if coroutine.status(self.dawgThread) == "dead" then
@@ -1485,7 +1498,8 @@ function StLoading:tick(_)
         wordDfa = results[2] -- loaded the DFA
         DawgLoaded = true
 
-        return StIntro.new()
+        self.finishedLoading = true
+        --return StIntro.new()
     else
         self.nYields = self.nYields + 1
     end
@@ -1500,10 +1514,17 @@ function StLoading:draw()
 
     -- actual percentage
     local loaded =
-        math.floor(0.5 +  100 * self.nYields / EXPECTED_N_YIELDS_TO_LOAD)
+        math.ceil(100 * self.nYields / EXPECTED_N_YIELDS_TO_LOAD)
     local percentStr = string.format("%2.0f%%", loaded)
     x, y = self.loadingPercent.xPx, self.loadingPercent.yPx
     print(percentStr, x, y, PALETTE.WHITE, true)
+
+    if self.finishedLoading then
+        local msg = 'Click or tap to continue...'
+        --- this ended up being easier than using the node centering functions
+        local msgW = print(msg, SCREEN_W_px, SCREEN_H_px)
+        print(msg, (SCREEN_W_px - msgW) / 2, self.loadingPercent.yPx + TILE_H_px, PALETTE.WHITE)
+    end
 end
 --------------------------------------------------------------------------------
 
@@ -3208,7 +3229,7 @@ function StMainMenu:draw()
     local hover = self.curSub.hoverButton
     if hover then
         local w = print(hover.hint, SCREEN_W_px, SCREEN_H_px)
-        
+
         print(
             hover.hint,
             (SCREEN_W_px - w) / 2 ,
