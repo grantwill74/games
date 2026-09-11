@@ -2864,7 +2864,7 @@ function Sub_Highscores:draw()
         button:draw()
     end
 
-    local headerColor = ((#self.scores == 0) and PALETTE.DK_GRAY) or PALETTE.WHITE
+    local headerColor = ((#self.scores == 0) and PALETTE.DK_GRAY) or PALETTE.YELLOW
 
     -- score header
     local rankx, ranky = self.nRank:pos()
