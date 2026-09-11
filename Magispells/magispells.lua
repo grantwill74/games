@@ -2416,7 +2416,11 @@ function Sub_Title.new()
 
     table.insert(state.buttons, state.btnStartGame)
     table.insert(state.buttons, state.btnHighScores)
-    table.insert(state.buttons, state.btnEnding)
+
+    if pmem(MAX_LVL_REACHED_PMEM_ADDR) > MAX_LEVEL then
+        table.insert(state.buttons, state.btnEnding)
+    end
+
     table.insert(state.buttons, state.btnSfx)
     table.insert(state.buttons, state.btnMusic)
 
@@ -2836,11 +2840,6 @@ function Sub_Highscores.new()
         MENU_HS_BACK_HINT,
         PALETTE.WHITE
     )
-
-    -- testing
-    local hs1 = Highscore.new(999999999, 2, 999999, "hello", 1234)
-    local hs2 = Highscore.new(2000, 5, 4444, "goodbye!", 54321)
-    local hs3 = Highscore.new(3333, 3, 51525, "bork", 99999)
 
     local state = SubMenu.new() --[[@as Sub_HighScores]]
     state.buttons = {back, clear}
