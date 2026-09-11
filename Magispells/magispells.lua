@@ -5742,7 +5742,28 @@ function StInGame_GameOver:draw(node)
     end
 end
 
-CHEATS_ENABLED = true
+CHEAT_ENABLE_CODE = 'nthgthdgdcrtdtrk'
+CHEAT_ENABLE_SFX = 52
+
+CheatProgress = 1
+
+--- Checks to see if the next key of the cheat was pressed. If not, resets the
+--- progress back to zero
+function CheckForCheatProgressAndEnableCheats()
+    if CheatMode or not keyp() then return end
+
+    local p = CheatProgress
+    local expecting = CHEAT_ENABLE_CODE:byte(p, p) - ('a'):byte(1, 1) + 1
+    if keyp(expecting) then
+        CheatProgress = CheatProgress + 1
+        if CheatProgress > #CHEAT_ENABLE_CODE then
+            sfx(CHEAT_ENABLE_SFX, 'C-7', 60, SFX_CHANNEL, SfxVol)
+            CheatMode = true
+        end
+    else
+        CheatProgress = 1
+    end
+end
 
 CHEAT_KEYMAP = {}
 CHEAT_KEYMAP[13] = 'mem_profile' -- M
@@ -5753,7 +5774,7 @@ CHEAT_KEYMAP[21] = 'unlock_stages' -- U
 ---@alias Cheat 'level_up'|'cycle_best_word'|'mem_profile'|'unlock_stages'
 ---@return Cheat|nil
 function CheatKeyPressed()
-    if not CHEATS_ENABLED then
+    if not CheatMode then
         return
     end
 
@@ -6544,6 +6565,8 @@ end
 function TIC()
     Mouse:poll()
     local tx = appState:tick(Mouse)
+
+    CheckForCheatProgressAndEnableCheats()
 
     if tx then
         AppStateTransition(tx)
