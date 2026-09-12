@@ -2739,7 +2739,7 @@ function Sub_NewGame:tick(mouse)
 
         local level = ButtonLevels[button.name]
         local btn = (button --[[@as TextButton]])
-        if level and pmem(MAX_LVL_REACHED_PMEM_ADDR) < level then
+        if level and pmem(MAX_LVL_REACHED_PMEM_ADDR) < level and level > 1 then
             btn.textColor = PALETTE.DK_GRAY
             btn.hint = MENU_NEW_NOT_UNLOCKED_HINT
         else
@@ -2757,7 +2757,7 @@ function Sub_NewGame:tick(mouse)
 
         local level = ButtonLevels[clicked.name]
 
-        if not level or pmem(MAX_LVL_REACHED_PMEM_ADDR) < level then
+        if not level or (pmem(MAX_LVL_REACHED_PMEM_ADDR) < level and level > 1) then
             sfx(SFX.cant, 'C-4', 120, SFX_CHANNEL, SfxVol)
         else
             return level
