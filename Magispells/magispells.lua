@@ -1433,10 +1433,34 @@ IAppState = {}
 ---@field loadingPercent { text: Text, xPx: number, yPx: number }
 ---@field nYields integer
 ---@field finishedLoading boolean
+---@field licenseWidth number
 StLoading = {}
 StLoading.__index = StLoading
+local UK_ADVANCED_CRYPTICS_LICENSE = {
+    "This video game uses a modified version of the UK",
+    "Advanced Cryptics Dictionary which has this license:",
+    "",
+    "UK Advanced Cryptics Dictionary Licensing Information:",
+    "Copyright (C) J Ross Beresford 1993-1999. All Rights Reserved.",
+    "The following restriction is placed on the use of this",
+    "publication: if the Advanced UK Cryptics Dictionary is used",
+    "in a software package or redistributed in any form, the",
+    "copyright notice must be prominently displayed and the text",
+    "of this document must be included verbatim.",
+    "",
+    "There are no other restrictions: I Would like to see the list",
+    "distributed as widely as possible."
+}
+local SFX_LOADING_COMPLETE = 53
 
 function StLoading.new()
+    local licenseWidth = 0
+    for i=1, #UK_ADVANCED_CRYPTICS_LICENSE do
+        licenseWidth = math.max(licenseWidth,
+            print(UK_ADVANCED_CRYPTICS_LICENSE[i], SCREEN_W_px, SCREEN_H_px,
+        0, false, 1, true))
+    end
+
     local loadingText = { text = Text.new("Unpacking words...") }
     local loadingPercent = { text = Text.new("99%", 'fixed') }
 
@@ -1445,21 +1469,14 @@ function StLoading.new()
             SCREEN_W_px,
             SCREEN_H_px,
             0, 0,
-            loadingText.text.width,
+            loadingText.text.width + loadingPercent.text.width + TILE_W_px,
             TILE_H_px
         )
 
-    loadingText.yPx = SCREEN_H_px - TILE_H_px * 4
+    loadingText.yPx = SCREEN_H_px - TILE_H_px * 3
 
-    loadingPercent.xPx, _ =
-        CenterRect(
-            SCREEN_W_px,
-            SCREEN_H_px,
-            0, 0,
-            loadingPercent.text.width,
-            TILE_H_px
-        )
-    loadingPercent.yPx = loadingText.yPx + TILE_H_px
+    loadingPercent.xPx = loadingText.xPx + loadingText.text.width + TILE_W_px
+    loadingPercent.yPx = loadingText.yPx
 
     local state = setmetatable({
         dawgThread = Dfa.startParsingDawg(Dawg),
@@ -1469,7 +1486,8 @@ function StLoading.new()
         loadingPercent = loadingPercent,
 
         nYields = 0,
-        finishedLoading = false
+        finishedLoading = false,
+        licenseWidth = licenseWidth
     }, StLoading)
 
     return state
@@ -1499,6 +1517,7 @@ function StLoading:tick(mouse)
         DawgLoaded = true
 
         self.finishedLoading = true
+        sfx(SFX_LOADING_COMPLETE, 'C-7', 60, SFX_CHANNEL, SfxVol)
         --return StIntro.new()
     else
         self.nYields = self.nYields + 1
@@ -1507,7 +1526,16 @@ function StLoading:tick(mouse)
     return nil
 end
 
+
+
 function StLoading:draw()
+    for i=1, #UK_ADVANCED_CRYPTICS_LICENSE do
+        local x = (SCREEN_W_px - self.licenseWidth) / 2
+        print(UK_ADVANCED_CRYPTICS_LICENSE[i], x, TILE_H_px * (i - 1),
+            PALETTE.WHITE, false, 1, true)
+    end
+    
+
     local x, y = self.loadingText.xPx, self.loadingText.yPx
     local color = PALETTE.WHITE
     print(self.loadingText.text.text, x, y, color)
@@ -1519,7 +1547,8 @@ function StLoading:draw()
     x, y = self.loadingPercent.xPx, self.loadingPercent.yPx
     print(percentStr, x, y, PALETTE.WHITE, true)
 
-    if self.finishedLoading then
+    -- hacky: just needed some kind of periodic timer
+    if self.finishedLoading and ColorCyclePhase % 64 < 32 then
         local msg = 'Click or tap to continue...'
         --- this ended up being easier than using the node centering functions
         local msgW = print(msg, SCREEN_W_px, SCREEN_H_px)
