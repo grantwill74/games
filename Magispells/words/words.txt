@@ -14433,7 +14433,6 @@ cotises
 cotising
 cotland
 cotlands
-cotquean
 cots
 cott
 cotta
@@ -25116,12 +25115,6 @@ floorer
 floorers
 flooring
 floors
-floosie
-floosies
-floosy
-floozie
-floozies
-floozy
 flop
 flopped
 floppier
@@ -32728,8 +32721,6 @@ huss
 hussar
 hussars
 husses
-hussies
-hussy
 hustings
 hustle
 hustled
@@ -42087,8 +42078,6 @@ minutest
 minutia
 minutiae
 minuting
-minx
-minxes
 miny
 minyan
 minyanim
@@ -53917,8 +53906,6 @@ quays
 quayside
 queach
 queachy
-quean
-queans
 queasier
 queasily
 queasy
@@ -72385,9 +72372,6 @@ trolleys
 trollies
 trolling
 trollius
-trollop
-trollops
-trollopy
 trolls
 trolly
 trombone
@@ -72537,8 +72521,6 @@ trugs
 truism
 truisms
 truistic
-trull
-trulls
 truly
 trumeau
 trumeaux
