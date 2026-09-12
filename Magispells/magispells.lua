@@ -4669,8 +4669,10 @@ function LetterParticleEmitter:tick()
     self.particles = alive
 end
 
----@alias ActionFun fun(self: ---@field ticsLeft integer
+---@class DelayAction
+---@field ticsLeft integer
 ---@field action ActionFun
+---@alias ActionFun fun(self: StInGame)
 DelayAction = {}
 
 ---@param ticsLeft integer
@@ -4747,6 +4749,7 @@ BTN_LEAVE_NAME = 'btn leave'
 BTN_LEAVE_HINT = 'Abandon game!'
 
 BONUS_SCORE_PER_CHANCE = 1000
+IN_GAME_NEW_LEVEL_SPAWN_DELAY = 60
 
 ---comment
 ---@param lvlStart integer|nil
@@ -4935,6 +4938,7 @@ function StInGame:newGame(levelStart)
     self.postGameOver = false
     self.hoverButton = nil
     self.startLevel = levelStart
+    self.delayTicks = 1
 
     self.wispell:restoreInterest()
 
@@ -4947,6 +4951,11 @@ function StInGame:newGame(levelStart)
 --    self.grid.cols[1][1] = GridTile.new('b', 0, 'normal')
 --    self.grid.cols[2][1] = GridTile.new('t', 0, 'normal')
     self:spawnTiles()
+
+    self:delayAction(
+        IN_GAME_NEW_LEVEL_SPAWN_DELAY,
+        function (_) end -- no op, just don't accept mouse events for a sec
+    )
 end
 
 ---@return SpawnTilesResult
@@ -5336,6 +5345,10 @@ function StInGame:levelUp()
     self.grid:clearAllTiles()
     self:spawnTiles()
 
+    self:delayAction(
+        IN_GAME_NEW_LEVEL_SPAWN_DELAY,
+        function (_) end -- no op, just don't accept mouse events for a sec
+    )
 end
 
 ---make it so that every gap has everything above it fall down
@@ -5791,7 +5804,7 @@ function StInGame_GameOver:draw(node)
     end
 end
 
-CHEAT_ENABLE_CODE = 'nthgthdgdcrtdtrk'
+CHEAT_ENABLE_CODE = 'nthgthdgdcrtdtrk' -- it's been 3 decades and I still remember this cheat
 CHEAT_ENABLE_SFX = 52
 
 CheatProgress = 1
