@@ -2331,11 +2331,16 @@ MENU_TOGGLE_SFX_OFFY = SCREEN_H_px - BTN_SIMPLE_H
 MENU_TOGGLE_MUSIC_OFFX = MENU_TOGGLE_SFX_OFFX - BTN_SIMPLE_W
 MENU_TOGGLE_MUSIC_OFFY = MENU_TOGGLE_SFX_OFFY
 
+MENU_TM_OFFX = 210
+MENU_TM_OFFY = 20
+
 function DrawTitleLetters()
     for i, node in ipairs(TitleLetterNodes) do
         local lx, ly = node:pos()
         RenderLetter(MagispellsChars[i], MagispellsElems[i], lx, ly)
     end
+
+    print("TM", MENU_TM_OFFX, MENU_TM_OFFY, PALETTE.WHITE)
 end
 
 ---@return Sub_Title
