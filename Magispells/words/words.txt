@@ -44877,8 +44877,6 @@ niftily
 nifty
 nigella
 nigellas
-niggard
-niggards
 niggle
 niggled
 niggler
@@ -56095,9 +56093,6 @@ renews
 renforce
 renied
 reniform
-renig
-renigged
-renigs
 renin
 renitent
 renminbi
